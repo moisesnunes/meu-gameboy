@@ -2,6 +2,10 @@
 
 A Game Boy, Game Boy Color, and Game Boy Advance emulator written in C.
 
+![Vector renderer — GBC and DMG side by side](img/mode-vector.png)
+
+![Debug UI — CPU, disassembly, SM83 die view, memory](img/debug.png)
+
 ## Features
 
 - **Game Boy / Game Boy Color**: Full SM83 CPU emulation, PPU with scanline renderer, APU (CH1–CH4), MBC1/MBC3/MBC5 cartridge support, RTC, DMA/HDMA
@@ -59,6 +63,8 @@ The `roms/` directory is not included in this repository. Compatible test suites
 - [Mooneye GB test suite](https://github.com/Gekkio/mooneye-gb)
 - [Game Boy Test ROMs](https://github.com/c-sp/game-boy-test-roms)
 - [GBA Test ROMs](https://github.com/mgba-emu/suite)
+
+
 
 ## Project Structure
 

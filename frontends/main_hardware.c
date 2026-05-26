@@ -471,7 +471,7 @@ static bool frontend_init(struct gb *gb, const char *exe_path, const char *skin_
     int win_h = 720;
     int win_w = (int)((float)win_h * ctx->skin.img_w / ctx->skin.img_h);
 
-    ctx->window = SDL_CreateWindow("Gaembuoy — Hardware",
+    ctx->window = SDL_CreateWindow("meu-gameboy — Hardware",
                                    win_w, win_h,
                                    SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!ctx->window) {

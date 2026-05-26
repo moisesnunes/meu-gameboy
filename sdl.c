@@ -262,7 +262,7 @@ void gb_sdl_frontend_init(struct gb *gb)
      SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
      ctx->window = SDL_CreateWindow(
-         "Gaembuoy",
+         "meu-gameboy",
          1600, 900,
          SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
      if (!ctx->window)

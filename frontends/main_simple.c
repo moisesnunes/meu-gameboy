@@ -214,7 +214,7 @@ static bool frontend_init(struct gb *gb)
     }
 
     ctx->window = SDL_CreateWindow(
-        "Gaembuoy",
+        "meu-gameboy",
         GB_LCD_WIDTH * 4, GB_LCD_HEIGHT * 4,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!ctx->window) {

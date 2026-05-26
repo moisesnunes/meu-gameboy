@@ -1199,7 +1199,7 @@ static bool frontend_init(struct gb *gb)
     int win_h = 720;
     int win_w = (int)((float)win_h * DMG_ASPECT_W / DMG_ASPECT_H);
 
-    ctx->window = SDL_CreateWindow("Gaembuoy", win_w, win_h,
+    ctx->window = SDL_CreateWindow("meu-gameboy", win_w, win_h,
                                    SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!ctx->window) {
         fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
