@@ -1,0 +1,11 @@
+# path	mode	expect	max_cycles	sha1
+# Blargg OAM bug: LCD/OAM access timing, OAM corruption causes/non-causes,
+# scanline timing, instruction interaction, and sprite timing effects.
+roms/blargg-test-roms-master/oam_bug/oam_bug.gb	dmg	blargg	503316480	
+glob:roms/blargg-test-roms-master/oam_bug/rom_singles/*.gb	dmg	blargg	503316480	
+# Visual PPU references: full-frame DMG/CGB renderer correctness.
+roms/dmg-acid2.gb	dmg	visual	70224000	
+roms/cgb-acid2.gbc	gbc	visual	70224000	
+# Mooneye PPU acceptance: STAT modes/interrupts, LCD enable timing,
+# LY/LYC behavior, SCX/HBlank timing, and sprite-extended Mode 3.
+glob:roms/mooneye-test-suite/acceptance/ppu/*.gb	auto	mooneye	100000000	

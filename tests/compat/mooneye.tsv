@@ -1,0 +1,3 @@
+# path	mode	expect	max_cycles	sha1
+glob:roms/mooneye-test-suite/acceptance/**/*.gb	auto	mooneye	100000000	
+glob:roms/mooneye-test-suite/emulator-only/**/*.gb	auto	mooneye	100000000	

@@ -1,0 +1,63 @@
+# GBA compat manifest
+# Formato: path<TAB>expect<TAB>max_cycles<TAB>expected_sha1
+#
+# expect: auto | endrift | visual
+#
+# gba-tests-master: a maioria imprime texto de pass/fail detectado pelo harness.
+# Os três demos PPU não emitem marcador textual, então ficam como snapshots
+# determinísticos validados por hash.
+{gba_root}/gba-tests-master/arm/arm.gba	visual	35000000
+{gba_root}/gba-tests-master/bios/bios.gba	visual	35000000
+{gba_root}/gba-tests-master/memory/memory.gba	visual	35000000
+{gba_root}/gba-tests-master/nes/nes.gba	visual	35000000
+{gba_root}/gba-tests-master/ppu/hello.gba	visual	35000000	174e7e3f3611886e514aab5050b6eb3567e96e98
+{gba_root}/gba-tests-master/ppu/shades.gba	visual	35000000	45b44c88867a840c7826cec2f2503dd45fc7e21e
+{gba_root}/gba-tests-master/ppu/stripes.gba	visual	35000000	9b21b5d83c61fc56b0a1722ff318471da48c3a75
+{gba_root}/gba-tests-master/save/flash128.gba	visual	35000000
+{gba_root}/gba-tests-master/save/flash64.gba	visual	35000000
+{gba_root}/gba-tests-master/save/none.gba	visual	35000000
+{gba_root}/gba-tests-master/save/sram.gba	visual	35000000
+{gba_root}/gba-tests-master/thumb/thumb.gba	visual	35000000
+{gba_root}/gba-tests-master/unsafe/unsafe.gba	visual	35000000
+
+# FuzzARM cobre operações ARM/THUMB geradas aleatoriamente e imprime
+# "End of testing" ao terminar sem falhas.
+glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000
+
+# armwrestler-gba-fixed exige START para iniciar o primeiro bloco de ALU; mantemos
+# como snapshot visual enquanto o runner não navega automaticamente por todas as
+# telas. Não use o armwrestler.gba antigo como alvo do ARM V5TE: esse menu aponta
+# para um stub quebrado que entra em THUMB no main ARM e acaba em tela preta.
+{gba_root}/armwrestler-gba-fixed-master/armwrestler-gba-fixed.gba	visual	500000000	744b0baca2e960df57044aef295c79abc93e05df	--input START:30:45
+
+# AGB_CHECKER é o cartucho oficial de aging/checker da Nintendo; por enquanto
+# fica registrado como alvo visual macro, não como regressão bloqueante: a
+# captura atual é tela branca e o harness ainda reporta SWI_UNKNOWN_ARM.
+{gba_root}/AGB_CHECKER_TCHK30.gba	visual	50000000
+
+# hw-test-master usa console libgba; cobrimos timers, IRQ, DMA, bus e PPU aos poucos.
+{gba_root}/hw-test-master/timer/start-stop/start-stop.gba	visual	100000000
+{gba_root}/hw-test-master/timer/reload/reload.gba	visual	100000000
+{gba_root}/hw-test-master/irq/irq-delay/irq-delay.gba	visual	100000000	16bad75d7c8093728184bb9f3b4221c96e94f0e8
+{gba_root}/hw-test-master/archive/irq/cancel-irq-ie/cancel-irq-ie.gba	visual	100000000
+{gba_root}/hw-test-master/archive/irq/cancel-irq-if/cancel-irq-if.gba	visual	100000000	05821ad4976855adf82ff7ae62d9d64d2a999db8
+{gba_root}/hw-test-master/archive/irq/cancel-irq-ime/cancel-irq-ime.gba	visual	100000000	8eedd57f42106e4b59a10b32c02ccca936e4cc62
+{gba_root}/hw-test-master/haltcnt/haltcnt.gba	visual	100000000
+{gba_root}/hw-test-master/dma/start-delay/start-delay.gba	visual	100000000
+{gba_root}/hw-test-master/dma/latch/latch.gba	visual	100000000
+{gba_root}/hw-test-master/dma/burst-into-tears/burst-into-tears.gba	visual	100000000
+{gba_root}/hw-test-master/dma/force-nseq-access/force-nseq-access.gba	visual	100000000
+{gba_root}/hw-test-master/bus/128kb-boundary/128kb-boundary.gba	visual	100000000	c97a26a6ee8bb9aba1a99e28311a5de44e2362e3
+{gba_root}/hw-test-master/archive/ppu/basic-timing/basic-timing.gba	visual	100000000
+{gba_root}/hw-test-master/archive/ppu/exact-timing/exact-timing.gba	visual	100000000
+{gba_root}/hw-test-master/archive/ppu/mode2/mode2.gba	visual	100000000
+{gba_root}/hw-test-master/archive/ppu/mode3/mode3.gba	visual	100000000
+{gba_root}/hw-test-master/archive/ppu/mode4/mode4.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/bgx/bgx.gba	visual	100000000	e0fa97ebdf3245ef99692697ed5c019b520fc55e
+{gba_root}/hw-test-master/ppu/bgpd/bgpd.gba	visual	100000000	2bff5fdbaeefdd83381863ec3fcf15a969ab535c
+{gba_root}/hw-test-master/ppu/dispcnt-latch/dispcnt-latch.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/ram-access-timing/ram-access-timing.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/sprite-hmosaic/sprite-hmosaic.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/vram-mirror/vram-mirror.gba	visual	100000000	0053ced99f06938eac54b91080e6fc109dcc00ea

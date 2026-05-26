@@ -1,0 +1,4 @@
+Gaembuoy compatibility summary
+manifest=tests/compat/manifest.tsv
+result=tests/compat/out/compat.txt
+

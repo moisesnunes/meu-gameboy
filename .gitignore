@@ -1,0 +1,54 @@
+# Build artifacts
+build/
+*.o
+*.d
+*.a
+
+# Compiled binaries (Makefile targets)
+gameboy
+gameboy-simple
+gameboy-hardware
+gameboy-vector
+meu-gba
+rom_tester
+compat_test
+gba_compat_test
+sm83_netlist_validate
+
+# ImGui / UI generated state
+*.ini
+
+# ROM collections (large + copyright)
+roms/
+
+# Documentação interna (não publicar)
+docs/
+
+# Test execution outputs
+tests/compat/out/
+tests/compat/out-ppu/
+tests/games/out/
+tests/games/out-after-*/
+tests/games/out-target/
+tests/gba_compat/out/
+tests/shootout/out/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor/IDE local config
+.vscode/
+.idea/
+*.swp
+*~
+
+# Claude Code local files
+.claude/
+.agents/
+.codex/
