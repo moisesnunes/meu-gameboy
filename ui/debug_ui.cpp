@@ -129,7 +129,7 @@ static bool s_show_hw_schematic = false;
 /* ────────────────────────────────────────────────────────── */
 static int s_debug_font_size = 1; /* 0=pequena, 1=normal, 2=grande, 3=enorme */
 
-static const char *UI_CONFIG_PATH = "gaembuoy_ui.ini";
+static const char *UI_CONFIG_PATH = "meu-gameboy_ui.ini";
 
 static float debug_font_scale(void)
 {
@@ -255,7 +255,7 @@ static void capture_ui_config(debug_ui_config *cfg)
 
 static void rewind_slot_path(int slot, char *path, size_t path_len)
 {
-     snprintf(path, path_len, "/tmp/gaembuoy-rewind-%02d.gbst", slot);
+     snprintf(path, path_len, "/tmp/meu-gameboy-rewind-%02d.gbst", slot);
 }
 
 static void rewind_reset(void)

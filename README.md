@@ -36,6 +36,7 @@ make meu-gba
 
 # Minimal Game Boy (no UI, SDL only)
 make gameboy-simple
+make gameboy-vector
 ```
 
 ## Usage

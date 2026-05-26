@@ -70,7 +70,7 @@ static std::string safe_rom_title(struct gb *gb)
                out += '_';
      }
 
-     return out.empty() ? "gaembuoy" : out;
+     return out.empty() ? "meu-gameboy" : out;
 }
 
 bool debug_ui_action_save_screenshot(struct gb *gb, char *message, size_t message_len)
