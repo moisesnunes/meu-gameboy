@@ -1,0 +1,457 @@
+status	suite	name	model	expect	rom	refs	matched_ref	cycles	seconds	exit_code	output	stderr
+PASS	Mooneye	mooneye-test-suite/acceptance/add sp e timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/add_sp_e_timing.gb			100000000	0.042	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/add_sp_e_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/add_sp_e_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/bits/mem oam (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/mem_oam.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/mem_oam.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/mem_oam.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/bits/reg f (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/reg_f.gb			100000000	0.034	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/reg_f.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/reg_f.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/bits/unused hwio-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb			100000000	0.034	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot div-S (SGB)	SGB	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-S.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-S.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-S.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot div-dmg0 (DMG0)	DMG0	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmg0.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmg0.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmg0.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot div-dmgABCmgb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot div2-S (SGB2)	SGB2	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div2-S.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div2-S.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_div2-S.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot hwio-S (SGB)	SGB	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-S.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-S.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-S.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot hwio-dmg0 (DMG0)	DMG0	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmg0.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmg0.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmg0.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot hwio-dmgABCmgb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmgABCmgb.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmgABCmgb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_hwio-dmgABCmgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot regs-dmg0 (DMG0)	DMG0	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmg0.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmg0.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmg0.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot regs-dmgABC (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmgABC.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmgABC.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-dmgABC.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot regs-mgb (MGB)	MGB	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-mgb.gb			100000000	0.034	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-mgb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-mgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot regs-sgb (SGB)	SGB	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb.gb			100000000	0.050	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/boot regs-sgb2 (SGB2)	SGB2	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb2.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb2.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/boot_regs-sgb2.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/call cc timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/call cc timing2 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing2.gb			100000000	0.042	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing2.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_cc_timing2.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/call timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/call timing2 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing2.gb			100000000	0.041	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing2.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/call_timing2.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/di timing-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/di_timing-GS.gb			100000000	0.042	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/di_timing-GS.gb	cycles=1123584	frames=8	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/di_timing-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/div timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/div_timing.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/div_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/div_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ei sequence (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_sequence.gb			100000000	0.031	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_sequence.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_sequence.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ei timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_timing.gb			100000000	0.031	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ei_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/halt ime0 ei (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_ei.gb			100000000	0.028	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_ei.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_ei.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/halt ime0 nointr timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb			100000000	0.037	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/halt ime1 timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing.gb			100000000	0.031	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/halt ime1 timing2-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb			100000000	0.045	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb	cycles=1334256	frames=11	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/if ie registers (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/if_ie_registers.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/if_ie_registers.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/if_ie_registers.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/instr/daa (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/instr/daa.gb			100000000	0.072	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/instr/daa.gb	cycles=1615152	frames=15	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/instr/daa.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/interrupts/ie push (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/interrupts/ie_push.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/interrupts/ie_push.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/interrupts/ie_push.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/intr timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/intr_timing.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/intr_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/intr_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/jp cc timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_cc_timing.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_cc_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_cc_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/jp timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_timing.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/jp_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ld hl sp e timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma/basic (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/basic.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/basic.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/basic.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma/reg read (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/reg_read.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/reg_read.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/reg_read.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma/sources-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/sources-GS.gb			100000000	0.094	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/sources-GS.gb	cycles=2598288	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma/sources-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma restart (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_restart.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_restart.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_restart.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma start (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_start.gb			100000000	0.042	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_start.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_start.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/oam dma timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_timing.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/oam_dma_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/pop timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/pop_timing.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/pop_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/pop_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/hblank ly scx timing-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb			100000000	0.146	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb	cycles=3370752	frames=40	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/intr 1 2 timing-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb			100000000	0.036	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/intr 2 0 timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb			100000000	0.035	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb	cycles=912912	frames=5	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/intr 2 mode0 timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb			100000000	0.035	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb	cycles=912912	frames=5	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+FAIL	Mooneye	mooneye-test-suite/acceptance/ppu/intr 2 mode0 timing sprites (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb			100000000	0.673	1	"FAIL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb	cycles=15519504	frames=197	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/intr 2 mode3 timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb			100000000	0.035	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb	cycles=912912	frames=5	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/intr 2 oam ok timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb			100000000	0.035	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb	cycles=912912	frames=5	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/lcdon timing-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb			100000000	0.088	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb	cycles=2176944	frames=18	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/lcdon write timing-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb			100000000	0.163	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb	cycles=3932544	frames=41	serial=""\x03\x05\x08"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/stat irq blocking (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb			100000000	0.032	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb	cycles=842688	frames=4	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/stat lyc onoff (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb	cycles=983136	frames=7	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ppu/vblank stat intr-GS (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb			100000000	0.046	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb	cycles=1334256	frames=11	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/push timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/push_timing.gb			100000000	0.037	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/push_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/push_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/rapid di ei (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rapid_di_ei.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rapid_di_ei.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rapid_di_ei.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ret cc timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_cc_timing.gb			100000000	0.042	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_cc_timing.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_cc_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/ret timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_timing.gb			100000000	0.043	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_timing.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/ret_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/reti intr timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_intr_timing.gb			100000000	0.032	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_intr_timing.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_intr_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/reti timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_timing.gb			100000000	0.064	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_timing.gb	cycles=1053360	frames=7	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/reti_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/rst timing (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rst_timing.gb			100000000	0.040	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rst_timing.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/rst_timing.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/serial/boot sclk align-dmgABCmgb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/serial/boot_sclk_align-dmgABCmgb.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/serial/boot_sclk_align-dmgABCmgb.gb	cycles=772464	frames=3	serial=""\x00\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/serial/boot_sclk_align-dmgABCmgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/div write (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/div_write.gb			100000000	0.181	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/div_write.gb	cycles=3651648	frames=44	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/div_write.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/rapid toggle (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/rapid_toggle.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/rapid_toggle.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/rapid_toggle.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim00 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim00 div trigger (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim01 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim01 div trigger (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim10 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim10 div trigger (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim11 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tim11 div trigger (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tima reload (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_reload.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_reload.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_reload.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tima write reloading (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_write_reloading.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_write_reloading.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tima_write_reloading.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/acceptance/timer/tma write reloading (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tma_write_reloading.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tma_write_reloading.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/acceptance/timer/tma_write_reloading.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/bits bank1 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb			100000000	0.528	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb	cycles=12570096	frames=171	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/bits bank2 (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb			100000000	0.657	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb	cycles=12359424	frames=168	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 4 (32KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/bits mode (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_mode.gb			100000000	0.664	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_mode.gb	cycles=12570096	frames=171	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_mode.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 4 (32KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/bits ramg (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_ramg.gb			100000000	1.098	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_ramg.gb	cycles=24508176	frames=341	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/bits_ramg.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/multicart rom 8Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/multicart_rom_8Mb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/multicart_rom_8Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/multicart_rom_8Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 64 (1024KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/ram 256kb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_256kb.gb			100000000	0.203	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_256kb.gb	cycles=3932544	frames=48	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_256kb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 4 (32KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/ram 64kb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb			100000000	0.193	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb	cycles=3932544	frames=48	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 16Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_16Mb.gb			100000000	0.041	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_16Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_16Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 128 (2048KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 1Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_1Mb.gb			100000000	0.041	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_1Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_1Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 8 (128KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 2Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_2Mb.gb			100000000	0.040	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_2Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_2Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 16 (256KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 4Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_4Mb.gb			100000000	0.041	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_4Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_4Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 32 (512KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 512kb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_512kb.gb			100000000	0.040	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_512kb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_512kb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc1/rom 8Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_8Mb.gb			100000000	0.045	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_8Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc1/rom_8Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 64 (1024KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/bits ramg (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_ramg.gb			100000000	1.143	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_ramg.gb	cycles=24999744	frames=348	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_ramg.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/bits romb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_romb.gb			100000000	0.567	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_romb.gb	cycles=13131888	frames=179	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_romb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/bits unused (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_unused.gb			100000000	0.473	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_unused.gb	cycles=12289200	frames=167	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/bits_unused.gb
+Title: 'mooneye-gb test'
+ROM banks: 16 (256KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/ram (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/ram.gb			100000000	0.084	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/ram.gb	cycles=2036496	frames=21	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/ram.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/rom 1Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 8 (128KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/rom 2Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 16 (256KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc2/rom 512kb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb			100000000	0.030	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 16Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_16Mb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_16Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_16Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 128 (2048KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 1Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb			100000000	0.038	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 8 (128KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 2Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_2Mb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_2Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_2Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 16 (256KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 32Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_32Mb.gb			100000000	0.041	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_32Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_32Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 256 (4096KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 4Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_4Mb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_4Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_4Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 32 (512KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 512kb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb
+Title: 'mooneye-gb test'
+ROM banks: 4 (64KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 64Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_64Mb.gb			100000000	0.043	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_64Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_64Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 512 (8192KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/emulator-only/mbc5/rom 8Mb (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_8Mb.gb			100000000	0.039	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_8Mb.gb	cycles=983136	frames=6	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/emulator-only/mbc5/rom_8Mb.gb
+Title: 'mooneye-gb test'
+ROM banks: 64 (1024KiB)
+RAM banks: 0 (0KiB)"
+TIMEOUT	Mooneye	mooneye-test-suite/madness/mgb oam dma halt sprites (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/madness/mgb_oam_dma_halt_sprites.gb			100000000	1.871	124	"TIMEOUT	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/madness/mgb_oam_dma_halt_sprites.gb	cycles=100000000	frames=1415	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/madness/mgb_oam_dma_halt_sprites.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/misc/bits/unused hwio-C (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/bits/unused_hwio-C.gb			100000000	0.028	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/bits/unused_hwio-C.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/bits/unused_hwio-C.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+FAIL	Mooneye	mooneye-test-suite/misc/boot div-A (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-A.gb			100000000	0.028	1	"FAIL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-A.gb	cycles=772464	frames=3	serial=""BBBBB"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-A.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/misc/boot div-cgb0 (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgb0.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgb0.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgb0.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/misc/boot div-cgbABCDE (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgbABCDE.gb			100000000	0.028	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgbABCDE.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_div-cgbABCDE.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/misc/boot hwio-C (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_hwio-C.gb			100000000	0.029	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_hwio-C.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15\"""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_hwio-C.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+FAIL	Mooneye	mooneye-test-suite/misc/boot regs-A (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-A.gb			100000000	0.028	1	"FAIL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-A.gb	cycles=772464	frames=3	serial=""BBBB"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-A.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Mooneye	mooneye-test-suite/misc/boot regs-cgb (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-cgb.gb			100000000	0.028	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-cgb.gb	cycles=772464	frames=3	serial=""\x03\x05\x08\r\x15"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/boot_regs-cgb.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+FAIL	Mooneye	mooneye-test-suite/misc/ppu/vblank stat intr-C (GBC)	GBC	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/ppu/vblank_stat_intr-C.gb			100000000	0.046	1	"FAIL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/ppu/vblank_stat_intr-C.gb	cycles=1334256	frames=11	serial=""BBBBB"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/misc/ppu/vblank_stat_intr-C.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+TIMEOUT	Mooneye	mooneye-test-suite/utils/bootrom dumper (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/bootrom_dumper.gb			100000000	1.868	124	"TIMEOUT	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/bootrom_dumper.gb	cycles=100000000	frames=1420	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/bootrom_dumper.gb
+Title: 'DUMPER'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (2KiB)"
+PASS	Mooneye	mooneye-test-suite/utils/dump boot hwio (DMG)	DMG	fib	roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/dump_boot_hwio.gb			100000000	0.027	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/dump_boot_hwio.gb	cycles=772464	frames=3	serial=""\x03"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/mooneye-test-suite/utils/dump_boot_hwio.gb
+Title: 'mooneye-gb test'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"

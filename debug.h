@@ -112,6 +112,52 @@ struct gb_cpu_viz {
 #define GB_VIZ_STAGE_EXECUTE 2
 #define GB_VIZ_STAGE_IRQ     3
 
+/* ────────────────────────────────────────────────────────── */
+/* Hardware Trace Ring Buffer (Fase C)                          */
+/* ────────────────────────────────────────────────────────── */
+
+typedef enum {
+    GB_HW_EVT_NONE = 0,
+    GB_HW_EVT_CPU_FETCH,
+    GB_HW_EVT_CPU_READ,
+    GB_HW_EVT_CPU_WRITE,
+    GB_HW_EVT_IRQ_REQUEST,
+    GB_HW_EVT_IRQ_ACK,
+    GB_HW_EVT_DMA_READ,
+    GB_HW_EVT_DMA_WRITE,
+    GB_HW_EVT_PPU_MODE,
+    GB_HW_EVT_APU_SAMPLE,
+    /* Fase E */
+    GB_HW_EVT_PPU_VBLANK,   /* PPU entrou em VBlank (LY=144)       */
+    GB_HW_EVT_PPU_HBLANK,   /* PPU entrou em HBlank                */
+    GB_HW_EVT_OAM_DMA,      /* OAM DMA copiou 1 byte → OAM        */
+    GB_HW_EVT_TIMER_OVF,    /* TIMA overflow → IRQ timer           */
+    GB_HW_EVT_APU_WRITE,    /* write em registrador APU (0xFF10-3F)*/
+    GB_HW_EVT_JOYPAD,       /* botão pressionado/solto             */
+} gb_hw_trace_event_type;
+
+typedef struct {
+    uint64_t               seq;
+    int32_t                timestamp;
+    gb_hw_trace_event_type type;
+    uint16_t               pc;
+    uint8_t                opcode;
+    uint16_t               addr;
+    uint8_t                data;
+    bool                   write;
+    uint8_t                extra;
+} gb_hw_trace_event;
+
+#define GB_HW_TRACE_CAP 4096
+
+struct gb_hw_trace {
+    gb_hw_trace_event events[GB_HW_TRACE_CAP];
+    uint32_t          head;
+    uint32_t          count;
+    uint64_t          next_seq;
+    bool              enabled;
+};
+
 struct gb_debug {
     bool            enabled;
     gb_debug_state  state;
@@ -144,6 +190,9 @@ struct gb_debug {
     /* ── Hardware visualization data ── */
     struct gb_sys_viz sys_viz;
     struct gb_cpu_viz cpu_viz;
+
+    /* ── Hardware trace ring buffer (Fase C) ── */
+    struct gb_hw_trace hw_trace;
 };
 
 void     gb_debug_init            (struct gb *gb);
@@ -164,5 +213,18 @@ void     gb_debug_check_watchpoint(struct gb *gb, uint16_t addr, gb_watchpoint_t
 void     gb_debug_step_over       (struct gb *gb);
 void     gb_debug_step_out        (struct gb *gb);
 uint16_t gb_debug_get_next_instr_addr(struct gb *gb);  /* próximo endereço após a instrução atual */
+
+/* Hardware trace helpers — no-ops when hw_trace.enabled == false */
+void gb_debug_hw_trace_cpu_fetch (struct gb *gb, uint16_t pc, uint8_t opcode);
+void gb_debug_hw_trace_cpu_read  (struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_cpu_write (struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_irq       (struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_reg);
+/* Fase E helpers */
+void gb_debug_hw_trace_ppu_vblank(struct gb *gb, uint8_t ly);
+void gb_debug_hw_trace_ppu_hblank(struct gb *gb, uint8_t ly);
+void gb_debug_hw_trace_oam_dma   (struct gb *gb, uint8_t pos, uint8_t data);
+void gb_debug_hw_trace_timer_ovf (struct gb *gb, uint8_t tma);
+void gb_debug_hw_trace_apu_write (struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_joypad    (struct gb *gb, uint8_t state, bool pressed);
 
 #endif /* _GB_DEBUG_H_ */

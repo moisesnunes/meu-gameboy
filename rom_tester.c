@@ -216,6 +216,9 @@ static void reset_gb(struct gb *gb, const char *rom_path)
     gb->iram_high_bank       = 1;
     gb->vram_high_bank       = false;
     gb->ir_port              = 0;
+    gb->cgb_reg_ff72         = 0;
+    gb->cgb_reg_ff73         = 0;
+    gb->cgb_reg_ff75         = 0;
 
     memset(gb->iram,  0, sizeof(gb->iram));
     memset(gb->zram,  0, sizeof(gb->zram));

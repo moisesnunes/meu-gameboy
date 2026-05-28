@@ -6,7 +6,7 @@
 #include "state.h"
 
 #define GB_STATE_MAGIC "GBST0001"
-#define GB_STATE_VERSION 4u
+#define GB_STATE_VERSION 5u
 
 struct gb_state_header
 {
@@ -229,10 +229,13 @@ bool gb_state_save(struct gb *gb, const char *path)
          !state_write(f, &spu, sizeof(spu)) ||
          !state_write(f, &gb->iram, sizeof(gb->iram)) ||
          !state_write(f, &gb->iram_high_bank, sizeof(gb->iram_high_bank)) ||
-         !state_write(f, &gb->zram, sizeof(gb->zram)) ||
-         !state_write(f, &gb->vram, sizeof(gb->vram)) ||
-         !state_write(f, &gb->vram_high_bank, sizeof(gb->vram_high_bank)) ||
-         !state_write(f, &gb->bootrom_mapped, sizeof(gb->bootrom_mapped)) ||
+	         !state_write(f, &gb->zram, sizeof(gb->zram)) ||
+	         !state_write(f, &gb->vram, sizeof(gb->vram)) ||
+	         !state_write(f, &gb->vram_high_bank, sizeof(gb->vram_high_bank)) ||
+	         !state_write(f, &gb->cgb_reg_ff72, sizeof(gb->cgb_reg_ff72)) ||
+	         !state_write(f, &gb->cgb_reg_ff73, sizeof(gb->cgb_reg_ff73)) ||
+	         !state_write(f, &gb->cgb_reg_ff75, sizeof(gb->cgb_reg_ff75)) ||
+	         !state_write(f, &gb->bootrom_mapped, sizeof(gb->bootrom_mapped)) ||
          (gb->cart.ram_length > 0 &&
           !state_write(f, gb->cart.ram, gb->cart.ram_length)))
      {
@@ -270,6 +273,9 @@ bool gb_state_load(struct gb *gb, const char *path)
      uint8_t zram[sizeof(gb->zram)];
      uint8_t vram[sizeof(gb->vram)];
      bool vram_high_bank;
+     uint8_t cgb_reg_ff72;
+     uint8_t cgb_reg_ff73;
+     uint8_t cgb_reg_ff75;
      bool bootrom_mapped;
      uint8_t *cart_ram = NULL;
      bool ok;
@@ -328,11 +334,14 @@ bool gb_state_load(struct gb *gb, const char *path)
           state_read(f, &timer, sizeof(timer)) &&
           state_read(f, &spu, sizeof(spu)) &&
           state_read(f, iram, sizeof(iram)) &&
-          state_read(f, &iram_high_bank, sizeof(iram_high_bank)) &&
-          state_read(f, zram, sizeof(zram)) &&
-          state_read(f, vram, sizeof(vram)) &&
-          state_read(f, &vram_high_bank, sizeof(vram_high_bank)) &&
-          state_read(f, &bootrom_mapped, sizeof(bootrom_mapped)) &&
+	          state_read(f, &iram_high_bank, sizeof(iram_high_bank)) &&
+	          state_read(f, zram, sizeof(zram)) &&
+	          state_read(f, vram, sizeof(vram)) &&
+	          state_read(f, &vram_high_bank, sizeof(vram_high_bank)) &&
+	          state_read(f, &cgb_reg_ff72, sizeof(cgb_reg_ff72)) &&
+	          state_read(f, &cgb_reg_ff73, sizeof(cgb_reg_ff73)) &&
+	          state_read(f, &cgb_reg_ff75, sizeof(cgb_reg_ff75)) &&
+	          state_read(f, &bootrom_mapped, sizeof(bootrom_mapped)) &&
           (gb->cart.ram_length == 0 ||
            state_read(f, cart_ram, gb->cart.ram_length));
 
@@ -373,6 +382,9 @@ bool gb_state_load(struct gb *gb, const char *path)
      memcpy(gb->zram, zram, sizeof(zram));
      memcpy(gb->vram, vram, sizeof(vram));
      gb->vram_high_bank = vram_high_bank;
+     gb->cgb_reg_ff72 = cgb_reg_ff72;
+     gb->cgb_reg_ff73 = cgb_reg_ff73;
+     gb->cgb_reg_ff75 = cgb_reg_ff75;
      gb->bootrom_mapped = bootrom_mapped;
      state_restore_cart(gb, &cart);
      state_restore_spu(gb, &spu);

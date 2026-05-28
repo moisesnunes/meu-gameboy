@@ -33,6 +33,7 @@ enum gb_hw_model
      GB_HW_MGB,    /* Game Boy Pocket */
      GB_HW_SGB,    /* Super Game Boy */
      GB_HW_SGB2,   /* Super Game Boy 2 */
+     GB_HW_CGB0,   /* Game Boy Color revisão 0 */
      GB_HW_CGB,    /* Game Boy Color */
 };
 
@@ -87,6 +88,10 @@ struct gb
      /* Porta de Comunicação Infravermelha do GBC (REG_RP = 0xFF56).
       * Bit 7: habilita leitura; Bit 1: saída do LED; Bit 6 (IR recebido) sempre 0. */
      uint8_t ir_port;
+     /* Registradores CGB não documentados expostos também no modo compatibilidade. */
+     uint8_t cgb_reg_ff72;
+     uint8_t cgb_reg_ff73;
+     uint8_t cgb_reg_ff75;
 
      /* Boot ROM opcional. NULL quando não carregada.
       * DMG: 256 bytes, mapeada em 0x0000–0x00FF.

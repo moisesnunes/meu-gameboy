@@ -159,18 +159,23 @@ void gb_timer_reset(struct gb *gb)
         switch (model)
         {
         case GB_HW_DMG0:
-            timer->divider_counter = 0x0000;
+            timer->divider_counter = 0x1830;
             break;
         case GB_HW_DMG:
         case GB_HW_MGB:
             timer->divider_counter = 0xabcc;
             break;
         case GB_HW_SGB:
+            timer->divider_counter = 0xd860;
+            break;
         case GB_HW_SGB2:
-            timer->divider_counter = 0xd8f8;
+            timer->divider_counter = 0xd850;
+            break;
+        case GB_HW_CGB0:
+            timer->divider_counter = 0x2884;
             break;
         default: /* GB_HW_CGB */
-            timer->divider_counter = 0;
+            timer->divider_counter = 0x2678;
             break;
         }
     }
@@ -219,6 +224,7 @@ void gb_timer_sync(struct gb *gb)
             timer->reload_timestamp = gb->timestamp -
                                       gb_timer_to_timestamp_cycles(elapsed_cpu,
                                                                    speed_scale);
+            gb_debug_hw_trace_timer_ovf(gb, timer->modulo);
             gb_irq_trigger(gb, GB_IRQ_TIMER);
         }
 

@@ -18,9 +18,13 @@ extern "C"
 #include "sm83_die_view.h"
 #include "sm83_netlist_data.h"
 #include "sm83_netlist_sim.h"
+#include "sm83_node_map.h"
 #include "sm83_signal_overlay.h"
+#include "sm83_semantic_map.h"
 #include "hw_schematic_data.h"
 #include "hw_schematic_view.h"
+#include "hw_schematic_map.h"
+#include "hw_schematic_trace.h"
 }
 
 #include "debug_ui_actions.h"
@@ -3022,7 +3026,7 @@ void draw_panel_cpu_viz(struct gb *gb)
      cv->activity_fade = (cv->activity_fade > decay) ? cv->activity_fade - decay : 0.0f;
 
      const float design_w = 760.0f;
-     const float design_h = 430.0f;
+     const float design_h = 448.0f;
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
      ImVec2 canvas_size = ImGui::GetContentRegionAvail();
      if (canvas_size.x < design_w)
@@ -3141,21 +3145,32 @@ void draw_panel_cpu_viz(struct gb *gb)
           viz_block(dl, P(172, 14), P(300, 58), "IDU", idu_body, idu_col);
      }
 
-     /* Pipeline stage pills */
+     /* Capture badges: this panel is a per-instruction debug snapshot, not a
+        cycle-accurate internal pipeline trace. */
      {
-          static const char *stages[] = {"FETCH", "DECODE", "EXECUTE", "IRQ"};
-          static const ImU32 stage_cols[] = {
+          const char *stages[] = {
+              "FETCH SNAP",
+              cv->bus_write ? "BUS WRITE" : "BUS READ",
+              "A/FLAGS",
+              "PROXY"};
+          const bool active_state[] = {
+              fade > 0.0f,
+              fade > 0.0f,
+              cv->m_cycles > 0,
+              true};
+          const ImU32 stage_cols[] = {
               IM_COL32(255, 220, 60, 255),
-              IM_COL32(60, 200, 255, 255),
-              IM_COL32(60, 220, 100, 255),
-              IM_COL32(255, 100, 100, 255),
+              cv->bus_write ? IM_COL32(255, 120, 60, 255) : IM_COL32(60, 200, 120, 255),
+              IM_COL32(80, 220, 255, 255),
+              IM_COL32(160, 150, 120, 230),
           };
           float sx2 = 318.0f;
           for (int i = 0; i < 4; ++i)
           {
-               bool active = (cv->stage == (uint8_t)i) && fade > 0.0f;
+               bool active = active_state[i];
                ImU32 col = active ? stage_cols[i] : IM_COL32(65, 65, 75, 180);
-               float bw = (i == 2) ? 98.0f : 88.0f;
+               float bw = (i == 0) ? 112.0f : (i == 1) ? 104.0f
+                                                       : 78.0f;
                ImVec2 tl = P(sx2, 18), br = P(sx2 + bw, 48);
                dl->AddRectFilled(tl, br, active ? IM_COL32(30, 36, 48, 240) : IM_COL32(20, 22, 28, 180), 4.0f);
                dl->AddRect(tl, br, col, 4.0f, 0, active ? 2.0f : 1.0f);
@@ -3170,7 +3185,7 @@ void draw_panel_cpu_viz(struct gb *gb)
         ROW 2: ALU with live inputs | FLAGS | IME
         ════════════════════════════════════════════════════ */
 
-     /* ALU block — shows A op B → result */
+     /* ALU block — shows captured A/src and the current A read-back. */
      {
           ImU32 alu_border = alu_active
                                  ? viz_col(IM_COL32(60, 220, 100, 255), fade)
@@ -3201,12 +3216,15 @@ void draw_panel_cpu_viz(struct gb *gb)
           dl->AddText(ImVec2(ax + 186.0f, ay),
                       alu_active ? IM_COL32(255, 220, 80, 255) : IM_COL32(160, 180, 160, 200), bbuf);
 
-          /* Arrow + result */
+          /* Arrow + read-back */
           dl->AddText(ImVec2(ax + 230.0f, ay), IM_COL32(120, 120, 130, 200), "->");
           char rbuf[8];
           snprintf(rbuf, sizeof(rbuf), "%02X", cv->alu_result);
           dl->AddText(ImVec2(ax + 252.0f, ay),
                       alu_active ? IM_COL32(100, 255, 160, 255) : IM_COL32(140, 160, 140, 180), rbuf);
+          dl->AddText(ImVec2(ax + 288.0f, ay),
+                      IM_COL32(120, 130, 140, 190),
+                      cv->dst == GB_VIZ_REG_A ? "A" : "A now");
 
           /* src/dst register names below */
           if (cv->src < 15 || cv->dst < 15)
@@ -3218,6 +3236,10 @@ void draw_panel_cpu_viz(struct gb *gb)
                dl->AddText(ImVec2(ax, ay + lh),
                            fade > 0.0f ? IM_COL32(180, 180, 200, 200) : IM_COL32(80, 80, 90, 160),
                            opstr);
+               if (cv->dst != GB_VIZ_REG_A && cv->dst != GB_VIZ_REG_NONE)
+                    dl->AddText(ImVec2(ax + 142.0f, ay + lh),
+                                IM_COL32(160, 140, 100, 210),
+                                "writeback inferred");
           }
      }
 
@@ -3437,6 +3459,8 @@ void draw_panel_cpu_viz(struct gb *gb)
           badge("STOP", gb->cpu.stopped, IM_COL32(255, 100, 60, 255));
           badge("IME", gb->cpu.irq_enable, IM_COL32(100, 220, 100, 255));
           badge("2x spd", gb->double_speed, IM_COL32(60, 180, 255, 255));
+          dl->AddText(P(14, 424), IM_COL32(130, 135, 150, 190),
+                      "Snapshot view: bus/ALU/source-destination are debug captures; not a transistor/cycle trace.");
      }
 }
 
@@ -3465,7 +3489,7 @@ static const char *s_layer_names[] = {
 
 /* Persistent panel state */
 static Sm83ViewTransform s_die_view;
-static Sm83ViewCache     s_die_cache;   /* updated once per frame before draw loops */
+static Sm83ViewCache s_die_cache; /* updated once per frame before draw loops */
 static Sm83Selection s_die_sel;
 static Sm83SignalOverlay s_die_overlay;
 static unsigned int s_layer_mask = SM83_VIEW_LAYER_ALL;
@@ -3479,33 +3503,74 @@ static int s_drawn_trans = 0;
 static Sm83NetlistSim s_netlist_sim;
 static bool s_sim_view_init = false;
 
+/* ── Transistor panel UI toggles ── */
+static bool s_show_func_regions  = true;  /* functional region overlays */
+static bool s_show_rails         = false; /* highlight VCC/GND power rail arcs */
+static bool s_show_trans_inspect = false; /* persistent transistor inspector window */
+static bool s_show_ntrans        = true;  /* show NMOS transistors */
+static bool s_show_ptrans        = true;  /* show PMOS transistors */
+
+/* ── Transistor inspector neighbour cache ── */
+struct TransNeighbour { int index; const char *via; /* "gate"/"s1"/"s2" */ };
+struct TransNeighGroup { int net_id; const char *role; TransNeighbour nb[6]; int count; };
+static TransNeighGroup s_inspect_neigh[3]; /* one group per gate/s1/s2 */
+static int s_inspect_cached_sel = -1;      /* transistor index whose neighbours are cached */
+
+static void rebuild_inspect_neighbours(int tr_idx)
+{
+     if (tr_idx == s_inspect_cached_sel) return;
+     s_inspect_cached_sel = tr_idx;
+     const Sm83Transistor *tr = &sm83_transistors[tr_idx];
+     int target_nets[3] = { tr->gate_net, tr->s1_net, tr->s2_net };
+     const char *role_names[3] = { "gate", "s1", "s2" };
+     for (int ri = 0; ri < 3; ri++)
+     {
+          s_inspect_neigh[ri].net_id = target_nets[ri];
+          s_inspect_neigh[ri].role   = role_names[ri];
+          s_inspect_neigh[ri].count  = 0;
+          if (target_nets[ri] < 0) continue;
+          for (int ti = 0; ti < SM83_TRANSISTOR_COUNT && s_inspect_neigh[ri].count < 6; ti++)
+          {
+               if (ti == tr_idx) continue;
+               const Sm83Transistor *nb = &sm83_transistors[ti];
+               const char *which = nullptr;
+               if      (nb->gate_net == target_nets[ri]) which = "gate";
+               else if (nb->s1_net   == target_nets[ri]) which = "s1";
+               else if (nb->s2_net   == target_nets[ri]) which = "s2";
+               if (!which) continue;
+               int idx = s_inspect_neigh[ri].count++;
+               s_inspect_neigh[ri].nb[idx] = { ti, which };
+          }
+     }
+}
+
 /* Connected-arc highlight: list of arc indices to draw highlighted */
 /* Flat boolean lookup arrays for net highlight (arc and node).
  * Allocated once, never freed; zeroed on each rebuild. */
-static uint8_t *s_arc_highlight_flags  = nullptr;
+static uint8_t *s_arc_highlight_flags = nullptr;
 static uint8_t *s_node_highlight_flags = nullptr;
-static int      s_highlight_flags_cap  = 0; /* tracks SM83_ARC_COUNT at alloc time */
+static int s_highlight_flags_cap = 0; /* tracks SM83_ARC_COUNT at alloc time */
 
 static void rebuild_highlight(void)
 {
-    if (s_highlight_flags_cap < SM83_ARC_COUNT)
-    {
-        delete[] s_arc_highlight_flags;
-        delete[] s_node_highlight_flags;
-        s_arc_highlight_flags  = new uint8_t[SM83_ARC_COUNT]();
-        s_node_highlight_flags = new uint8_t[SM83_NODE_COUNT]();
-        s_highlight_flags_cap  = SM83_ARC_COUNT;
-    }
-    else
-    {
-        memset(s_arc_highlight_flags,  0, SM83_ARC_COUNT);
-        memset(s_node_highlight_flags, 0, SM83_NODE_COUNT);
-    }
+     if (s_highlight_flags_cap < SM83_ARC_COUNT)
+     {
+          delete[] s_arc_highlight_flags;
+          delete[] s_node_highlight_flags;
+          s_arc_highlight_flags = new uint8_t[SM83_ARC_COUNT]();
+          s_node_highlight_flags = new uint8_t[SM83_NODE_COUNT]();
+          s_highlight_flags_cap = SM83_ARC_COUNT;
+     }
+     else
+     {
+          memset(s_arc_highlight_flags, 0, SM83_ARC_COUNT);
+          memset(s_node_highlight_flags, 0, SM83_NODE_COUNT);
+     }
 
-    if (s_die_sel.type != SM83_SEL_NODE || s_die_sel.index < 0)
-        return;
+     if (s_die_sel.type != SM83_SEL_NODE || s_die_sel.index < 0)
+          return;
 
-    sm83_net_flood(s_die_sel.index, s_arc_highlight_flags, s_node_highlight_flags);
+     sm83_net_flood(s_die_sel.index, s_arc_highlight_flags, s_node_highlight_flags);
 }
 
 void draw_panel_transistor_viz(struct gb *gb)
@@ -3522,6 +3587,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      if (!s_sim_view_init)
      {
           sm83_sim_init(&s_netlist_sim);
+          sm83_semantic_map_init();
           s_sim_view_init = true;
      }
 
@@ -3529,12 +3595,13 @@ void draw_panel_transistor_viz(struct gb *gb)
      sm83_overlay_update(&s_die_overlay, gb);
      sm83_overlay_tick(&s_die_overlay, dt);
 
-     /* Run sim step when enabled (only if paused or stepping) */
+     /* Run sim step when enabled (only if paused and rail anchors are present) */
      bool gb_paused = gb && gb->debug.state == GB_DEBUG_PAUSED;
-     if (s_netlist_sim.enabled && s_netlist_sim.initialized && gb_paused)
+     if (s_netlist_sim.enabled && s_netlist_sim.initialized && s_netlist_sim.rails_found && gb_paused)
      {
           sm83_sim_seed_from_gb(&s_netlist_sim, gb);
-          sm83_sim_step(&s_netlist_sim, 16);
+          sm83_sim_step(&s_netlist_sim, 64);
+          sm83_semantic_audit(&s_netlist_sim, gb, SM83_CONF_PROBABLE);
      }
 
      /* ── Layer toggles toolbar ── */
@@ -3570,12 +3637,21 @@ void draw_panel_transistor_viz(struct gb *gb)
      /* Netlist Sim toggle — clearly separate from Emulator Overlay */
      {
           bool sim_on = s_netlist_sim.enabled;
-          if (sim_on)
-               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(100, 255, 180, 200));
-          else
-               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 50, 60, 200));
-          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(80, 200, 140, 200));
-          if (ImGui::Button("Netlist Sim [EXP]"))
+          bool sim_ready = s_netlist_sim.initialized && s_netlist_sim.rails_found;
+          bool heuristic = s_netlist_sim.rail_source == SM83_RAILS_HEURISTIC;
+          const char *btn_label = sim_ready
+                                      ? (heuristic ? "Netlist Sim [~RAILS]" : "Netlist Sim [EXP]")
+                                      : "Netlist Sim [NO RAILS]";
+          ImU32 btn_col = sim_on
+                              ? (sim_ready ? (heuristic ? IM_COL32(180, 160, 60, 210) : IM_COL32(100, 255, 180, 200))
+                                           : IM_COL32(160, 80, 60, 210))
+                              : IM_COL32(50, 50, 60, 200);
+          ImU32 btn_hov = sim_ready
+                              ? (heuristic ? IM_COL32(200, 180, 80, 220) : IM_COL32(80, 200, 140, 200))
+                              : IM_COL32(180, 100, 80, 220);
+          ImGui::PushStyleColor(ImGuiCol_Button, btn_col);
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, btn_hov);
+          if (ImGui::Button(btn_label))
           {
                s_netlist_sim.enabled = !s_netlist_sim.enabled;
                if (!s_netlist_sim.enabled)
@@ -3583,18 +3659,91 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
           ImGui::PopStyleColor(2);
           if (ImGui::IsItemHovered())
+          {
+               static const char *rail_src_desc[] = {
+                   "Rails: NOT FOUND — sim cannot propagate.",
+                   "Rails: named (vcc/gnd found by name).",
+                   "Rails: HEURISTIC — identified by connectivity, not confirmed by inspection.",
+                   "Rails: manual override.",
+               };
                ImGui::SetTooltip("Experimental transistor-level simulation.\n"
-                                 "Runs only while paused. Not authoritative.");
+                                 "Runs only while paused. Not authoritative.\n"
+                                 "%s\n"
+                                 "VCC net_id=%d  GND net_id=%d",
+                                 rail_src_desc[s_netlist_sim.rail_source & 3],
+                                 s_netlist_sim.vcc_net, s_netlist_sim.gnd_net);
+          }
+     }
+     ImGui::SameLine();
+     /* Functional Regions toggle */
+     {
+          if (s_show_func_regions)
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 140, 200, 200));
+          else
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 50, 60, 200));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(100, 160, 220, 200));
+          if (ImGui::Button("Regions"))
+               s_show_func_regions = !s_show_func_regions;
+          ImGui::PopStyleColor(2);
+          if (ImGui::IsItemHovered())
+               ImGui::SetTooltip("Toggle functional region overlays (ALU, registers, IDU, etc.)");
+     }
+     ImGui::SameLine();
+     /* Power rails highlight toggle */
+     {
+          if (s_show_rails)
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(220, 60, 60, 200));
+          else
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 50, 60, 200));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(240, 80, 80, 200));
+          if (ImGui::Button("Rails"))
+               s_show_rails = !s_show_rails;
+          ImGui::PopStyleColor(2);
+          if (ImGui::IsItemHovered())
+               ImGui::SetTooltip("Highlight power rail arcs:\n"
+                                 "  Red  = VCC (net_id=%d, ratio P:N=14:1)\n"
+                                 "  Blue = GND (net_id=%d, ratio N:P=219:1)\n"
+                                 "Status: HEURISTIC — not confirmed by die inspection.",
+                                 SM83_VCC_NET_HEURISTIC, SM83_GND_NET_HEURISTIC);
+     }
+     ImGui::SameLine();
+     /* N/P transistor type filter */
+     {
+          auto type_btn = [&](const char *label, bool &flag, ImU32 on_col, ImU32 hov_col, const char *tip)
+          {
+               ImGui::PushStyleColor(ImGuiCol_Button,        flag ? on_col : IM_COL32(50, 50, 60, 200));
+               ImGui::PushStyleColor(ImGuiCol_ButtonHovered, flag ? hov_col : IM_COL32(70, 70, 80, 200));
+               if (ImGui::Button(label))
+                    flag = !flag;
+               ImGui::PopStyleColor(2);
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("%s", tip);
+          };
+          type_btn("N", s_show_ntrans,
+                   IM_COL32(60, 200, 100, 210), IM_COL32(80, 220, 120, 220),
+                   "Show NMOS transistors (conduct when gate=HIGH)");
+          ImGui::SameLine();
+          type_btn("P", s_show_ptrans,
+                   IM_COL32(220, 100, 60, 210), IM_COL32(240, 120, 80, 220),
+                   "Show PMOS transistors (conduct when gate=LOW, used as pull-ups)");
      }
      ImGui::SameLine();
      ImGui::Text("  zoom:%.2fx", s_die_view.zoom);
      ImGui::PopStyleVar();
 
+     /* ── Canvas + Sidebar layout ── */
+     static const float SIDEBAR_W = 160.0f;
+     ImVec2 total_avail = ImGui::GetContentRegionAvail();
+     if (total_avail.x < 460.0f)
+          total_avail.x = 460.0f;
+     if (total_avail.y < 300.0f)
+          total_avail.y = 300.0f;
+
      /* ── Canvas ── */
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-     if (canvas_size.x < 400.0f)
-          canvas_size.x = 400.0f;
+     ImVec2 canvas_size = ImVec2(total_avail.x - SIDEBAR_W - 6.0f, total_avail.y);
+     if (canvas_size.x < 300.0f)
+          canvas_size.x = 300.0f;
      if (canvas_size.y < 300.0f)
           canvas_size.y = 300.0f;
 
@@ -3603,6 +3752,9 @@ void draw_panel_transistor_viz(struct gb *gb)
      s_die_view.canvas_y = canvas_pos.y;
      s_die_view.canvas_w = canvas_size.x;
      s_die_view.canvas_h = canvas_size.y;
+
+     /* Save cursor position so we can place the sidebar next to the canvas */
+     ImVec2 cursor_before_canvas = ImGui::GetCursorPos();
 
      ImGui::InvisibleButton("##die_canvas", canvas_size,
                             ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
@@ -3670,11 +3822,152 @@ void draw_panel_transistor_viz(struct gb *gb)
      sm83_view_cache_update(&s_die_view, &s_die_cache);
      const Sm83ViewCache *vc = &s_die_cache;
 
+     /* ── Functional region overlays ── */
+     {
+          if (s_show_func_regions)
+          {
+               /* Each region: {label, nx_min, ny_min, nx_max, ny_max, color}
+                * Coordinates derived from sm83_instances bounding boxes with 0.01 padding.
+                * y-axis in die is 0=bottom, 1=top; screen y is inverted. */
+               struct FuncRegion
+               {
+                    const char *label;
+                    float nx0, ny0, nx1, ny1;
+                    ImU32 fill_col;
+                    ImU32 border_col;
+               };
+               /* Bounding boxes validated against SGB-CPU-01 die SVG annotation.
+                * Coords are netlist-normalized [0,1] with die-Y convention:
+                * ny=0 is die bottom (high screen-y); rendering flips with (1-ny). */
+               /* Bounding boxes derived from sm83_instances[] coordinates and
+                * validated against SGB-CPU-01 annotated die SVG (img/ directory).
+                * Coordinate convention: nx,ny in [0,1]; ny=0 is die bottom
+                * (high screen-y); rendering flips with (1-ny). */
+               static const FuncRegion regions[] = {
+                   /* ── Register file columns (left→right by nx) ───────────────── */
+                   /* IR:  reg_ir nx=0.138 */
+                   {"IR",   0.118f, 0.035f, 0.150f, 0.456f, IM_COL32(200, 140, 255, 35), IM_COL32(200, 140, 255, 150)},
+                   /* A:   reg_a 0.163..0.196, reg_a_out 0.160 */
+                   {"A",    0.150f, 0.035f, 0.208f, 0.456f, IM_COL32(60,  200, 255, 35), IM_COL32(60,  200, 255, 150)},
+                   /* L:   reg_l 0.218 */
+                   {"L",    0.208f, 0.060f, 0.232f, 0.456f, IM_COL32(80,  160, 255, 28), IM_COL32(80,  160, 255, 110)},
+                   /* H:   reg_h 0.242..0.264, reg_hl 0.236 */
+                   {"H",    0.232f, 0.035f, 0.278f, 0.456f, IM_COL32(80,  160, 255, 28), IM_COL32(80,  160, 255, 110)},
+                   /* E:   reg_e 0.287, reg_de_out 0.293 */
+                   {"E",    0.278f, 0.060f, 0.300f, 0.456f, IM_COL32(80,  200, 180, 28), IM_COL32(80,  200, 180, 110)},
+                   /* D:   reg_d 0.309..0.331, reg_d_c 0.331 */
+                   {"D",    0.300f, 0.035f, 0.343f, 0.456f, IM_COL32(80,  200, 180, 28), IM_COL32(80,  200, 180, 110)},
+                   /* C:   reg_c 0.353, reg_bc_out 0.364 */
+                   {"C",    0.343f, 0.060f, 0.368f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
+                   /* B:   reg_b 0.371, reg_bus_pch_b 0.393 */
+                   {"B",    0.368f, 0.060f, 0.403f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
+                   /* W/Z: reg_z 0.415, reg_wz 0.431, reg_w 0.509 */
+                   {"W/Z",  0.403f, 0.060f, 0.522f, 0.456f, IM_COL32(160, 220, 100, 28), IM_COL32(160, 220, 100, 110)},
+                   /* SP:  reg_spl 0.556, reg_sp 0.589, reg_sph 0.608..0.633 */
+                   {"SP",   0.533f, 0.035f, 0.645f, 0.456f, IM_COL32(180, 140, 255, 30), IM_COL32(180, 140, 255, 120)},
+                   /* PC:  reg_pcl 0.662, reg_pc 0.697, reg_pch 0.710 */
+                   {"PC",   0.645f, 0.060f, 0.722f, 0.456f, IM_COL32(255, 220, 60,  30), IM_COL32(255, 220, 60,  130)},
+                   /* IDU: 0.739..0.848 */
+                   {"IDU",  0.722f, 0.035f, 0.860f, 0.476f, IM_COL32(255, 140, 60,  28), IM_COL32(255, 140, 60,  130)},
+                   /* IE:  reg_ie 0.833 (nested inside IDU) */
+                   {"IE",   0.820f, 0.058f, 0.845f, 0.448f, IM_COL32(200, 80,  80,  35), IM_COL32(220, 100, 100, 140)},
+                   /* IRQ: irq_latch/prio 0.804..0.890 (overlaps IDU) */
+                   {"IRQ",  0.790f, 0.030f, 0.912f, 0.476f, IM_COL32(200, 60,  60,  22), IM_COL32(200, 80,  80,  100)},
+
+                   /* ── Middle band: Flags + ALU ────────────────────────────── */
+                   /* Flags: flag_z/n/h/c at ny=0.579, nx=0.111..0.344 — thin strip */
+                   {"Flags", 0.100f, 0.568f, 0.356f, 0.592f, IM_COL32(80,  220, 200, 45), IM_COL32(80,  220, 200, 170)},
+                   /* ALU:   alu_* nx=0.103..0.352, ny=0.579..0.908 */
+                   {"ALU",   0.090f, 0.558f, 0.363f, 0.920f, IM_COL32(220, 80,  80,  28), IM_COL32(255, 100, 100, 130)},
+
+                   /* ── Bottom band: Data bus + 3-stage Decoder ─────────────── */
+                   /* DBUS:  dbus_bridge/nand/not nx=0.020..0.316, ny=0.608..0.924 */
+                   {"DBUS",  0.007f, 0.595f, 0.329f, 0.937f, IM_COL32(255, 160, 40,  32), IM_COL32(255, 160, 40,  140)},
+                   /* Dec 1: 107 dynamic columns, ny=0.895..0.971 */
+                   {"Dec 1", 0.415f, 0.883f, 0.888f, 0.982f, IM_COL32(220, 220, 60,  22), IM_COL32(240, 240, 80,  110)},
+                   /* Dec 2: 38 static outputs, ny=0.794..0.797 (thin) */
+                   {"Dec 2", 0.408f, 0.782f, 0.845f, 0.810f, IM_COL32(200, 220, 60,  22), IM_COL32(220, 240, 80,  100)},
+                   /* Dec 3: 57 control outputs, ny=0.579..0.714 */
+                   {"Dec 3", 0.432f, 0.567f, 0.938f, 0.726f, IM_COL32(180, 210, 60,  22), IM_COL32(200, 230, 80,  100)},
+               };
+
+               /* die coords: ny=0 is top of die in screen space (screen y increases down,
+                * die ny=1 maps to screen top, ny=0 to screen bottom) so we flip. */
+               for (int ri = 0; ri < (int)(sizeof(regions) / sizeof(regions[0])); ri++)
+               {
+                    const FuncRegion *r = &regions[ri];
+                    float sx0, sy0, sx1, sy1;
+                    /* ny in [0,1] where 0=die bottom = high screen y */
+                    sm83_die_to_screen_fast(vc, r->nx0, 1.0f - r->ny0, &sx0, &sy0);
+                    sm83_die_to_screen_fast(vc, r->nx1, 1.0f - r->ny1, &sx1, &sy1);
+                    /* ensure sx0<sx1, sy0<sy1 */
+                    if (sx0 > sx1)
+                    {
+                         float t = sx0;
+                         sx0 = sx1;
+                         sx1 = t;
+                    }
+                    if (sy0 > sy1)
+                    {
+                         float t = sy0;
+                         sy0 = sy1;
+                         sy1 = t;
+                    }
+                    /* skip if off-screen */
+                    if (sx1 < canvas_pos.x || sx0 > canvas_pos.x + canvas_size.x)
+                         continue;
+                    if (sy1 < canvas_pos.y || sy0 > canvas_pos.y + canvas_size.y)
+                         continue;
+
+                    dl->AddRectFilled(ImVec2(sx0, sy0), ImVec2(sx1, sy1), r->fill_col, 3.0f);
+                    dl->AddRect(ImVec2(sx0, sy0), ImVec2(sx1, sy1), r->border_col, 3.0f, 0, 1.2f);
+
+                    /* Label at top-left of region if large enough */
+                    float region_w = sx1 - sx0;
+                    float region_h = sy1 - sy0;
+                    if (region_w > 24.0f && region_h > 10.0f)
+                    {
+                         ImVec2 label_pos(sx0 + 3.0f, sy0 + 2.0f);
+                         dl->AddText(label_pos, r->border_col | IM_COL32(0, 0, 0, 220), r->label);
+                    }
+               }
+          }
+     }
+
      float die_scale_x = vc->scale_x;
      float arc_width_norm = 1.0f / (SM83_BBOX_X_MAX - SM83_BBOX_X_MIN);
 
-     s_drawn_arcs  = 0;
+     s_drawn_arcs = 0;
      s_drawn_trans = 0;
+
+     /* ── Draw power rail arcs (VCC=red, GND=blue) ── */
+     if (s_show_rails)
+     {
+          const ImU32 vcc_col = IM_COL32(255, 60, 60, 180);
+          const ImU32 gnd_col = IM_COL32(60, 120, 255, 180);
+          int vcc_id = s_netlist_sim.initialized ? s_netlist_sim.vcc_net : SM83_VCC_NET_HEURISTIC;
+          int gnd_id = s_netlist_sim.initialized ? s_netlist_sim.gnd_net : SM83_GND_NET_HEURISTIC;
+
+          for (int i = 0; i < SM83_ARC_COUNT; i++)
+          {
+               const Sm83Arc *a = &sm83_arcs[i];
+               if (a->net_id != vcc_id && a->net_id != gnd_id)
+                    continue;
+               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+                    continue;
+
+               float sx0, sy0, sx1, sy1;
+               sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
+               sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+
+               float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
+               if (thickness < 1.0f)  thickness = 1.0f;
+               if (thickness > 10.0f) thickness = 10.0f;
+
+               ImU32 col = (a->net_id == vcc_id) ? vcc_col : gnd_col;
+               dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, thickness + 1.5f);
+          }
+     }
 
      /* ── Draw arcs (wire segments) ── */
      for (int i = 0; i < SM83_ARC_COUNT; i++)
@@ -3693,8 +3986,10 @@ void draw_panel_transistor_viz(struct gb *gb)
           sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
 
           float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
-          if (thickness < 0.5f) thickness = 0.5f;
-          if (thickness > 8.0f) thickness = 8.0f;
+          if (thickness < 0.5f)
+               thickness = 0.5f;
+          if (thickness > 8.0f)
+               thickness = 8.0f;
 
           dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), s_layer_colors[a->layer], thickness);
           s_drawn_arcs++;
@@ -3716,7 +4011,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
 
                float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
-               if (thickness < 1.0f) thickness = 1.0f;
+               if (thickness < 1.0f)
+                    thickness = 1.0f;
                thickness += 1.5f;
 
                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), IM_COL32(255, 255, 80, 220), thickness);
@@ -3726,8 +4022,12 @@ void draw_panel_transistor_viz(struct gb *gb)
 
      /* ── Draw transistors ── */
      float trans_r = 3.5f * s_die_view.zoom;
-     if (trans_r < 1.5f) trans_r = 1.5f;
-     if (trans_r > 10.0f) trans_r = 10.0f;
+     if (trans_r < 1.5f)
+          trans_r = 1.5f;
+     if (trans_r > 10.0f)
+          trans_r = 10.0f;
+
+     bool sim_active = s_netlist_sim.enabled && s_netlist_sim.initialized;
 
      if (s_die_view.zoom > 0.8f)
      {
@@ -3737,6 +4037,11 @@ void draw_panel_transistor_viz(struct gb *gb)
                unsigned int lbit = 1u << tr->layer;
                if (!(s_layer_mask & lbit))
                     continue;
+
+               bool is_nmos = (tr->layer == SM83_LAYER_NTRANS);
+               if (is_nmos  && !s_show_ntrans) continue;
+               if (!is_nmos && !s_show_ptrans) continue;
+
                if (!sm83_in_viewport_fast(vc, tr->nx, tr->ny, 0.0f))
                     continue;
 
@@ -3744,10 +4049,43 @@ void draw_panel_transistor_viz(struct gb *gb)
                sm83_die_to_screen_fast(vc, tr->nx, tr->ny, &sx, &sy);
 
                bool is_sel = (s_die_sel.type == SM83_SEL_TRANSISTOR && s_die_sel.index == i);
-               ImU32 col = is_sel ? IM_COL32(255, 255, 80, 255) : s_layer_colors[tr->layer];
-               dl->AddCircleFilled(ImVec2(sx, sy), trans_r, col);
+
+               ImU32 col;
+               float r = trans_r;
                if (is_sel)
-                    dl->AddCircle(ImVec2(sx, sy), trans_r + 2.0f, IM_COL32(255, 255, 255, 200), 0, 1.5f);
+               {
+                    col = IM_COL32(255, 255, 80, 255);
+               }
+               else if (sim_active)
+               {
+                    Sm83SimState gate_st = sm83_sim_net_state(&s_netlist_sim, tr->gate_net);
+                    bool conducts = is_nmos ? SM83_SIM_IS_HIGH(gate_st) : SM83_SIM_IS_LOW(gate_st);
+                    bool known    = SM83_SIM_IS_HIGH(gate_st) || SM83_SIM_IS_LOW(gate_st);
+                    if (!known)
+                    {
+                         /* sim has no opinion — dim */
+                         col = is_nmos ? IM_COL32(40, 70, 40, 120) : IM_COL32(70, 40, 30, 120);
+                    }
+                    else if (conducts)
+                    {
+                         /* conducting: bright */
+                         col = is_nmos ? IM_COL32(60, 220, 100, 230) : IM_COL32(255, 130, 60, 230);
+                         r  *= 1.25f; /* slightly larger to pop */
+                    }
+                    else
+                    {
+                         /* off: muted */
+                         col = is_nmos ? IM_COL32(30, 80, 40, 150) : IM_COL32(90, 40, 20, 150);
+                    }
+               }
+               else
+               {
+                    col = s_layer_colors[tr->layer];
+               }
+
+               dl->AddCircleFilled(ImVec2(sx, sy), r, col);
+               if (is_sel)
+                    dl->AddCircle(ImVec2(sx, sy), r + 2.0f, IM_COL32(255, 255, 255, 200), 0, 1.5f);
                s_drawn_trans++;
           }
      }
@@ -3783,11 +4121,11 @@ void draw_panel_transistor_viz(struct gb *gb)
           /* Colors mirror CPU Datapath panel: same hue per component so
            * activity in one panel is immediately recognizable in the other. */
           static const ImU32 s_group_colors[] = {
-              IM_COL32(255, 220, 60,  255), /* PC    - yellow      (= Datapath PC)   */
-              IM_COL32(60,  220, 255, 255), /* A     - cyan        (= Datapath A src) */
+              IM_COL32(255, 220, 60, 255),  /* PC    - yellow      (= Datapath PC)   */
+              IM_COL32(60, 220, 255, 255),  /* A     - cyan        (= Datapath A src) */
               IM_COL32(100, 255, 100, 255), /* B     - green       (= Datapath dst)   */
               IM_COL32(200, 160, 255, 255), /* IR    - violet      (= Datapath IR)    */
-              IM_COL32(80,  220, 255, 255), /* flags - cyan-blue   (= Datapath Z)     */
+              IM_COL32(80, 220, 255, 255),  /* flags - cyan-blue   (= Datapath Z)     */
               IM_COL32(100, 200, 255, 255), /* IDU   - light blue  (= Datapath IDU)   */
               IM_COL32(180, 255, 180, 255), /* C     - pale green                     */
               IM_COL32(255, 180, 180, 255), /* D     - pale red                       */
@@ -3795,10 +4133,41 @@ void draw_panel_transistor_viz(struct gb *gb)
               IM_COL32(140, 220, 255, 255), /* H     - sky blue                       */
               IM_COL32(255, 160, 255, 255), /* L     - pink                           */
               IM_COL32(180, 140, 255, 255), /* SP    - violet      (= Datapath SP)    */
-              IM_COL32(255, 120, 60,  255), /* DBUS  - coral       (= Datapath bus WR)*/
+              IM_COL32(255, 120, 60, 255),  /* DBUS  - coral       (= Datapath bus WR)*/
           };
           float ov_r = 4.0f * s_die_view.zoom + 1.0f;
           float ov_ring = 6.0f * s_die_view.zoom + 2.0f;
+
+          /* Map GB_VIZ_REG_* -> SM83_SIG_GROUP_* for src/dst highlighting.
+           * -1 means "no group highlight for this register type". */
+          static const int reg_to_group[] = {
+              -1,                /* NONE  */
+              SM83_SIG_GROUP_A,  /* A     */
+              SM83_SIG_GROUP_B,  /* B     */
+              SM83_SIG_GROUP_C,  /* C     */
+              SM83_SIG_GROUP_D,  /* D     */
+              SM83_SIG_GROUP_E,  /* E     */
+              SM83_SIG_GROUP_H,  /* H     */
+              SM83_SIG_GROUP_L,  /* L     */
+              -1,                /* HL    */
+              -1,                /* BC    */
+              -1,                /* DE    */
+              SM83_SIG_GROUP_SP, /* SP    */
+              -1,                /* IMM8  */
+              -1,                /* IMM16 */
+              -1,                /* MEM   */
+          };
+          int src_group = -1, dst_group = -1;
+          if (gb)
+          {
+               int src = gb->debug.cpu_viz.src;
+               int dst = gb->debug.cpu_viz.dst;
+               if (src >= 0 && src < (int)(sizeof(reg_to_group) / sizeof(reg_to_group[0])))
+                    src_group = reg_to_group[src];
+               if (dst >= 0 && dst < (int)(sizeof(reg_to_group) / sizeof(reg_to_group[0])))
+                    dst_group = reg_to_group[dst];
+          }
+
           for (int i = 0; i < s_die_overlay.count; i++)
           {
                const Sm83OverlaySignal *sig = &s_die_overlay.signals[i];
@@ -3819,40 +4188,253 @@ void draw_panel_transistor_viz(struct gb *gb)
                if (sig->fade > 0.1f)
                     dl->AddCircle(ImVec2(sx, sy), ov_ring,
                                   IM_COL32(255, 255, 255, (uint8_t)(sig->fade * 180)), 0, 1.0f);
+
+               /* src/dst highlight rings */
+               bool is_src = (sig->group == src_group && src_group >= 0);
+               bool is_dst = (sig->group == dst_group && dst_group >= 0);
+               float hi_r = ov_ring + 2.5f;
+               if (is_src && is_dst)
+                    dl->AddCircle(ImVec2(sx, sy), hi_r, IM_COL32(255, 160, 60, 220), 0, 2.0f);
+               else if (is_src)
+                    dl->AddCircle(ImVec2(sx, sy), hi_r, IM_COL32(255, 220, 60, 220), 0, 2.0f);
+               else if (is_dst)
+                    dl->AddCircle(ImVec2(sx, sy), hi_r, IM_COL32(80, 220, 80, 220), 0, 2.0f);
           }
      }
 
      /* ── Netlist Sim overlay: color arcs by net state (EXP, separate from Emulator Overlay) ── */
      if (s_netlist_sim.enabled && s_netlist_sim.initialized)
      {
-          /* Colors: green=HIGH, red=LOW, grey=FLOAT, dark=UNKNOWN */
+          /* Colors indexed by Sm83SimState enum value:
+           *  0=UNKNOWN  1=FLOAT  2=LOW_WEAK  3=HIGH_WEAK  4=LOW  5=HIGH  6=CONFLICT */
           static const ImU32 sim_colors[] = {
-              IM_COL32(60,  60,  70,  140), /* UNKNOWN */
-              IM_COL32(80,  220, 80,  200), /* LOW     - green (active transistor) */
-              IM_COL32(220, 80,  80,  200), /* HIGH    - red   */
-              IM_COL32(140, 140, 160, 120), /* FLOAT   - grey  */
+              IM_COL32(50, 50, 60, 0),     /* UNKNOWN    — invisible */
+              IM_COL32(100, 100, 120, 90), /* FLOAT      — dim grey */
+              IM_COL32(60, 160, 60, 140),  /* LOW_WEAK   — dim green */
+              IM_COL32(160, 60, 60, 140),  /* HIGH_WEAK  — dim red */
+              IM_COL32(80, 240, 80, 210),  /* LOW        — bright green */
+              IM_COL32(240, 80, 80, 210),  /* HIGH       — bright red */
+              IM_COL32(255, 40, 255, 240), /* CONFLICT   — magenta flash */
           };
+          static const float sim_widths[] = {
+              0.0f, 1.0f, 1.5f, 1.5f, 2.5f, 2.5f, 3.0f};
           for (int i = 0; i < SM83_ARC_COUNT; i++)
           {
                const Sm83Arc *a = &sm83_arcs[i];
-               if (a->net_id < 0) continue;
+               if (a->net_id < 0)
+                    continue;
                unsigned int lbit = 1u << a->layer;
-               if (!(s_layer_mask & lbit)) continue;
-               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy)) continue;
+               if (!(s_layer_mask & lbit))
+                    continue;
+               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+                    continue;
 
                Sm83SimState st = sm83_sim_net_state(&s_netlist_sim, a->net_id);
-               if (st == SM83_SIM_UNKNOWN) continue; /* don't clutter with unknown */
+               if (st == SM83_SIM_UNKNOWN)
+                    continue;
 
                float sx0, sy0, sx1, sy1;
                sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
                sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
 
-               ImU32 col = sim_colors[st & 3];
-               dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, 2.0f);
+               int si = (int)st < SM83_SIM_STATE_COUNT ? (int)st : 0;
+               dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), sim_colors[si], sim_widths[si]);
+          }
+
+          /* ── Rail highlight: draw VCC and GND arcs in distinct colors ──
+           * This makes the power distribution network visible on the die and
+           * allows visual confirmation that the heuristic rails are correct. */
+          int rail_ids[2] = {s_netlist_sim.vcc_net, s_netlist_sim.gnd_net};
+          ImU32 rail_cols[2] = {
+              IM_COL32(255, 80, 255, 200), /* VCC — magenta */
+              IM_COL32(80, 200, 255, 200), /* GND — cyan    */
+          };
+          for (int r = 0; r < 2; r++)
+          {
+               int rail_id = rail_ids[r];
+               if (rail_id < 0 || rail_id >= SM83_NET_COUNT)
+                    continue;
+               for (int i = 0; i < SM83_ARC_COUNT; i++)
+               {
+                    const Sm83Arc *a = &sm83_arcs[i];
+                    if (a->net_id != rail_id)
+                         continue;
+                    if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+                         continue;
+                    float sx0, sy0, sx1, sy1;
+                    sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
+                    sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), rail_cols[r], 2.5f);
+               }
           }
      }
 
      dl->PopClipRect();
+
+     /* ── Sidebar: cycle info + stage badge ── */
+     /* Position sidebar to the right of the canvas at the same vertical origin */
+     ImGui::SetCursorPos(ImVec2(cursor_before_canvas.x + canvas_size.x + 6.0f,
+                                cursor_before_canvas.y));
+     ImGui::BeginChild("##die_sidebar", ImVec2(SIDEBAR_W, canvas_size.y), true,
+                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+     {
+          const struct gb_cpu_viz *cv = gb ? &gb->debug.cpu_viz : nullptr;
+
+          /* Stage badge */
+          static const char *stage_names[] = {"FETCH", "DECODE", "EXECUTE", "IRQ"};
+          static const ImU32 stage_colors[] = {
+              IM_COL32(60, 160, 255, 220), /* FETCH   - blue  */
+              IM_COL32(255, 200, 60, 220), /* DECODE  - yellow */
+              IM_COL32(80, 220, 80, 220),  /* EXECUTE - green  */
+              IM_COL32(220, 80, 80, 220),  /* IRQ     - red    */
+          };
+          int stage = cv ? (cv->stage & 3) : 0;
+          ImGui::PushStyleColor(ImGuiCol_Button, stage_colors[stage]);
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stage_colors[stage]);
+          ImGui::Button(stage_names[stage], ImVec2(-1, 0));
+          ImGui::PopStyleColor(2);
+
+          ImGui::Separator();
+
+          /* Opcode + mnemonic */
+          if (cv)
+          {
+               ImGui::TextDisabled("OP");
+               ImGui::SameLine();
+               ImGui::Text("%02X  %s", cv->opcode, cv->mnemonic);
+          }
+
+          ImGui::Spacing();
+
+          /* ALU info */
+          static const char *alu_op_names[] = {
+              "---", "ADD", "SUB", "AND", "OR ", "XOR", "CP ", "INC", "DEC", "SHF", "BIT"};
+          if (cv && cv->alu_op != 0 /* GB_VIZ_ALU_NONE */)
+          {
+               ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "ALU");
+               ImGui::SameLine();
+               ImGui::Text("%s", alu_op_names[cv->alu_op < 11 ? cv->alu_op : 0]);
+               ImGui::Text("  A: %02X", cv->alu_a);
+               ImGui::Text("  B: %02X", cv->alu_b);
+               ImGui::Text("  R: %02X", cv->alu_result);
+          }
+          else
+          {
+               ImGui::TextDisabled("ALU ---");
+          }
+
+          ImGui::Separator();
+
+          /* Flags before/after */
+          if (cv)
+          {
+               ImGui::TextDisabled("Flags");
+               static const char *flag_names[] = {"Z", "N", "H", "C"};
+               static const int flag_bits[] = {3, 2, 1, 0};
+               for (int fi = 0; fi < 4; fi++)
+               {
+                    int bit = flag_bits[fi];
+                    bool before = (cv->flags_before >> bit) & 1;
+                    bool after = (cv->flags_after >> bit) & 1;
+                    bool changed = (cv->flags_changed >> bit) & 1;
+                    if (changed)
+                         ImGui::TextColored(before ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f) : ImVec4(0.6f, 0.6f, 0.7f, 1.0f),
+                                            " %s %d->%d *", flag_names[fi], (int)before, (int)after);
+                    else
+                    {
+                         ImGui::TextDisabled(" %s %d", flag_names[fi], (int)after);
+                    }
+               }
+          }
+
+          ImGui::Separator();
+
+          /* Bus info */
+          if (cv)
+          {
+               ImGui::TextDisabled("Bus");
+               ImGui::Text(" A:%04X", cv->addr_bus);
+               ImGui::Text(" D:%02X  %s", cv->data_bus, cv->bus_write ? "WR" : "RD");
+               ImGui::Text(" M:%d", (int)cv->m_cycles);
+          }
+
+          ImGui::Separator();
+
+          /* Netlist sim convergence + rail status */
+          if (s_netlist_sim.enabled && s_netlist_sim.initialized)
+          {
+               ImGui::Separator();
+               ImGui::TextDisabled("Netlist Sim");
+               if (!s_netlist_sim.rails_found)
+               {
+                    ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "NO RAILS");
+               }
+               else
+               {
+                    static const char *src_labels[] = {"missing", "named", "heuristic", "manual"};
+                    static const ImVec4 src_colors[] = {
+                        ImVec4(1.0f, 0.4f, 0.2f, 1.0f),  /* missing  */
+                        ImVec4(0.4f, 1.0f, 0.6f, 1.0f),  /* named    */
+                        ImVec4(1.0f, 0.85f, 0.3f, 1.0f), /* heuristic */
+                        ImVec4(0.6f, 0.8f, 1.0f, 1.0f),  /* manual   */
+                    };
+                    int rs = s_netlist_sim.rail_source & 3;
+                    ImGui::TextColored(src_colors[rs], "rails: %s", src_labels[rs]);
+                    ImGui::TextDisabled("VCC #%d", s_netlist_sim.vcc_net);
+                    ImGui::TextDisabled("GND #%d", s_netlist_sim.gnd_net);
+                    if (s_netlist_sim.iterations < 64)
+                         ImGui::TextDisabled("itr: %d", s_netlist_sim.iterations);
+                    else
+                         ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.1f, 1.0f), "DIVERGED");
+                    if (s_netlist_sim.conflict_count > 0)
+                         ImGui::TextColored(ImVec4(1.0f, 0.1f, 1.0f, 1.0f),
+                                            "conflicts: %d", s_netlist_sim.conflict_count);
+                    else
+                         ImGui::TextDisabled("conflicts: 0");
+               }
+
+               /* ── Mismatch audit ── */
+               ImGui::Separator();
+               if (!gb_paused)
+               {
+                    ImGui::TextDisabled("Audit: run paused");
+               }
+               else if (sm83_mismatch_count == 0)
+               {
+                    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.5f, 1.0f), "Audit OK");
+               }
+               else
+               {
+                    ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.15f, 1.0f),
+                                       "Mismatches: %d", sm83_mismatch_count);
+
+                    /* Signal name abbreviations matching Sm83SemanticSignal enum */
+                    static const char *sig_names[] = {
+                        "PCL","PCH","A","B","C","D","E","H","L",
+                        "SPL","SPH","IR","FZ","FN","FH","FC","DBUS","IDU","VCC","GND"
+                    };
+                    /* Show up to 8 mismatches from the ring (most recent) */
+                    int show = sm83_mismatch_count < 8 ? sm83_mismatch_count : 8;
+                    int base = sm83_mismatch_head - sm83_mismatch_count;
+                    for (int mi = 0; mi < show; mi++)
+                    {
+                         int idx = (base + mi + SM83_MISMATCH_BUF_SIZE) & (SM83_MISMATCH_BUF_SIZE - 1);
+                         const Sm83DieMismatch *mm = &sm83_mismatch_buf[idx];
+                         int si = (int)mm->signal < 20 ? (int)mm->signal : 20;
+                         const char *sname = si < 20 ? sig_names[si] : "?";
+                         ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f),
+                                            " %s[%d] e=%d s=%d",
+                                            sname, mm->bit,
+                                            mm->emulator_bit, mm->sim_bit);
+                         if (ImGui::IsItemHovered())
+                              ImGui::SetTooltip("net_id=%d  conf=%d", mm->net_id, (int)mm->confidence);
+                    }
+                    if (sm83_mismatch_count > 8)
+                         ImGui::TextDisabled(" +%d more", sm83_mismatch_count - 8);
+               }
+          }
+     }
+     ImGui::EndChild();
 
      /* ── Tooltip on hover ── */
      if (hovered)
@@ -3862,28 +4444,54 @@ void draw_panel_transistor_viz(struct gb *gb)
           if (sm83_hit_test(&s_die_view, mp.x, mp.y, 6.0f, s_layer_mask, &hover_sel))
           {
                ImGui::BeginTooltip();
-               static const char *sim_state_names[] = {"UNKNOWN","LOW","HIGH","FLOAT"};
+               static const char *sim_state_names[] = {
+                   "UNKNOWN", "FLOAT", "LOW~", "HIGH~", "LOW", "HIGH", "CONFLICT"};
+               static const char *sim_src_names[] = {
+                   "none", "rail", "seed", "prop", "conflict"};
+               static const ImVec4 sim_state_cols[] = {
+                   ImVec4(0.5f, 0.5f, 0.5f, 1.0f), /* UNKNOWN  */
+                   ImVec4(0.6f, 0.6f, 0.7f, 1.0f), /* FLOAT    */
+                   ImVec4(0.4f, 0.8f, 0.4f, 1.0f), /* LOW~     */
+                   ImVec4(0.8f, 0.4f, 0.4f, 1.0f), /* HIGH~    */
+                   ImVec4(0.2f, 1.0f, 0.2f, 1.0f), /* LOW      */
+                   ImVec4(1.0f, 0.2f, 0.2f, 1.0f), /* HIGH     */
+                   ImVec4(1.0f, 0.1f, 1.0f, 1.0f), /* CONFLICT */
+               };
+
+               auto net_tooltip_line = [&](const char *prefix, int net_id)
+               {
+                    if (net_id < 0 || net_id >= SM83_NET_COUNT)
+                         return;
+                    Sm83SimState st = sm83_sim_net_state(&s_netlist_sim, net_id);
+                    Sm83NetSource sr = sm83_sim_net_source(&s_netlist_sim, net_id);
+                    int si = (int)st < SM83_SIM_STATE_COUNT ? (int)st : 0;
+                    int sri = (int)sr <= 4 ? (int)sr : 0;
+                    ImGui::Text("%s %s", prefix, sm83_nets[net_id]);
+                    ImGui::SameLine();
+                    ImGui::TextColored(sim_state_cols[si], "[%s/%s]",
+                                       sim_state_names[si], sim_src_names[sri]);
+               };
+
                if (hover_sel.type == SM83_SEL_TRANSISTOR)
                {
                     const Sm83Transistor *tr = &sm83_transistors[hover_sel.index];
-                    ImGui::Text("%s transistor #%d",
+                    Sm83SimState gs = sm83_sim_net_state(&s_netlist_sim, tr->gate_net);
+                    bool conducts = (tr->layer == SM83_LAYER_NTRANS)
+                                        ? SM83_SIM_IS_HIGH(gs)
+                                        : SM83_SIM_IS_LOW(gs);
+                    ImGui::Text("%s transistor #%d  %s",
                                 tr->layer == SM83_LAYER_NTRANS ? "N" : "P",
-                                hover_sel.index);
-                    ImGui::Text("pos: (%.1f, %.1f)", tr->x, tr->y);
-                    ImGui::Text("norm: (%.4f, %.4f)", tr->nx, tr->ny);
-                    /* Show net names and sim state for gate/s1/s2 */
-                    if (tr->gate_net >= 0 && tr->gate_net < SM83_NET_COUNT)
-                         ImGui::Text("gate: %s  [%s]",
-                                     sm83_nets[tr->gate_net],
-                                     sim_state_names[sm83_sim_net_state(&s_netlist_sim, tr->gate_net) & 3]);
-                    if (tr->s1_net >= 0 && tr->s1_net < SM83_NET_COUNT)
-                         ImGui::Text("s1:   %s  [%s]",
-                                     sm83_nets[tr->s1_net],
-                                     sim_state_names[sm83_sim_net_state(&s_netlist_sim, tr->s1_net) & 3]);
-                    if (tr->s2_net >= 0 && tr->s2_net < SM83_NET_COUNT)
-                         ImGui::Text("s2:   %s  [%s]",
-                                     sm83_nets[tr->s2_net],
-                                     sim_state_names[sm83_sim_net_state(&s_netlist_sim, tr->s2_net) & 3]);
+                                hover_sel.index,
+                                conducts ? "[CONDUCTING]" : "[off]");
+                    ImGui::Text("pos: (%.1f, %.1f)  norm: (%.4f, %.4f)",
+                                tr->x, tr->y, tr->nx, tr->ny);
+                    if (s_netlist_sim.enabled && s_netlist_sim.initialized)
+                    {
+                         ImGui::Separator();
+                         net_tooltip_line("gate:", tr->gate_net);
+                         net_tooltip_line("s1:  ", tr->s1_net);
+                         net_tooltip_line("s2:  ", tr->s2_net);
+                    }
                }
                else if (hover_sel.type == SM83_SEL_NODE)
                {
@@ -3897,13 +4505,207 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
+     /* ── Transistor Inspector window (persistent, appears on click) ── */
+     if (s_die_sel.type == SM83_SEL_TRANSISTOR && s_die_sel.index >= 0)
+          s_show_trans_inspect = true;
+     if (s_die_sel.type == SM83_SEL_NONE)
+          s_show_trans_inspect = false;
+
+     if (s_show_trans_inspect && s_die_sel.type == SM83_SEL_TRANSISTOR)
+     {
+          rebuild_inspect_neighbours(s_die_sel.index);
+          ImGui::SetNextWindowSize(ImVec2(340.0f, 420.0f), ImGuiCond_FirstUseEver);
+          ImGui::SetNextWindowPos(ImVec2(canvas_pos.x + canvas_size.x - 350.0f,
+                                        canvas_pos.y + 10.0f),
+                                  ImGuiCond_FirstUseEver);
+          bool open = true;
+          if (ImGui::Begin("Transistor Inspector", &open,
+                           ImGuiWindowFlags_NoCollapse))
+          {
+               const Sm83Transistor *tr = &sm83_transistors[s_die_sel.index];
+               bool sim_ready = s_netlist_sim.enabled && s_netlist_sim.initialized;
+
+               static const char *sim_state_names[] = {
+                   "UNKNOWN", "FLOAT", "LOW~", "HIGH~", "LOW", "HIGH", "CONFLICT"};
+               static const ImVec4 sim_state_cols[] = {
+                   ImVec4(0.5f, 0.5f, 0.5f, 1.0f), /* UNKNOWN  */
+                   ImVec4(0.6f, 0.6f, 0.7f, 1.0f), /* FLOAT    */
+                   ImVec4(0.4f, 0.9f, 0.4f, 1.0f), /* LOW~     */
+                   ImVec4(0.9f, 0.4f, 0.4f, 1.0f), /* HIGH~    */
+                   ImVec4(0.2f, 1.0f, 0.2f, 1.0f), /* LOW      */
+                   ImVec4(1.0f, 0.3f, 0.3f, 1.0f), /* HIGH     */
+                   ImVec4(1.0f, 0.1f, 1.0f, 1.0f), /* CONFLICT */
+               };
+               static const char *conf_names[] = {"UNKNOWN", "PROXY", "PROBABLE", "CONFIRMED"};
+               static const ImVec4 conf_cols[] = {
+                   ImVec4(0.5f, 0.5f, 0.5f, 1.0f), /* UNKNOWN   */
+                   ImVec4(0.8f, 0.6f, 0.2f, 1.0f), /* PROXY     */
+                   ImVec4(0.4f, 0.8f, 1.0f, 1.0f), /* PROBABLE  */
+                   ImVec4(0.3f, 1.0f, 0.5f, 1.0f), /* CONFIRMED */
+               };
+               static const char *sig_names[] = {
+                   "PCL","PCH","A","B","C","D","E","H","L",
+                   "SPL","SPH","IR","FZ","FN","FH","FC","DBUS","IDU","VCC","GND"
+               };
+
+               /* ── Header ── */
+               Sm83SimState gate_st = sim_ready
+                   ? sm83_sim_net_state(&s_netlist_sim, tr->gate_net)
+                   : SM83_SIM_UNKNOWN;
+               bool conducts = (tr->layer == SM83_LAYER_NTRANS)
+                                   ? SM83_SIM_IS_HIGH(gate_st)
+                                   : SM83_SIM_IS_LOW(gate_st);
+               const char *type_str = (tr->layer == SM83_LAYER_NTRANS) ? "NMOS" : "PMOS";
+               ImU32 hdr_col = conducts ? IM_COL32(80, 220, 80, 255) : IM_COL32(120, 120, 140, 255);
+               ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(hdr_col),
+                                  "%s #%d  %s", type_str, s_die_sel.index,
+                                  conducts ? "CONDUCTING" : "off");
+               ImGui::Text("pos: (%.1f, %.1f)  nx=%.3f ny=%.3f", tr->x, tr->y, tr->nx, tr->ny);
+
+               /* Functional region from normalized position */
+               {
+                    struct { const char *label; float nx0,ny0,nx1,ny1; } region_defs[] = {
+                        {"IR",    0.118f,0.035f,0.150f,0.456f},
+                        {"A",     0.150f,0.035f,0.208f,0.456f},
+                        {"L",     0.208f,0.060f,0.232f,0.456f},
+                        {"H",     0.232f,0.035f,0.278f,0.456f},
+                        {"E",     0.278f,0.060f,0.300f,0.456f},
+                        {"D",     0.300f,0.035f,0.343f,0.456f},
+                        {"C",     0.343f,0.060f,0.368f,0.456f},
+                        {"B",     0.368f,0.060f,0.403f,0.456f},
+                        {"W/Z",   0.403f,0.060f,0.522f,0.456f},
+                        {"SP",    0.533f,0.035f,0.645f,0.456f},
+                        {"PC",    0.645f,0.060f,0.722f,0.456f},
+                        {"IDU",   0.722f,0.035f,0.860f,0.476f},
+                        {"IE",    0.820f,0.058f,0.845f,0.448f},
+                        {"IRQ",   0.790f,0.030f,0.912f,0.476f},
+                        {"Flags", 0.100f,0.568f,0.356f,0.592f},
+                        {"ALU",   0.090f,0.558f,0.363f,0.920f},
+                        {"DBUS",  0.007f,0.595f,0.329f,0.937f},
+                        {"Dec 1", 0.415f,0.883f,0.888f,0.982f},
+                        {"Dec 2", 0.408f,0.782f,0.845f,0.810f},
+                        {"Dec 3", 0.432f,0.567f,0.938f,0.726f},
+                    };
+                    const char *region = NULL;
+                    for (int ri = 0; ri < (int)(sizeof(region_defs)/sizeof(region_defs[0])); ri++) {
+                        auto &rd = region_defs[ri];
+                        if (tr->nx >= rd.nx0 && tr->nx <= rd.nx1 &&
+                            tr->ny >= rd.ny0 && tr->ny <= rd.ny1) {
+                            region = rd.label;
+                            break;
+                        }
+                    }
+                    /* Nearest instance */
+                    float best_dist = 1e9f;
+                    const char *nearest_inst = NULL;
+                    for (int ii = 0; ii < SM83_INSTANCE_COUNT; ii++) {
+                        float dx = sm83_instances[ii].x - tr->x;
+                        float dy = sm83_instances[ii].y - tr->y;
+                        float d  = dx*dx + dy*dy;
+                        if (d < best_dist) { best_dist = d; nearest_inst = sm83_instances[ii].name; }
+                    }
+                    if (region)
+                        ImGui::TextDisabled("region: %s", region);
+                    else
+                        ImGui::TextDisabled("region: (decoder interior)");
+                    if (nearest_inst)
+                        ImGui::TextDisabled("nearest: %s  (%.0f u)", nearest_inst, sqrtf(best_dist));
+               }
+               ImGui::Separator();
+
+               /* ── Helper: draw one net row with sim state + semantic mapping ── */
+               auto net_row = [&](const char *role, int net_id)
+               {
+                    if (net_id < 0 || net_id >= SM83_NET_COUNT)
+                    {
+                         ImGui::TextDisabled("%s  —", role);
+                         return;
+                    }
+                    Sm83SimState st = sim_ready
+                        ? sm83_sim_net_state(&s_netlist_sim, net_id)
+                        : SM83_SIM_UNKNOWN;
+                    int si = (int)st < SM83_SIM_STATE_COUNT ? (int)st : 0;
+
+                    /* role + net name */
+                    ImGui::TextDisabled("%s", role);
+                    ImGui::SameLine();
+                    ImGui::Text("#%d %s", net_id, sm83_nets[net_id]);
+                    ImGui::SameLine();
+                    ImGui::TextColored(sim_state_cols[si], "[%s]", sim_state_names[si]);
+
+                    /* semantic mapping for this net */
+                    const Sm83NetSemanticEntry *se =
+                        sm83_semantic_map_find(net_id, SM83_CONF_UNKNOWN);
+                    if (se && se->signal < SM83_SEM_COUNT)
+                    {
+                         int ci = (int)se->confidence <= 3 ? (int)se->confidence : 0;
+                         int sni = (int)se->signal < 20 ? (int)se->signal : 19;
+                         ImGui::TextColored(conf_cols[ci],
+                                            "      → %s[%d]  (%s)",
+                                            sig_names[sni], se->bit,
+                                            conf_names[ci]);
+                    }
+               };
+
+               ImGui::Text("Nets:");
+               net_row("gate:", tr->gate_net);
+               net_row("s1:  ", tr->s1_net);
+               net_row("s2:  ", tr->s2_net);
+               ImGui::Separator();
+
+               /* ── Neighbours: transistors sharing any of gate/s1/s2 ── */
+               ImGui::Text("Neighbours (shared nets, max 6 each):");
+               ImGui::Spacing();
+
+               for (int ri = 0; ri < 3; ri++)
+               {
+                    const TransNeighGroup *g = &s_inspect_neigh[ri];
+                    if (g->net_id < 0) continue;
+                    ImGui::TextDisabled("  via %s (net #%d):", g->role, g->net_id);
+                    if (g->count == 0)
+                    {
+                         ImGui::TextDisabled("    (none)");
+                         continue;
+                    }
+                    for (int ni = 0; ni < g->count; ni++)
+                    {
+                         const Sm83Transistor *nb = &sm83_transistors[g->nb[ni].index];
+                         const char *nb_type = (nb->layer == SM83_LAYER_NTRANS) ? "N" : "P";
+                         ImGui::Text("    #%d %s [%s]", g->nb[ni].index, nb_type, g->nb[ni].via);
+                    }
+               }
+          }
+          ImGui::End();
+
+          if (!open)
+          {
+               s_show_trans_inspect = false;
+               s_die_sel.type  = SM83_SEL_NONE;
+               s_die_sel.index = -1;
+          }
+     }
+
      /* ── Info bar ── */
      ImGui::Separator();
      float fps = ImGui::GetIO().Framerate;
-     if (s_netlist_sim.enabled)
-          ImGui::TextDisabled("arcs:%d  trans:%d  %.0f fps  |  sim iters:%d  nets:%d",
-                              s_drawn_arcs, s_drawn_trans, fps,
-                              s_netlist_sim.iterations, SM83_NET_COUNT);
+     if (s_netlist_sim.enabled && !s_netlist_sim.rails_found)
+          ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f),
+                             "arcs:%d  trans:%d  %.0f fps  |  sim: NO RAILS — cannot propagate",
+                             s_drawn_arcs, s_drawn_trans, fps);
+     else if (s_netlist_sim.enabled)
+     {
+          bool converged = s_netlist_sim.iterations < 64;
+          bool heuristic = s_netlist_sim.rail_source == SM83_RAILS_HEURISTIC;
+          const char *rail_tag = heuristic ? " [rails:heuristic]" : "";
+          if (converged)
+               ImGui::TextDisabled("arcs:%d  trans:%d  %.0f fps  |  sim: %d iters%s  nets:%d",
+                                   s_drawn_arcs, s_drawn_trans, fps,
+                                   s_netlist_sim.iterations, rail_tag, SM83_NET_COUNT);
+          else
+               ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f),
+                                  "arcs:%d  trans:%d  %.0f fps  |  sim: DIVERGED (64 iters)%s  nets:%d",
+                                  s_drawn_arcs, s_drawn_trans, fps, rail_tag, SM83_NET_COUNT);
+     }
      else
           ImGui::TextDisabled("arcs:%d  trans:%d  %.0f fps", s_drawn_arcs, s_drawn_trans, fps);
      ImGui::SameLine(0, 16);
@@ -3936,313 +4738,1214 @@ void draw_panel_transistor_viz(struct gb *gb)
  * Source: https://github.com/Gekkio/gb-schematics (CC-BY 4.0, Gekkio)
  * ══════════════════════════════════════════════════════════════════════════*/
 
-static HwSchematicView s_sch_view      = {};
-static bool            s_sch_view_init = false;
+static HwSchematicView s_sch_view = {};
+static bool s_sch_view_init = false;
+static bool s_sch_show_wires = true;
+static bool s_sch_show_junctions = true;
+static bool s_sch_show_labels = true;
+static bool s_sch_show_components = true;
+static bool s_sch_show_activity = true;
+static bool s_sch_paper_mode = false;
+
+/* ── Projection activity state (Fase D) ── */
+static HwSchematicActivityState s_hw_activity;
+static bool s_hw_activity_init = false;
+static uint64_t s_hw_last_seq = 0; /* highest event seq consumed */
 
 /* Per-animation-group fade value (driven by sys_viz each frame) */
 static float s_sch_anim_fade[HW_ANIM_GROUP_COUNT] = {};
 
 /* Idle color for each anim group (inactive state) */
 static const ImU32 SCH_IDLE_COLOR[HW_ANIM_GROUP_COUNT] = {
-    IM_COL32( 80,  90, 130, 140),  /* 0  addr_bus    — blue-grey */
-    IM_COL32( 80,  90, 130, 140),  /* 1  data_bus    — blue-grey */
-    IM_COL32( 60, 110,  80, 140),  /* 2  wram_data   — green-grey */
-    IM_COL32( 60, 110,  80, 130),  /* 3  wram_addr   — green-grey */
-    IM_COL32(100,  80, 150, 100),  /* 4  clock       — dim violet */
-    IM_COL32(100,  70,  40, 120),  /* 5  audio       — dim orange */
-    IM_COL32( 40,  80,  60, 120),  /* 6  lcd         — dim teal */
-    IM_COL32( 80,  50, 110, 120),  /* 7  irq         — dim purple */
-    IM_COL32( 60,  40,  40, 100),  /* 8  power       — dim red */
-    IM_COL32( 40,  80, 100, 100),  /* 9  serial      — dim cyan */
-    IM_COL32( 80,  80,  50, 100),  /* 10 bus_ctrl    — dim gold */
+    IM_COL32(80, 90, 130, 140),  /* 0  addr_bus    — blue-grey */
+    IM_COL32(80, 90, 130, 140),  /* 1  data_bus    — blue-grey */
+    IM_COL32(60, 110, 80, 140),  /* 2  wram_data   — green-grey */
+    IM_COL32(60, 110, 80, 130),  /* 3  wram_addr   — green-grey */
+    IM_COL32(100, 80, 150, 100), /* 4  clock       — dim violet */
+    IM_COL32(100, 70, 40, 120),  /* 5  audio       — dim orange */
+    IM_COL32(40, 80, 60, 120),   /* 6  lcd         — dim teal */
+    IM_COL32(80, 50, 110, 120),  /* 7  irq         — dim purple */
+    IM_COL32(60, 40, 40, 100),   /* 8  power       — dim red */
+    IM_COL32(40, 80, 100, 100),  /* 9  serial      — dim cyan */
+    IM_COL32(80, 80, 50, 100),   /* 10 bus_ctrl    — dim gold */
 };
 
 /* Active color for each anim group (when fade > 0) */
 static const ImU32 SCH_ACTIVE_COLOR[HW_ANIM_GROUP_COUNT] = {
-    IM_COL32( 80, 160, 255, 255),  /* 0  addr_bus    — bright blue */
-    IM_COL32(100, 180, 255, 255),  /* 1  data_bus    — light blue */
-    IM_COL32( 60, 220, 120, 255),  /* 2  wram_data   — bright green */
-    IM_COL32( 80, 200, 100, 230),  /* 3  wram_addr   — green */
-    IM_COL32(200, 140, 255, 255),  /* 4  clock       — violet */
-    IM_COL32(255, 160,  60, 255),  /* 5  audio       — orange */
-    IM_COL32( 60, 220, 160, 255),  /* 6  lcd         — teal */
-    IM_COL32(200, 100, 255, 255),  /* 7  irq         — purple */
-    IM_COL32(255,  80,  80, 200),  /* 8  power       — red */
-    IM_COL32( 60, 200, 220, 255),  /* 9  serial      — cyan */
-    IM_COL32(220, 200,  60, 220),  /* 10 bus_ctrl    — gold */
+    IM_COL32(80, 160, 255, 255),  /* 0  addr_bus    — bright blue */
+    IM_COL32(100, 180, 255, 255), /* 1  data_bus    — light blue */
+    IM_COL32(60, 220, 120, 255),  /* 2  wram_data   — bright green */
+    IM_COL32(80, 200, 100, 230),  /* 3  wram_addr   — green */
+    IM_COL32(200, 140, 255, 255), /* 4  clock       — violet */
+    IM_COL32(255, 160, 60, 255),  /* 5  audio       — orange */
+    IM_COL32(60, 220, 160, 255),  /* 6  lcd         — teal */
+    IM_COL32(200, 100, 255, 255), /* 7  irq         — purple */
+    IM_COL32(255, 80, 80, 200),   /* 8  power       — red */
+    IM_COL32(60, 200, 220, 255),  /* 9  serial      — cyan */
+    IM_COL32(220, 200, 60, 220),  /* 10 bus_ctrl    — gold */
 };
+
+/* Colors indexed by HwSignalKind (16 entries) */
+static const ImU32 SCH_KIND_COLOR[16] = {
+    IM_COL32( 80, 140, 255, 200), /* 0  ADDR       — blue */
+    IM_COL32( 80, 220, 110, 200), /* 1  DATA       — green */
+    IM_COL32(255,  90,  90, 220), /* 2  CTRL_RD    — red */
+    IM_COL32(255, 130,  50, 220), /* 3  CTRL_WR    — orange */
+    IM_COL32(220, 200,  60, 220), /* 4  CTRL_CS    — gold */
+    IM_COL32(200, 140, 255, 200), /* 5  CLOCK      — violet */
+    IM_COL32(255,  50,  50, 240), /* 6  RESET      — bright red */
+    IM_COL32(220, 100, 255, 220), /* 7  IRQ        — purple */
+    IM_COL32( 60, 210, 180, 200), /* 8  LCD        — teal */
+    IM_COL32(255, 160,  60, 200), /* 9  AUDIO      — amber */
+    IM_COL32( 60, 200, 230, 200), /* 10 SERIAL     — cyan */
+    IM_COL32(200, 230,  80, 200), /* 11 JOYPAD     — lime */
+    IM_COL32(255,  80,  80, 160), /* 12 POWER      — red-dim */
+    IM_COL32(120, 190, 255, 190), /* 13 WRAM_ADDR  — light blue */
+    IM_COL32(100, 240, 140, 190), /* 14 WRAM_DATA  — light green */
+    IM_COL32( 70,  75,  95, 100), /* 15 UNKNOWN    — very dim */
+};
+
+static bool s_sch_show_kinds = true;
 
 static ImU32 sch_wire_color(int anim_group)
 {
-    if (anim_group < 0 || anim_group >= HW_ANIM_GROUP_COUNT)
-        return IM_COL32(70, 75, 95, 120);  /* unlabeled — very dim */
+     if (anim_group < 0 || anim_group >= HW_ANIM_GROUP_COUNT)
+          return IM_COL32(70, 75, 95, 120); /* unlabeled — very dim */
 
-    float fade = s_sch_anim_fade[anim_group];
-    if (fade <= 0.0f)
-        return SCH_IDLE_COLOR[anim_group];
+     float fade = s_sch_anim_fade[anim_group];
+     if (fade <= 0.0f)
+          return SCH_IDLE_COLOR[anim_group];
 
-    float t = fade > 1.0f ? 1.0f : fade;
-    ImU32 idle   = SCH_IDLE_COLOR[anim_group];
-    ImU32 active = SCH_ACTIVE_COLOR[anim_group];
-    uint8_t r = (uint8_t)(((idle >> IM_COL32_R_SHIFT) & 0xFF) * (1-t) + ((active >> IM_COL32_R_SHIFT) & 0xFF) * t);
-    uint8_t g = (uint8_t)(((idle >> IM_COL32_G_SHIFT) & 0xFF) * (1-t) + ((active >> IM_COL32_G_SHIFT) & 0xFF) * t);
-    uint8_t b = (uint8_t)(((idle >> IM_COL32_B_SHIFT) & 0xFF) * (1-t) + ((active >> IM_COL32_B_SHIFT) & 0xFF) * t);
-    uint8_t a = (uint8_t)(((idle >> IM_COL32_A_SHIFT) & 0xFF) * (1-t) + ((active >> IM_COL32_A_SHIFT) & 0xFF) * t);
-    return IM_COL32(r, g, b, a);
+     float t = fade > 1.0f ? 1.0f : fade;
+     ImU32 idle = SCH_IDLE_COLOR[anim_group];
+     ImU32 active = SCH_ACTIVE_COLOR[anim_group];
+     uint8_t r = (uint8_t)(((idle >> IM_COL32_R_SHIFT) & 0xFF) * (1 - t) + ((active >> IM_COL32_R_SHIFT) & 0xFF) * t);
+     uint8_t g = (uint8_t)(((idle >> IM_COL32_G_SHIFT) & 0xFF) * (1 - t) + ((active >> IM_COL32_G_SHIFT) & 0xFF) * t);
+     uint8_t b = (uint8_t)(((idle >> IM_COL32_B_SHIFT) & 0xFF) * (1 - t) + ((active >> IM_COL32_B_SHIFT) & 0xFF) * t);
+     uint8_t a = (uint8_t)(((idle >> IM_COL32_A_SHIFT) & 0xFF) * (1 - t) + ((active >> IM_COL32_A_SHIFT) & 0xFF) * t);
+     return IM_COL32(r, g, b, a);
+}
+
+static ImU32 sch_wire_color_kind(int net_id)
+{
+     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     HwSignalKind kind = sem ? sem->kind : HW_SIG_UNKNOWN;
+     return SCH_KIND_COLOR[kind];
+}
+
+static void sch_component_reference_body(const HwComponent *comp,
+                                         float *nx, float *ny,
+                                         float *nw, float *nh)
+{
+     *nx = comp->nx;
+     *ny = comp->ny;
+     *nw = comp->nw;
+     *nh = comp->nh;
+
+     if (strcmp(comp->ref, "U1") == 0)
+     {
+          *nx = 0.266488f;
+          *ny = 0.508991f;
+          *nw = 0.090080f;
+          *nh = 0.612979f;
+     }
+     else if (strcmp(comp->ref, "U2") == 0)
+     {
+          *nx = 0.509651f;
+          *ny = 0.315090f;
+          *nw = 0.053083f;
+          *nh = 0.184519f;
+     }
+     else if (strcmp(comp->ref, "U3") == 0)
+     {
+          *nx = 0.734316f;
+          *ny = 0.655981f;
+          *nw = 0.053083f;
+          *nh = 0.184519f;
+     }
+     else if (strcmp(comp->ref, "P1") == 0)
+     {
+          *nx = 0.894638f;
+          *ny = 0.535966f;
+          *nw = 0.016622f;
+          *nh = 0.438624f;
+     }
+     else if (strcmp(comp->ref, "J2") == 0)
+     {
+          *nx = 0.555228f;
+          *ny = 0.682565f;
+          *nw = 0.006971f;
+          *nh = 0.278342f;
+     }
 }
 
 void draw_panel_hw_schematic(struct gb *gb)
 {
-    float dt = ImGui::GetIO().DeltaTime;
+     float dt = ImGui::GetIO().DeltaTime;
 
-    /* ── Decay + map emulator fades to anim groups ── */
-    struct gb_sys_viz *sv = gb ? &gb->debug.sys_viz : nullptr;
-    if (sv) {
-        float decay = dt * 8.0f;
+     /* ── Decay + map emulator fades to anim groups ── */
+     struct gb_sys_viz *sv = gb ? &gb->debug.sys_viz : nullptr;
+     if (sv)
+     {
+          float decay = dt * 8.0f;
 #define SCH_DECAY(x) ((x) > decay ? (x) - decay : 0.0f)
-        sv->fade_cpu_rom  = SCH_DECAY(sv->fade_cpu_rom);
-        sv->fade_cpu_wram = SCH_DECAY(sv->fade_cpu_wram);
-        sv->fade_cpu_vram = SCH_DECAY(sv->fade_cpu_vram);
-        sv->fade_cpu_oam  = SCH_DECAY(sv->fade_cpu_oam);
-        sv->fade_cpu_io   = SCH_DECAY(sv->fade_cpu_io);
-        sv->fade_dma_oam  = SCH_DECAY(sv->fade_dma_oam);
-        sv->fade_ppu_vram = SCH_DECAY(sv->fade_ppu_vram);
-        sv->fade_irq_cpu  = SCH_DECAY(sv->fade_irq_cpu);
-        sv->fade_apu      = SCH_DECAY(sv->fade_apu);
+          sv->fade_cpu_rom = SCH_DECAY(sv->fade_cpu_rom);
+          sv->fade_cpu_wram = SCH_DECAY(sv->fade_cpu_wram);
+          sv->fade_cpu_vram = SCH_DECAY(sv->fade_cpu_vram);
+          sv->fade_cpu_oam = SCH_DECAY(sv->fade_cpu_oam);
+          sv->fade_cpu_io = SCH_DECAY(sv->fade_cpu_io);
+          sv->fade_dma_oam = SCH_DECAY(sv->fade_dma_oam);
+          sv->fade_ppu_vram = SCH_DECAY(sv->fade_ppu_vram);
+          sv->fade_irq_cpu = SCH_DECAY(sv->fade_irq_cpu);
+          sv->fade_apu = SCH_DECAY(sv->fade_apu);
 #undef SCH_DECAY
 
-        /* Map sys_viz fades to anim groups.
-         * addr/data driven by ROM access (CPU-side bus activity).
-         * wram_data/wram_addr driven by WRAM access.
-         * bus_ctrl and lcd also pulse on ROM/WRAM access. */
-        float f_bus  = sv->fade_cpu_rom;
-        float f_wram = sv->fade_cpu_wram;
-        float f_vram = sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram;
-        s_sch_anim_fade[HW_ANIM_ADDR]      = f_bus;
-        s_sch_anim_fade[HW_ANIM_DATA]      = f_bus;
-        s_sch_anim_fade[HW_ANIM_WRAM_DATA] = f_wram;
-        s_sch_anim_fade[HW_ANIM_WRAM_ADDR] = f_wram;
-        s_sch_anim_fade[HW_ANIM_CLOCK]     = 0.4f;   /* clock always on, dim */
-        s_sch_anim_fade[HW_ANIM_AUDIO]     = sv->fade_apu;
-        s_sch_anim_fade[HW_ANIM_LCD]       = f_vram;
-        s_sch_anim_fade[HW_ANIM_IRQ]       = sv->fade_irq_cpu;
-        s_sch_anim_fade[HW_ANIM_POWER]     = 0.2f;   /* power always on, very dim */
-        s_sch_anim_fade[HW_ANIM_SERIAL]    = 0.0f;
-        s_sch_anim_fade[HW_ANIM_BUS_CTRL]  = f_bus > f_wram ? f_bus : f_wram;
-    }
+          /* Map sys_viz fades to anim groups.
+           * addr/data driven by ROM access (CPU-side bus activity).
+           * wram_data/wram_addr driven by WRAM access.
+           * bus_ctrl and lcd also pulse on ROM/WRAM access. */
+          float f_bus = sv->fade_cpu_rom;
+          float f_wram = sv->fade_cpu_wram;
+          float f_vram = sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram;
+          s_sch_anim_fade[HW_ANIM_ADDR] = f_bus;
+          s_sch_anim_fade[HW_ANIM_DATA] = f_bus;
+          s_sch_anim_fade[HW_ANIM_WRAM_DATA] = f_wram;
+          s_sch_anim_fade[HW_ANIM_WRAM_ADDR] = f_wram;
+          s_sch_anim_fade[HW_ANIM_CLOCK] = 0.4f; /* clock always on, dim */
+          s_sch_anim_fade[HW_ANIM_AUDIO] = sv->fade_apu;
+          s_sch_anim_fade[HW_ANIM_LCD] = f_vram;
+          s_sch_anim_fade[HW_ANIM_IRQ] = sv->fade_irq_cpu;
+          s_sch_anim_fade[HW_ANIM_POWER] = 0.2f; /* power always on, very dim */
+          s_sch_anim_fade[HW_ANIM_SERIAL] = 0.0f;
+          s_sch_anim_fade[HW_ANIM_BUS_CTRL] = f_bus > f_wram ? f_bus : f_wram;
+     }
 
-    /* ── Canvas ── */
-    ImVec2 canvas_pos  = ImGui::GetCursorScreenPos();
-    ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-    if (canvas_size.x < 400) canvas_size.x = 400;
-    if (canvas_size.y < 300) canvas_size.y = 300;
+     /* ── Projection activity state init + tick + consume ── */
+     if (!s_hw_activity_init)
+     {
+          hw_activity_reset(&s_hw_activity);
+          s_hw_activity_init = true;
+     }
+     hw_activity_tick(&s_hw_activity, dt, 3.0f);
+     if (gb && gb->debug.hw_trace.enabled)
+          hw_activity_consume_trace(&s_hw_activity, &gb->debug.hw_trace, &s_hw_last_seq);
 
-    if (!s_sch_view_init) {
-        s_sch_view.canvas_w = canvas_size.x;
-        s_sch_view.canvas_h = canvas_size.y;
-        hw_schematic_view_fit(&s_sch_view);
-        s_sch_view_init = true;
-    }
-    s_sch_view.canvas_x = canvas_pos.x;
-    s_sch_view.canvas_y = canvas_pos.y;
-    s_sch_view.canvas_w = canvas_size.x;
-    s_sch_view.canvas_h = canvas_size.y;
+     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+     if (ImGui::Button("Fit"))
+          hw_schematic_view_fit(&s_sch_view);
+     ImGui::SameLine();
+     if (ImGui::Button("Reset"))
+     {
+          s_sch_view.pan_x = 0.0f;
+          s_sch_view.pan_y = 0.0f;
+          hw_schematic_view_fit(&s_sch_view);
+     }
+     ImGui::SameLine();
+     ImGui::Checkbox("Paper", &s_sch_paper_mode);
+     ImGui::SameLine();
+     ImGui::Checkbox("Wires", &s_sch_show_wires);
+     ImGui::SameLine();
+     ImGui::Checkbox("Labels", &s_sch_show_labels);
+     ImGui::SameLine();
+     ImGui::Checkbox("Junctions", &s_sch_show_junctions);
+     ImGui::SameLine();
+     ImGui::Checkbox("Components", &s_sch_show_components);
+     ImGui::SameLine();
+     if (!s_sch_paper_mode) {
+          ImGui::Checkbox("Activity", &s_sch_show_activity);
+          ImGui::SameLine();
+          ImGui::Checkbox("Kinds", &s_sch_show_kinds);
+          ImGui::SameLine();
+     }
+     ImGui::TextDisabled("zoom:%.0f", s_sch_view.zoom);
+     ImGui::PopStyleVar();
 
-    ImGui::InvisibleButton("##sch_canvas", canvas_size,
-                           ImGuiButtonFlags_MouseButtonLeft);
-    bool canvas_active  = ImGui::IsItemActive();
+     /* ── Canvas child (resizable — drag bottom border to resize) ── */
+     static float s_canvas_child_h = 420.0f;
+     ImVec2 total_avail = ImGui::GetContentRegionAvail();
+     if (s_canvas_child_h > total_avail.y - 80.0f)
+          s_canvas_child_h = total_avail.y - 80.0f;
+     if (s_canvas_child_h < 200.0f)
+          s_canvas_child_h = 200.0f;
 
-    /* ── Zoom & pan ── */
-    if (ImGui::IsItemHovered()) {
-        float wheel = ImGui::GetIO().MouseWheel;
-        if (wheel != 0.0f) {
-            ImVec2 mouse = ImGui::GetIO().MousePos;
-            float mx_n = (mouse.x - canvas_pos.x) / s_sch_view.zoom + s_sch_view.pan_x;
-            float sy   = s_sch_view.zoom * HW_SCHEMATIC_ASPECT;
-            float my_n = (mouse.y - canvas_pos.y) / sy + s_sch_view.pan_y;
-            float factor = wheel > 0 ? 1.15f : (1.0f / 1.15f);
-            s_sch_view.zoom = s_sch_view.zoom * factor;
-            if (s_sch_view.zoom < 100.0f)   s_sch_view.zoom = 100.0f;
-            if (s_sch_view.zoom > 20000.0f) s_sch_view.zoom = 20000.0f;
-            s_sch_view.pan_x = mx_n - (mouse.x - canvas_pos.x) / s_sch_view.zoom;
-            s_sch_view.pan_y = my_n - (mouse.y - canvas_pos.y) / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
-        }
-    }
-    if (canvas_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-        ImVec2 delta = ImGui::GetIO().MouseDelta;
-        s_sch_view.pan_x -= delta.x / s_sch_view.zoom;
-        s_sch_view.pan_y -= delta.y / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
-    }
+     ImGui::BeginChild("##sch_canvas_child",
+                       ImVec2(0.0f, s_canvas_child_h),
+                       ImGuiChildFlags_ResizeY,
+                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    HwSchematicCache cache;
-    hw_schematic_view_cache(&s_sch_view, &cache);
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    dl->PushClipRect(canvas_pos,
-                     ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), true);
+     /* Sync stored height with the child's actual size after user resizes */
+     s_canvas_child_h = ImGui::GetContentRegionAvail().y;
 
-    /* ── Dark background ── */
-    dl->AddRectFilled(canvas_pos,
-                      ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-                      IM_COL32(18, 20, 28, 255));
+     /* ── Canvas ── */
+     ImVec2 canvas_pos  = ImGui::GetCursorScreenPos();
+     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+     if (canvas_size.x < 400)
+          canvas_size.x = 400;
+     if (canvas_size.y < 120)
+          canvas_size.y = 120;
 
-    /* ── Coordinate helpers ── */
-    auto SX = [&](float nx) -> float { return cache.origin_x + nx * cache.scale_x; };
-    auto SY = [&](float ny) -> float { return cache.origin_y + ny * cache.scale_y; };
-    auto SP = [&](float nx, float ny) -> ImVec2 { return ImVec2(SX(nx), SY(ny)); };
+     if (!s_sch_view_init)
+     {
+          s_sch_view.canvas_w = canvas_size.x;
+          s_sch_view.canvas_h = canvas_size.y;
+          hw_schematic_view_fit(&s_sch_view);
+          s_sch_view_init = true;
+     }
+     s_sch_view.canvas_x = canvas_pos.x;
+     s_sch_view.canvas_y = canvas_pos.y;
+     s_sch_view.canvas_w = canvas_size.x;
+     s_sch_view.canvas_h = canvas_size.y;
 
-    float zoom = s_sch_view.zoom;
+     ImGui::InvisibleButton("##sch_canvas", canvas_size,
+                            ImGuiButtonFlags_MouseButtonLeft);
+     bool canvas_active = ImGui::IsItemActive();
 
-    /* ── Dark schematic background ── */
-    dl->AddRectFilled(canvas_pos,
-                      ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-                      IM_COL32(14, 16, 22, 255));
+     /* ── Zoom & pan ── */
+     if (ImGui::IsItemHovered())
+     {
+          float wheel = ImGui::GetIO().MouseWheel;
+          if (wheel != 0.0f)
+          {
+               ImVec2 mouse = ImGui::GetIO().MousePos;
+               float mx_n = (mouse.x - canvas_pos.x) / s_sch_view.zoom + s_sch_view.pan_x;
+               float sy = s_sch_view.zoom * HW_SCHEMATIC_ASPECT;
+               float my_n = (mouse.y - canvas_pos.y) / sy + s_sch_view.pan_y;
+               float factor = wheel > 0 ? 1.15f : (1.0f / 1.15f);
+               s_sch_view.zoom = s_sch_view.zoom * factor;
+               if (s_sch_view.zoom < 100.0f)
+                    s_sch_view.zoom = 100.0f;
+               if (s_sch_view.zoom > 20000.0f)
+                    s_sch_view.zoom = 20000.0f;
+               s_sch_view.pan_x = mx_n - (mouse.x - canvas_pos.x) / s_sch_view.zoom;
+               s_sch_view.pan_y = my_n - (mouse.y - canvas_pos.y) / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+          }
+     }
+     if (canvas_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+     {
+          ImVec2 delta = ImGui::GetIO().MouseDelta;
+          s_sch_view.pan_x -= delta.x / s_sch_view.zoom;
+          s_sch_view.pan_y -= delta.y / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+     }
 
-    /* ── Grid lines (very subtle, only visible when zoomed in) ── */
-    if (zoom > 600.0f) {
-        float grid_step_n = 10.0f / 297.0f; /* 10mm grid */
-        ImU32 grid_col = IM_COL32(30, 35, 45, 255);
-        float x0 = cache.vp_nx0 - fmodf(cache.vp_nx0, grid_step_n);
-        for (float nx = x0; nx < cache.vp_nx1; nx += grid_step_n) {
-            float sx = SX(nx);
-            dl->AddLine(ImVec2(sx, canvas_pos.y), ImVec2(sx, canvas_pos.y + canvas_size.y), grid_col);
-        }
-        float y0 = cache.vp_ny0 - fmodf(cache.vp_ny0, grid_step_n);
-        for (float ny = y0; ny < cache.vp_ny1; ny += grid_step_n) {
-            float sy = SY(ny);
-            dl->AddLine(ImVec2(canvas_pos.x, sy), ImVec2(canvas_pos.x + canvas_size.x, sy), grid_col);
-        }
-    }
+     HwSchematicCache cache;
+     hw_schematic_view_cache(&s_sch_view, &cache);
+     ImDrawList *dl = ImGui::GetWindowDrawList();
+     dl->PushClipRect(canvas_pos,
+                      ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), true);
 
-    /* ── Wire thickness ── */
-    float wire_px = zoom * (0.4f / 297.0f);   /* 0.4mm wire */
-    if (wire_px < 0.8f)  wire_px = 0.8f;
-    if (wire_px > 6.0f)  wire_px = 6.0f;
-    float bus_px = wire_px * 2.5f;
-    if (bus_px > 12.0f) bus_px = 12.0f;
+     /* ── Coordinate helpers ── */
+     auto SX = [&](float nx) -> float
+     { return cache.origin_x + nx * cache.scale_x; };
+     auto SY = [&](float ny) -> float
+     { return cache.origin_y + ny * cache.scale_y; };
+     auto SP = [&](float nx, float ny) -> ImVec2
+     { return ImVec2(SX(nx), SY(ny)); };
 
-    /* ── Wires & buses — colored by net anim group ── */
-    for (int i = 0; i < HW_WIRE_COUNT; i++) {
-        const HwWire *w = &hw_wires[i];
-        if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
-            continue;
+     float zoom = s_sch_view.zoom;
 
-        int anim = -1;
-        if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
-            anim = hw_nets[w->net_id].anim_group;
+     /* ── Background ── */
+     if (s_sch_paper_mode)
+     {
+          /* outer margin — medium grey */
+          dl->AddRectFilled(canvas_pos,
+                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
+                            IM_COL32(160, 160, 165, 255));
+          /* paper */
+          ImVec2 paper_tl = SP(0.0f, 0.0f);
+          ImVec2 paper_br = SP(1.0f, 1.0f);
+          dl->AddRectFilled(paper_tl, paper_br, IM_COL32(255, 253, 245, 255));
+          /* border (KiCad red frame) */
+          dl->AddRect(paper_tl, paper_br, IM_COL32(180, 20, 20, 200), 0.0f, 0, 1.5f);
+     }
+     else
+     {
+          dl->AddRectFilled(canvas_pos,
+                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
+                            IM_COL32(14, 16, 22, 255));
+     }
 
-        ImU32 col = sch_wire_color(anim);
-        float thick = w->is_bus ? bus_px : wire_px;
-        dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2), col, thick);
-    }
+     /* ── Grid lines (very subtle, only visible when zoomed in) ── */
+     if (zoom > 600.0f)
+     {
+          float grid_step_n = 10.0f / 297.0f; /* 10mm grid */
+          ImU32 grid_col = IM_COL32(30, 35, 45, 255);
+          float x0 = cache.vp_nx0 - fmodf(cache.vp_nx0, grid_step_n);
+          for (float nx = x0; nx < cache.vp_nx1; nx += grid_step_n)
+          {
+               float sx = SX(nx);
+               dl->AddLine(ImVec2(sx, canvas_pos.y), ImVec2(sx, canvas_pos.y + canvas_size.y), grid_col);
+          }
+          float y0 = cache.vp_ny0 - fmodf(cache.vp_ny0, grid_step_n);
+          for (float ny = y0; ny < cache.vp_ny1; ny += grid_step_n)
+          {
+               float sy = SY(ny);
+               dl->AddLine(ImVec2(canvas_pos.x, sy), ImVec2(canvas_pos.x + canvas_size.x, sy), grid_col);
+          }
+     }
 
-    /* ── Junctions ── */
-    float jr = wire_px * 1.6f;
-    if (jr < 2.0f) jr = 2.0f;
-    for (int i = 0; i < HW_JUNCTION_COUNT; i++) {
-        const HwJunction *j = &hw_junctions[i];
-        if (!hw_sch_in_viewport(&cache, j->nx, j->ny)) continue;
-        dl->AddCircleFilled(SP(j->nx, j->ny), jr, IM_COL32(200, 210, 230, 200));
-    }
+     /* ── Wire thickness ── */
+     float wire_px = zoom * (0.4f / 297.0f); /* 0.4mm wire */
+     if (wire_px < 0.8f)
+          wire_px = 0.8f;
+     if (wire_px > 6.0f)
+          wire_px = 6.0f;
+     float bus_px = wire_px * 2.5f;
+     if (bus_px > 12.0f)
+          bus_px = 12.0f;
 
-    /* ── Labels (only when zoomed in enough) ── */
-    if (zoom > 300.0f) {
-        float font_scale = zoom > 1000.0f ? 1.0f : zoom / 1000.0f;
-        (void)font_scale; /* ImGui AddText uses default font size */
-        for (int i = 0; i < HW_LABEL_COUNT; i++) {
-            const HwLabel *lbl = &hw_labels[i];
-            if (!hw_sch_in_viewport(&cache, lbl->nx, lbl->ny)) continue;
-            float sx = SX(lbl->nx);
-            float sy = SY(lbl->ny);
-            /* Adjust for angle: 180° means the label attaches from the right */
-            float offset = -2.0f;
-            if (lbl->angle == 0.0f)
-                dl->AddText(ImVec2(sx + 2, sy + offset), IM_COL32(180, 210, 160, 210), lbl->text);
-            else
-                dl->AddText(ImVec2(sx - ImGui::CalcTextSize(lbl->text).x - 2, sy + offset),
-                            IM_COL32(180, 210, 160, 210), lbl->text);
-        }
-    }
+     /* ── Wires & buses ── */
+     for (int i = 0; i < HW_WIRE_COUNT; i++)
+     {
+          const HwWire *w = &hw_wires[i];
+          if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
+               continue;
 
-    /* ── Component boxes ── */
-    static int s_sch_sel_comp = -1;
-    int hover_comp = -1;
-    ImVec2 mouse = ImGui::GetIO().MousePos;
+          ImU32 col;
+          if (s_sch_paper_mode)
+          {
+               /* KiCad-like paper mode: green wires and blue buses. */
+               col = w->is_bus ? IM_COL32(0, 20, 170, 230) : IM_COL32(0, 150, 0, 220);
+          }
+          else
+          {
+               /* Trace-driven projection: use per-net fade when trace is active */
+               bool trace_active = gb && gb->debug.hw_trace.enabled
+                                   && w->net_id >= 0 && w->net_id < HW_NET_COUNT
+                                   && s_hw_activity.net_fade[w->net_id] > 0.01f;
+               if (trace_active)
+               {
+                    /* Colour by event type of last touch */
+                    float fade = s_hw_activity.net_fade[w->net_id];
+                    gb_hw_trace_event_type lt = s_hw_activity.net_last_type[w->net_id];
+                    ImU32 active_col;
+                    switch (lt) {
+                        case GB_HW_EVT_CPU_FETCH:
+                             active_col = IM_COL32(255, 220, 60, 255); break; /* yellow */
+                        case GB_HW_EVT_CPU_READ:
+                             active_col = IM_COL32(60, 200, 255, 255); break; /* cyan   */
+                        case GB_HW_EVT_CPU_WRITE:
+                             active_col = IM_COL32(255, 120, 60, 255); break; /* orange */
+                        case GB_HW_EVT_DMA_READ:
+                        case GB_HW_EVT_DMA_WRITE:
+                             active_col = IM_COL32(200, 80, 255, 255); break; /* purple */
+                        case GB_HW_EVT_IRQ_REQUEST:
+                        case GB_HW_EVT_IRQ_ACK:
+                             active_col = IM_COL32(255, 60, 60, 255);  break; /* red    */
+                        default:
+                             active_col = IM_COL32(180, 180, 220, 255);break; /* grey   */
+                    }
+                    /* Dim idle colour for this kind, blend with active */
+                    ImU32 base_col = s_sch_show_kinds
+                                     ? sch_wire_color_kind(w->net_id)
+                                     : IM_COL32(70, 80, 100, 120);
+                    float t = fade > 1.0f ? 1.0f : fade;
+                    uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
+                    uint8_t g = (uint8_t)(((base_col >> IM_COL32_G_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
+                    uint8_t b = (uint8_t)(((base_col >> IM_COL32_B_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
+                    uint8_t a = (uint8_t)(120 + (uint8_t)(fade * 135));
+                    col = IM_COL32(r, g, b, a);
+               }
+               else if (s_sch_show_kinds)
+                    col = sch_wire_color_kind(w->net_id);
+               else if (s_sch_show_activity)
+               {
+                    int anim = -1;
+                    if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
+                         anim = hw_nets[w->net_id].anim_group;
+                    col = sch_wire_color(anim);
+               }
+               else
+                    col = IM_COL32(90, 96, 120, 150);
+          }
+          float thick = w->is_bus ? bus_px : wire_px;
+          if (s_sch_show_wires)
+               dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2), col, thick);
+     }
 
-    for (int i = 0; i < HW_COMPONENT_COUNT; i++) {
-        const HwComponent *comp = &hw_components[i];
-        float cx = SX(comp->nx);
-        float cy = SY(comp->ny);
-        float hw2 = cache.scale_x * comp->nw * 0.5f;
-        float hh2 = cache.scale_y * comp->nh * 0.5f;
-        if (hw2 < 10.0f) hw2 = 10.0f;
-        if (hh2 < 6.0f)  hh2 = 6.0f;
+     /* ── Junctions ── */
+     float jr = wire_px * 1.8f;
+     if (jr < 2.5f)
+          jr = 2.5f;
+     if (s_sch_show_junctions)
+     {
+          ImU32 jcol = s_sch_paper_mode ? IM_COL32(0, 150, 0, 240) : IM_COL32(200, 210, 230, 200);
+          for (int i = 0; i < HW_JUNCTION_COUNT; i++)
+          {
+               const HwJunction *j = &hw_junctions[i];
+               if (!hw_sch_in_viewport(&cache, j->nx, j->ny))
+                    continue;
+               dl->AddCircleFilled(SP(j->nx, j->ny), jr, jcol);
+          }
+     }
 
-        ImVec2 tl = ImVec2(cx - hw2, cy - hh2);
-        ImVec2 br = ImVec2(cx + hw2, cy + hh2);
+     /* ── Labels (only when zoomed in enough) ── */
+     float lbl_zoom_thresh = s_sch_paper_mode ? 200.0f : 300.0f;
+     if (s_sch_show_labels && zoom > lbl_zoom_thresh)
+     {
+          ImU32 lbl_col = s_sch_paper_mode ? IM_COL32(0, 110, 110, 230) : IM_COL32(180, 210, 160, 210);
+          for (int i = 0; i < HW_LABEL_COUNT; i++)
+          {
+               const HwLabel *lbl = &hw_labels[i];
+               if (!hw_sch_in_viewport(&cache, lbl->nx, lbl->ny))
+                    continue;
+               float sx = SX(lbl->nx);
+               float sy = SY(lbl->ny);
+               float offset = s_sch_paper_mode ? -6.0f : -2.0f;
+               if (lbl->angle == 0.0f)
+                    dl->AddText(ImVec2(sx + 2, sy + offset), lbl_col, lbl->text);
+               else
+                    dl->AddText(ImVec2(sx - ImGui::CalcTextSize(lbl->text).x - 2, sy + offset),
+                                lbl_col, lbl->text);
+          }
+     }
 
-        /* Cull if completely off canvas */
-        if (br.x < canvas_pos.x || tl.x > canvas_pos.x + canvas_size.x) continue;
-        if (br.y < canvas_pos.y || tl.y > canvas_pos.y + canvas_size.y) continue;
+     /* ── Component boxes ── */
+     static int s_sch_sel_comp = -1;
+     int hover_comp = -1;
+     ImVec2 mouse = ImGui::GetIO().MousePos;
 
-        /* Pick border color from signal group + fade */
-        ImU32 border;
-        if (comp->signal_group == 0)      border = sch_wire_color(HW_ANIM_ADDR);   /* CPU */
-        else if (comp->signal_group == 1) border = sch_wire_color(HW_ANIM_WRAM_DATA);
-        else if (comp->signal_group == 2) border = sch_wire_color(HW_ANIM_WRAM_DATA);
-        else if (comp->signal_group == 3) border = sch_wire_color(HW_ANIM_ADDR);   /* Cart */
-        else if (comp->signal_group == 4) border = sch_wire_color(HW_ANIM_CLOCK);  /* Xtal */
-        else if (comp->signal_group == 5) border = sch_wire_color(HW_ANIM_AUDIO);
-        else border = IM_COL32(80, 90, 100, 160);
+     if (s_sch_show_components)
+     {
+          for (int i = 0; i < HW_COMPONENT_COUNT; i++)
+          {
+               const HwComponent *comp = &hw_components[i];
+               float comp_nx, comp_ny, comp_nw, comp_nh;
+               sch_component_reference_body(comp, &comp_nx, &comp_ny, &comp_nw, &comp_nh);
+               float cx = SX(comp_nx);
+               float cy = SY(comp_ny);
+               float hw2 = cache.scale_x * comp_nw * 0.5f;
+               float hh2 = cache.scale_y * comp_nh * 0.5f;
+               if (hw2 < 4.0f)
+                    hw2 = 4.0f;
+               if (hh2 < 4.0f)
+                    hh2 = 4.0f;
 
-        bool hovered = mouse.x >= tl.x && mouse.x <= br.x &&
-                       mouse.y >= tl.y && mouse.y <= br.y;
-        bool selected = (s_sch_sel_comp == i);
+               ImVec2 tl = ImVec2(cx - hw2, cy - hh2);
+               ImVec2 br = ImVec2(cx + hw2, cy + hh2);
 
-        if (hovered) hover_comp = i;
+               /* Cull if completely off canvas */
+               if (br.x < canvas_pos.x || tl.x > canvas_pos.x + canvas_size.x)
+                    continue;
+               if (br.y < canvas_pos.y || tl.y > canvas_pos.y + canvas_size.y)
+                    continue;
 
-        ImU32 fill = selected ? IM_COL32(40, 55, 80, 230)
-                   : hovered  ? IM_COL32(30, 38, 55, 220)
-                              : IM_COL32(20, 24, 34, 200);
-        float bthick = selected ? 2.5f : hovered ? 1.8f : 1.2f;
+               bool hovered = mouse.x >= tl.x && mouse.x <= br.x &&
+                              mouse.y >= tl.y && mouse.y <= br.y;
+               bool selected = (s_sch_sel_comp == i);
 
-        dl->AddRectFilled(tl, br, fill, 3.0f);
-        dl->AddRect(tl, br, border, 3.0f, 0, bthick);
+               if (hovered)
+                    hover_comp = i;
 
-        if (zoom > 80.0f) {
-            dl->AddText(ImVec2(tl.x + 4, tl.y + 3), IM_COL32(230, 235, 255, 240), comp->ref);
-            if (zoom > 200.0f)
-                dl->AddText(ImVec2(tl.x + 4, tl.y + 16), IM_COL32(160, 175, 190, 190), comp->value);
-        }
+               if (s_sch_paper_mode)
+               {
+                    /* ── Paper mode: IC-style schematic component ── */
+                    bool is_large = (comp_nh >= 0.10f); /* U1/U2/U3/P1/J2 */
 
-        if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            s_sch_sel_comp = selected ? -1 : i;
-    }
+                    /* Fill: yellow for ICs, white for passives */
+                    ImU32 fill = is_large ? IM_COL32(255, 255, 180, 240)
+                                         : IM_COL32(255, 253, 245, 230);
+                    ImU32 outline = selected ? IM_COL32(200,  40,  40, 255)
+                                   : hovered ? IM_COL32(180,  80,   0, 255)
+                                             : IM_COL32(180,  20,  20, 220);
+                    float bthick = selected ? 2.5f : hovered ? 2.0f : 1.5f;
 
-    dl->PopClipRect();
+                    dl->AddRectFilled(tl, br, fill);
+                    dl->AddRect(tl, br, outline, 0.0f, 0, bthick);
 
-    /* ── Hover tooltip ── */
-    if (hover_comp >= 0) {
-        const HwComponent *comp = &hw_components[hover_comp];
-        ImGui::BeginTooltip();
-        ImGui::Text("%s  —  %s", comp->ref, comp->value);
-        ImGui::TextDisabled("pos: (%.3f, %.3f) normalized", comp->nx, comp->ny);
-        ImGui::EndTooltip();
-    }
+                    /* Pin stubs: short horizontal lines from each side */
+                    if (is_large && zoom > 150.0f)
+                    {
+                         float pin_len = 4.0f + zoom * 0.004f;
+                         if (pin_len > 10.0f) pin_len = 10.0f;
+                         int n_pins = (int)((br.y - tl.y) / 6.0f);
+                         if (n_pins > 40) n_pins = 40;
+                         float pin_step = (br.y - tl.y) / (float)(n_pins + 1);
+                         for (int p = 1; p <= n_pins; p++)
+                         {
+                              float py = tl.y + p * pin_step;
+                              /* left pins */
+                              dl->AddLine(ImVec2(tl.x - pin_len, py),
+                                          ImVec2(tl.x, py),
+                                          IM_COL32(180, 20, 20, 190), 1.0f);
+                              /* right pins */
+                              dl->AddLine(ImVec2(br.x, py),
+                                          ImVec2(br.x + pin_len, py),
+                                          IM_COL32(180, 20, 20, 190), 1.0f);
+                         }
+                    }
 
-    /* ── Legend + info bar ── */
-    ImGui::Separator();
-    if (s_sch_sel_comp >= 0 && s_sch_sel_comp < HW_COMPONENT_COUNT) {
-        const HwComponent *c = &hw_components[s_sch_sel_comp];
-        ImGui::Text("Selecionado: %s  (%s)", c->ref, c->value);
-    } else {
-        ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique=selecionar  |  DMG-CPU-06  (CC-BY 4.0, Gekkio)");
-    }
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 20);
-    /* Mini legend */
-    ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "Addr");
-    ImGui::SameLine(); ImGui::TextColored(ImVec4(0.4f, 0.7f, 0.5f, 1.0f), "WRAM");
-    ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "Audio");
-    ImGui::SameLine(); ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.6f, 1.0f), "LCD");
-    ImGui::SameLine(); ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f), "IRQ");
+                    /* Labels: ref above box, value inside */
+                    if (zoom > 60.0f)
+                    {
+                         /* ref above top-left */
+                         dl->AddText(ImVec2(tl.x, tl.y - 14),
+                                     IM_COL32(10, 10, 80, 230), comp->ref);
+                         if (zoom > 120.0f && is_large)
+                              dl->AddText(ImVec2(tl.x + 4, tl.y + 4),
+                                          IM_COL32(60, 40, 10, 200), comp->value);
+                    }
+               }
+               else
+               {
+                    /* ── Dark mode component ── */
+                    static const ImU32 kind_comp_col[] = {
+                         IM_COL32( 80, 140, 255, 220), /* CPU         — blue */
+                         IM_COL32(220, 200,  60, 220), /* CART        — gold */
+                         IM_COL32( 80, 220, 110, 220), /* WRAM        — green */
+                         IM_COL32( 60, 210, 180, 220), /* VRAM        — teal */
+                         IM_COL32( 60, 210, 180, 220), /* PPU_LCD     — teal */
+                         IM_COL32(255, 160,  60, 220), /* APU_AUDIO   — amber */
+                         IM_COL32(200, 140, 255, 220), /* TIMER_CLOCK — violet */
+                         IM_COL32(200, 230,  80, 220), /* JOYPAD      — lime */
+                         IM_COL32( 60, 200, 230, 220), /* SERIAL      — cyan */
+                         IM_COL32(255,  80,  80, 180), /* POWER       — red */
+                         IM_COL32(120, 120, 130, 160), /* MISC        — grey */
+                         IM_COL32( 70,  75,  95, 130), /* UNKNOWN     — dim */
+                    };
+                    ImU32 border;
+                    bool comp_trace_active = gb && gb->debug.hw_trace.enabled
+                                            && s_hw_activity.comp_fade[i] > 0.01f;
+                    if (comp_trace_active)
+                    {
+                         float fade = s_hw_activity.comp_fade[i];
+                         gb_hw_trace_event_type lt = s_hw_activity.comp_last_type[i];
+                         ImU32 active_col;
+                         switch (lt) {
+                             case GB_HW_EVT_CPU_FETCH:
+                                  active_col = IM_COL32(255, 220, 60, 255); break;
+                             case GB_HW_EVT_CPU_READ:
+                                  active_col = IM_COL32(60, 200, 255, 255); break;
+                             case GB_HW_EVT_CPU_WRITE:
+                                  active_col = IM_COL32(255, 120, 60, 255); break;
+                             case GB_HW_EVT_DMA_READ:
+                             case GB_HW_EVT_DMA_WRITE:
+                                  active_col = IM_COL32(200, 80, 255, 255); break;
+                             case GB_HW_EVT_IRQ_REQUEST:
+                             case GB_HW_EVT_IRQ_ACK:
+                                  active_col = IM_COL32(255, 60, 60, 255);  break;
+                             default:
+                                  active_col = IM_COL32(180, 180, 220, 255);break;
+                         }
+                         float t = fade > 1.0f ? 1.0f : fade;
+                         uint8_t r = (uint8_t)(80  * (1-t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
+                         uint8_t g = (uint8_t)(90  * (1-t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
+                         uint8_t b = (uint8_t)(120 * (1-t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
+                         uint8_t a = (uint8_t)(160 + (uint8_t)(t * 95));
+                         border = IM_COL32(r, g, b, a);
+                    }
+                    else if (s_sch_show_kinds)
+                    {
+                         const HwComponentSemantic *csem = hw_map_find_component(i);
+                         HwComponentKind ck = csem ? csem->kind : HW_COMP_UNKNOWN;
+                         border = kind_comp_col[ck];
+                    }
+                    else if (!s_sch_show_activity)
+                         border = IM_COL32(90, 100, 120, 150);
+                    else if (comp->signal_group == 0)
+                         border = sch_wire_color(HW_ANIM_ADDR);
+                    else if (comp->signal_group == 1)
+                         border = sch_wire_color(HW_ANIM_WRAM_DATA);
+                    else if (comp->signal_group == 2)
+                         border = sch_wire_color(HW_ANIM_WRAM_DATA);
+                    else if (comp->signal_group == 3)
+                         border = sch_wire_color(HW_ANIM_ADDR);
+                    else if (comp->signal_group == 4)
+                         border = sch_wire_color(HW_ANIM_CLOCK);
+                    else if (comp->signal_group == 5)
+                         border = sch_wire_color(HW_ANIM_AUDIO);
+                    else
+                         border = IM_COL32(80, 90, 100, 160);
+
+                    /* Fill brightens when trace-active */
+                    ImU32 fill = selected      ? IM_COL32(40, 55, 80, 230)
+                                 : hovered     ? IM_COL32(30, 38, 55, 220)
+                                 : comp_trace_active
+                                               ? IM_COL32(28, 35, 55, 230)
+                                               : IM_COL32(20, 24, 34, 200);
+                    float bthick = selected ? 2.5f : hovered ? 1.8f : 1.2f;
+
+                    dl->AddRectFilled(tl, br, fill, 3.0f);
+                    dl->AddRect(tl, br, border, 3.0f, 0, bthick);
+
+                    if (zoom > 80.0f)
+                    {
+                         dl->AddText(ImVec2(tl.x + 4, tl.y + 3), IM_COL32(230, 235, 255, 240), comp->ref);
+                         if (zoom > 200.0f)
+                              dl->AddText(ImVec2(tl.x + 4, tl.y + 16), IM_COL32(160, 175, 190, 190), comp->value);
+                    }
+               }
+
+               if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    s_sch_sel_comp = selected ? -1 : i;
+          }
+     }
+
+     /* ── Paper title block (bottom-right of schematic sheet) ── */
+     if (s_sch_paper_mode)
+     {
+          ImVec2 br_paper = SP(1.0f, 1.0f);
+          if (br_paper.x > canvas_pos.x && br_paper.y > canvas_pos.y)
+          {
+               float tb_w = 184.0f, tb_h = 38.0f;
+               ImVec2 tb_tl = ImVec2(br_paper.x - tb_w, br_paper.y - tb_h);
+               ImVec2 tb_br = ImVec2(br_paper.x - 2,    br_paper.y - 2);
+               dl->AddRectFilled(tb_tl, tb_br, IM_COL32(245, 240, 220, 240));
+               dl->AddRect(tb_tl, tb_br, IM_COL32(180, 20, 20, 180), 0.0f, 0, 1.0f);
+               dl->AddText(ImVec2(tb_tl.x + 4, tb_tl.y + 4),
+                           IM_COL32(20, 20, 80, 230), "Original Game Boy (DMG)");
+               dl->AddText(ImVec2(tb_tl.x + 4, tb_tl.y + 20),
+                           IM_COL32(80, 40, 10, 200), "DMG-CPU-06  CC-BY 4.0, Gekkio");
+          }
+     }
+
+     dl->PopClipRect();
+
+     /* ── Live HW activity status strip (top-left corner of canvas) ── */
+     if (gb && !s_sch_paper_mode)
+     {
+          struct {
+               const char *label;
+               float       fade;   /* 0..1 activity level */
+               ImU32       color;
+          } hw_status[] = {
+               { "CPU",   sv ? (sv->fade_cpu_rom > sv->fade_cpu_wram ? sv->fade_cpu_rom : sv->fade_cpu_wram) : 0.0f,
+                              IM_COL32( 80,160,255,255) },
+               { "PPU",   sv ? (sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram) : 0.0f,
+                              IM_COL32( 60,210,180,255) },
+               { "DMA",   sv ? sv->fade_dma_oam : 0.0f,
+                              IM_COL32(200, 80,255,255) },
+               { "APU",   sv ? sv->fade_apu     : 0.0f,
+                              IM_COL32(255,160, 60,255) },
+               { "IRQ",   sv ? sv->fade_irq_cpu : 0.0f,
+                              IM_COL32(255, 60, 60,255) },
+          };
+          const int hw_status_n = 5;
+
+          float pill_x = canvas_pos.x + 8.0f;
+          float pill_y = canvas_pos.y + 6.0f;
+          float pill_h = 16.0f;
+          float pill_pad = 5.0f;
+          float text_scale = 1.0f;
+          (void)text_scale;
+
+          for (int si = 0; si < hw_status_n; si++)
+          {
+               float fw = ImGui::CalcTextSize(hw_status[si].label).x + pill_pad * 2;
+               float alpha_t = hw_status[si].fade > 1.0f ? 1.0f : hw_status[si].fade;
+
+               /* Background pill: dark when idle, colored when active */
+               ImU32 bg = IM_COL32(
+                    (uint8_t)(20  + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 20)),
+                    (uint8_t)(22  + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 22)),
+                    (uint8_t)(30  + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 30)),
+                    (uint8_t)(160 + alpha_t * 80));
+               ImU32 txt_col = IM_COL32(
+                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 100)),
+                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 100)),
+                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 100)),
+                    220);
+
+               dl->AddRectFilled(ImVec2(pill_x, pill_y),
+                                 ImVec2(pill_x + fw, pill_y + pill_h),
+                                 bg, 4.0f);
+               if (alpha_t > 0.05f)
+                    dl->AddRect(ImVec2(pill_x, pill_y),
+                                ImVec2(pill_x + fw, pill_y + pill_h),
+                                hw_status[si].color & IM_COL32(255,255,255,(uint8_t)(alpha_t*180)),
+                                4.0f, 0, 1.0f);
+               dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), txt_col, hw_status[si].label);
+               pill_x += fw + 4.0f;
+          }
+
+          /* Trace indicator */
+          if (gb->debug.hw_trace.enabled)
+          {
+               float fw = ImGui::CalcTextSize("TRACE").x + pill_pad * 2;
+               ImU32 bg  = IM_COL32(20, 40, 20, 180);
+               ImU32 tc  = IM_COL32( 80,220, 80,230);
+               dl->AddRectFilled(ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), bg, 4.0f);
+               dl->AddRect(      ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), tc, 4.0f, 0, 1.0f);
+               dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), tc, "TRACE");
+          }
+     }
+
+     /* ── Hover tooltip ── */
+     if (s_sch_show_components && hover_comp >= 0)
+     {
+          const HwComponent *comp = &hw_components[hover_comp];
+          ImGui::BeginTooltip();
+          ImGui::Text("%s  —  %s", comp->ref, comp->value);
+          ImGui::TextDisabled("pos: (%.3f, %.3f) normalized", comp->nx, comp->ny);
+          const HwComponentSemantic *csem = hw_map_find_component(hover_comp);
+          if (csem)
+          {
+               ImGui::TextDisabled("kind: %s  [%s]", hw_component_kind_name(csem->kind),
+                                   hw_confidence_name(csem->confidence));
+               if (csem->emulator_owner && csem->emulator_owner[0])
+                    ImGui::TextDisabled("owner: %s", csem->emulator_owner);
+          }
+          ImGui::EndTooltip();
+     }
+
+     /* ── Legend + info bar ── */
+     ImGui::Separator();
+     if (s_sch_sel_comp >= 0 && s_sch_sel_comp < HW_COMPONENT_COUNT)
+     {
+          const HwComponent *c = &hw_components[s_sch_sel_comp];
+          ImGui::Text("Selecionado: %s  (%s)", c->ref, c->value);
+     }
+     else
+     {
+          ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique=selecionar  |  DMG-CPU-06  (CC-BY 4.0, Gekkio)");
+     }
+     ImGui::SameLine();
+     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 20);
+     /* Mini legend */
+     if (s_sch_show_kinds)
+     {
+          ImGui::TextColored(ImVec4(0.31f, 0.55f, 1.0f, 1.0f),  "Addr");   ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.31f, 0.86f, 0.43f, 1.0f), "Data");   ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f,  0.35f, 0.35f, 1.0f), "RD");     ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f,  0.51f, 0.20f, 1.0f), "WR");     ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.86f, 0.78f, 0.24f, 1.0f), "CS");     ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.78f, 0.55f, 1.0f,  1.0f), "CLK");    ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.24f, 0.82f, 0.71f, 1.0f), "LCD");    ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f,  0.63f, 0.24f, 1.0f), "Audio");  ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.24f, 0.78f, 0.90f, 1.0f), "Serial"); ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.78f, 0.90f, 0.31f, 1.0f), "Joy");
+     }
+     else if (s_sch_show_activity)
+     {
+          ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "Addr");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.4f, 0.7f, 0.5f, 1.0f), "WRAM");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "Audio");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.6f, 1.0f), "LCD");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f), "IRQ");
+     }
+     else
+     {
+          ImGui::TextDisabled("Activity hidden");
+     }
+
+     ImGui::EndChild(); /* ##sch_canvas_child */
+
+     /* ── HW Trace + Audit panel (scrollable, fills remaining space) ── */
+     if (!gb)
+          return;
+
+     ImGui::BeginChild("##sch_trace_child", ImVec2(0, 0), ImGuiChildFlags_None,
+                       ImGuiWindowFlags_None);
+
+     struct gb_hw_trace *tr = &gb->debug.hw_trace;
+
+     /* ── Metadata per event type (must match gb_hw_trace_event_type order) ── */
+     struct EvtMeta { const char *name; ImU32 color; uint8_t subsystem; };
+     /* subsystem bits: 0=CPU 1=PPU 2=DMA 3=Timer 4=APU 5=Input */
+     static const EvtMeta s_evt_meta[] = {
+          { "NONE",      IM_COL32(100,100,100,200), 0x3F }, /* GB_HW_EVT_NONE       */
+          { "FETCH",     IM_COL32(120,180,255,220), 1<<0 }, /* GB_HW_EVT_CPU_FETCH  */
+          { "READ",      IM_COL32( 80,220,110,220), 1<<0 }, /* GB_HW_EVT_CPU_READ   */
+          { "WRITE",     IM_COL32(255,130, 60,220), 1<<0 }, /* GB_HW_EVT_CPU_WRITE  */
+          { "IRQ_REQ",   IM_COL32(220,100,255,220), 1<<0 }, /* GB_HW_EVT_IRQ_REQUEST*/
+          { "IRQ_ACK",   IM_COL32(255, 80, 80,220), 1<<0 }, /* GB_HW_EVT_IRQ_ACK    */
+          { "DMA_RD",    IM_COL32(160,200,255,200), 1<<2 }, /* GB_HW_EVT_DMA_READ   */
+          { "DMA_WR",    IM_COL32(255,200,100,200), 1<<2 }, /* GB_HW_EVT_DMA_WRITE  */
+          { "PPU_MODE",  IM_COL32( 60,210,180,200), 1<<1 }, /* GB_HW_EVT_PPU_MODE   */
+          { "APU_SMP",   IM_COL32(255,160, 60,200), 1<<4 }, /* GB_HW_EVT_APU_SAMPLE */
+          { "VBLANK",    IM_COL32( 50,255,180,230), 1<<1 }, /* GB_HW_EVT_PPU_VBLANK */
+          { "HBLANK",    IM_COL32( 30,190,130,200), 1<<1 }, /* GB_HW_EVT_PPU_HBLANK */
+          { "OAM_DMA",   IM_COL32(200,230,255,210), 1<<2 }, /* GB_HW_EVT_OAM_DMA    */
+          { "TMR_OVF",   IM_COL32(255,220, 50,230), 1<<3 }, /* GB_HW_EVT_TIMER_OVF  */
+          { "APU_WR",    IM_COL32(255,140,  0,210), 1<<4 }, /* GB_HW_EVT_APU_WRITE  */
+          { "JOYPAD",    IM_COL32( 80,255,100,220), 1<<5 }, /* GB_HW_EVT_JOYPAD     */
+     };
+     static const int s_evt_meta_count = (int)(sizeof(s_evt_meta)/sizeof(s_evt_meta[0]));
+
+     /* ── Controls row ── */
+     ImGui::Separator();
+     bool trace_on = tr->enabled;
+     if (ImGui::Checkbox("HW Trace", &trace_on))
+          tr->enabled = trace_on;
+     ImGui::SameLine();
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+     ImGui::TextDisabled("%u events", n_total);
+     ImGui::SameLine();
+     if (ImGui::SmallButton("Clear"))
+     {
+          tr->head  = 0;
+          tr->count = 0;
+     }
+
+     /* ── Subsystem filter toggles ── */
+     static uint8_t s_filter_mask = 0x3F; /* all on */
+     static bool    s_filter_open = false;
+     ImGui::SameLine();
+     if (ImGui::SmallButton(s_filter_open ? "Filter [-]" : "Filter [+]"))
+          s_filter_open = !s_filter_open;
+
+     if (s_filter_open)
+     {
+          ImGui::Indent(8.0f);
+          struct { const char *label; uint8_t bit; ImU32 col; } subsys[] = {
+               { "CPU",   1<<0, IM_COL32(120,180,255,255) },
+               { "PPU",   1<<1, IM_COL32( 50,230,180,255) },
+               { "DMA",   1<<2, IM_COL32(200,220,255,255) },
+               { "Timer", 1<<3, IM_COL32(255,220, 50,255) },
+               { "APU",   1<<4, IM_COL32(255,150, 40,255) },
+               { "Input", 1<<5, IM_COL32( 80,255,100,255) },
+          };
+          for (int si = 0; si < 6; si++)
+          {
+               bool on = (s_filter_mask & subsys[si].bit) != 0;
+               ImGui::PushStyleColor(ImGuiCol_CheckMark, subsys[si].col);
+               if (ImGui::Checkbox(subsys[si].label, &on))
+               {
+                    if (on) s_filter_mask |= subsys[si].bit;
+                    else    s_filter_mask &= ~subsys[si].bit;
+               }
+               ImGui::PopStyleColor();
+               if (si < 5) ImGui::SameLine();
+          }
+          ImGui::Unindent(8.0f);
+     }
+
+     if (n_total == 0)
+     {
+          ImGui::TextDisabled("(no events — enable HW Trace above)");
+          ImGui::EndChild();
+          return;
+     }
+
+     /* ── Selected event index (ring-buffer position from newest=0) ── */
+     static int s_selected_ev = -1;
+     /* Reset selection if it goes out of range after Clear */
+     if (s_selected_ev >= (int)n_total) s_selected_ev = -1;
+
+     /* ── Event list (scrollable, newest first) ── */
+     float list_h = s_selected_ev >= 0 ? 140.0f : 180.0f;
+     ImGui::BeginChild("##hw_trace_list", ImVec2(0, list_h), true,
+                       ImGuiWindowFlags_HorizontalScrollbar);
+     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
+
+     for (uint32_t i = 0; i < n_total; i++)
+     {
+          uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - i) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          int t = (int)ev->type;
+          if (t < 0 || t >= s_evt_meta_count) t = 0;
+
+          /* Apply subsystem filter */
+          if (!(s_evt_meta[t].subsystem & s_filter_mask)) continue;
+
+          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
+          bool selected = (s_selected_ev == (int)i);
+
+          /* Selectable row */
+          ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(cv.x*0.35f, cv.y*0.35f, cv.z*0.35f, 0.6f));
+          ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(cv.x*0.5f,  cv.y*0.5f,  cv.z*0.5f,  0.7f));
+          ImGui::PushStyleColor(ImGuiCol_HeaderActive,  ImVec4(cv.x*0.7f,  cv.y*0.7f,  cv.z*0.7f,  0.8f));
+
+          char row_id[32];
+          snprintf(row_id, sizeof(row_id), "##ev%u", i);
+
+          /* Type badge */
+          ImGui::TextColored(cv, "%-8s", s_evt_meta[t].name);
+          ImGui::SameLine();
+
+          /* Per-type compact summary */
+          switch ((gb_hw_trace_event_type)t)
+          {
+          case GB_HW_EVT_CPU_FETCH:
+               ImGui::TextDisabled("PC:%04X  op:%02X", ev->pc, ev->opcode);
+               break;
+          case GB_HW_EVT_CPU_READ:
+               ImGui::TextDisabled("PC:%04X  [%04X]→%02X", ev->pc, ev->addr, ev->data);
+               break;
+          case GB_HW_EVT_CPU_WRITE:
+               ImGui::TextDisabled("PC:%04X  [%04X]←%02X", ev->pc, ev->addr, ev->data);
+               break;
+          case GB_HW_EVT_IRQ_REQUEST:
+               ImGui::TextDisabled("IF:%02X  IE:%02X", ev->data, ev->extra);
+               break;
+          case GB_HW_EVT_IRQ_ACK:
+               ImGui::TextDisabled("vec:%04X  IF:%02X", ev->addr, ev->data);
+               break;
+          case GB_HW_EVT_DMA_READ:
+               ImGui::TextDisabled("[%04X]→%02X", ev->addr, ev->data);
+               break;
+          case GB_HW_EVT_DMA_WRITE:
+               ImGui::TextDisabled("OAM[%02X]←%02X", ev->extra, ev->data);
+               break;
+          case GB_HW_EVT_PPU_MODE:
+               ImGui::TextDisabled("LY:%d  mode:%d", ev->addr & 0xFF, ev->data & 3);
+               break;
+          case GB_HW_EVT_APU_SAMPLE:
+               ImGui::TextDisabled("L:%d R:%d", (int8_t)ev->data, (int8_t)ev->extra);
+               break;
+          case GB_HW_EVT_PPU_VBLANK:
+               ImGui::TextDisabled("LY:%d", ev->data);
+               break;
+          case GB_HW_EVT_PPU_HBLANK:
+               ImGui::TextDisabled("LY:%d", ev->data);
+               break;
+          case GB_HW_EVT_OAM_DMA:
+               ImGui::TextDisabled("[FE%02X]←%02X  pos:%d", ev->extra, ev->data, ev->extra);
+               break;
+          case GB_HW_EVT_TIMER_OVF:
+               ImGui::TextDisabled("TMA:%02X", ev->data);
+               break;
+          case GB_HW_EVT_APU_WRITE:
+               ImGui::TextDisabled("[%04X]←%02X", ev->addr, ev->data);
+               break;
+          case GB_HW_EVT_JOYPAD:
+               ImGui::TextDisabled("state:%02X  %s", ev->data, ev->write ? "pressed" : "released");
+               break;
+          default:
+               ImGui::TextDisabled("T:%d", ev->timestamp);
+               break;
+          }
+
+          /* Invisible selectable covering the whole row */
+          ImGui::SameLine(0, 0);
+          float row_w = ImGui::GetContentRegionAvail().x;
+          if (ImGui::Selectable(row_id, selected,
+                                ImGuiSelectableFlags_SpanAllColumns |
+                                ImGuiSelectableFlags_AllowOverlap,
+                                ImVec2(row_w, 0)))
+               s_selected_ev = selected ? -1 : (int)i;
+
+          ImGui::PopStyleColor(3);
+     }
+
+     ImGui::PopStyleVar();
+     ImGui::EndChild();
+
+     /* ── Detail panel for selected event ── */
+     if (s_selected_ev >= 0 && s_selected_ev < (int)n_total)
+     {
+          uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - (uint32_t)s_selected_ev) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          int t = (int)ev->type;
+          if (t < 0 || t >= s_evt_meta_count) t = 0;
+          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
+
+          ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(cv.x*0.12f, cv.y*0.12f, cv.z*0.12f, 0.5f));
+          ImGui::BeginChild("##hw_trace_detail", ImVec2(0, 100), true);
+
+          ImGui::TextColored(cv, "%s", s_evt_meta[t].name);
+          ImGui::SameLine();
+          ImGui::TextDisabled("seq:#%llu  T:%d", (unsigned long long)ev->seq, ev->timestamp);
+
+          ImGui::Separator();
+
+          switch ((gb_hw_trace_event_type)t)
+          {
+          case GB_HW_EVT_CPU_FETCH:
+               ImGui::Text("PC   = %04X", ev->pc);
+               ImGui::SameLine(120); ImGui::Text("opcode = %02X", ev->opcode);
+               break;
+          case GB_HW_EVT_CPU_READ:
+               ImGui::Text("PC   = %04X", ev->pc);
+               ImGui::SameLine(120); ImGui::Text("addr = %04X", ev->addr);
+               ImGui::Text("data = %02X", ev->data);
+               break;
+          case GB_HW_EVT_CPU_WRITE:
+               ImGui::Text("PC   = %04X", ev->pc);
+               ImGui::SameLine(120); ImGui::Text("addr = %04X", ev->addr);
+               ImGui::Text("data = %02X", ev->data);
+               break;
+          case GB_HW_EVT_IRQ_REQUEST:
+               ImGui::Text("IF = %02X", ev->data);
+               ImGui::SameLine(120); ImGui::Text("IE = %02X", ev->extra);
+               {
+                    const char *bits[] = {"VBlank","STAT","Timer","Serial","Joypad"};
+                    ImGui::Text("Pending:");
+                    for (int b = 0; b < 5; b++)
+                         if (ev->data & (1<<b)) { ImGui::SameLine(); ImGui::TextColored(cv, "%s", bits[b]); }
+               }
+               break;
+          case GB_HW_EVT_IRQ_ACK:
+               ImGui::Text("vector = %04X", ev->addr);
+               ImGui::SameLine(120); ImGui::Text("IF after = %02X", ev->data);
+               break;
+          case GB_HW_EVT_DMA_READ:
+               ImGui::Text("src    = %04X", ev->addr);
+               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               break;
+          case GB_HW_EVT_DMA_WRITE:
+               ImGui::Text("OAM[%02X] = %02X", ev->extra, ev->data);
+               break;
+          case GB_HW_EVT_PPU_MODE:
+               ImGui::Text("LY   = %d", ev->addr & 0xFF);
+               ImGui::SameLine(120); ImGui::Text("mode = %d", ev->data & 3);
+               break;
+          case GB_HW_EVT_APU_SAMPLE:
+               ImGui::Text("L = %d", (int8_t)ev->data);
+               ImGui::SameLine(120); ImGui::Text("R = %d", (int8_t)ev->extra);
+               break;
+          case GB_HW_EVT_PPU_VBLANK:
+               ImGui::Text("LY = %d  (VBlank start)", ev->data);
+               break;
+          case GB_HW_EVT_PPU_HBLANK:
+               ImGui::Text("LY = %d", ev->data);
+               break;
+          case GB_HW_EVT_OAM_DMA:
+               ImGui::Text("dst  = FE%02X", ev->extra);
+               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               ImGui::Text("pos  = %d / 159", (int)ev->extra);
+               break;
+          case GB_HW_EVT_TIMER_OVF:
+               ImGui::Text("TMA reload = %02X", ev->data);
+               break;
+          case GB_HW_EVT_APU_WRITE:
+               ImGui::Text("reg  = %04X", ev->addr);
+               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               break;
+          case GB_HW_EVT_JOYPAD:
+               ImGui::Text("state = %02X  (%s)", ev->data, ev->write ? "pressed" : "released");
+               {
+                    const char *btns[] = {"Right","Left","Up","Down","A","B","Select","Start"};
+                    ImGui::Text("Active (low=pressed):");
+                    for (int b = 0; b < 8; b++)
+                         if (!(ev->data & (1<<b))) { ImGui::SameLine(); ImGui::TextColored(cv, "%s", btns[b]); }
+               }
+               break;
+          default:
+               ImGui::Text("timestamp = %d", ev->timestamp);
+               break;
+          }
+
+          ImGui::EndChild();
+          ImGui::PopStyleColor();
+     }
+
+     /* ── Fase G: Audit panel ── */
+     ImGui::Separator();
+
+     static bool         s_audit_open      = false;
+     static HwAuditResult s_audit_result   = {};
+     static uint64_t     s_audit_last_seq  = 0;
+     static bool         s_audit_dirty     = true;  /* rerun on next open */
+     static int          s_audit_selected  = -1;
+
+     /* Invalidate whenever new trace events arrive */
+     if (tr->next_seq > s_audit_last_seq + 1)
+          s_audit_dirty = true;
+
+     /* Colors per category */
+     static const ImVec4 s_audit_cat_colors[] = {
+          { 1.0f, 0.4f, 0.4f, 1.0f }, /* UNMAPPED_NET  — red        */
+          { 1.0f, 0.8f, 0.2f, 1.0f }, /* NO_BUS_PROJ   — yellow     */
+          { 1.0f, 0.5f, 0.1f, 1.0f }, /* BAD_ADDR      — orange     */
+          { 0.9f, 0.2f, 0.9f, 1.0f }, /* BUS_CONFLICT  — magenta    */
+          { 0.4f, 0.8f, 1.0f, 1.0f }, /* SEQ_GAP       — cyan       */
+     };
+
+     /* Header row: category badge counts + toggle */
+     int total_findings = s_audit_open ? s_audit_result.count : 0;
+     ImGui::TextDisabled("Audit:");
+     ImGui::SameLine();
+     for (int c = 0; c < 5; c++) {
+          if (s_audit_open) {
+               ImGui::TextColored(s_audit_cat_colors[c], "%s:%d",
+                                  HW_AUDIT_CAT_NAMES[c],
+                                  s_audit_result.cat_count[c]);
+          } else {
+               ImGui::TextDisabled("%s", HW_AUDIT_CAT_NAMES[c]);
+          }
+          if (c < 4) ImGui::SameLine();
+     }
+     ImGui::SameLine();
+     if (ImGui::SmallButton(s_audit_open ? "[-]" : "[Run]")) {
+          s_audit_open  = !s_audit_open;
+          s_audit_dirty = true;
+     }
+
+     if (!s_audit_open)
+     {
+          ImGui::EndChild();
+          return;
+     }
+
+     /* Run audit when dirty */
+     if (s_audit_dirty) {
+          uint64_t scan_from = 0; /* always full scan for correctness */
+          hw_audit_trace(tr, &s_audit_result, &scan_from);
+          s_audit_last_seq = tr->next_seq;
+          s_audit_dirty    = false;
+          s_audit_selected = -1;
+          total_findings   = s_audit_result.count;
+     }
+
+     ImGui::TextDisabled("Scanned %d events — %d finding(s)",
+                         s_audit_result.total_events_scanned, total_findings);
+
+     if (total_findings == 0) {
+          ImGui::TextColored({0.3f,1.0f,0.4f,1.0f}, "No anomalies found.");
+          ImGui::EndChild();
+          return;
+     }
+
+     /* Finding list */
+     float audit_list_h = s_audit_selected >= 0 ? 110.0f : 150.0f;
+     ImGui::BeginChild("##audit_list", ImVec2(0, audit_list_h), true,
+                       ImGuiWindowFlags_HorizontalScrollbar);
+     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
+
+     for (int fi = 0; fi < total_findings; fi++) {
+          const HwAuditFinding *f = &s_audit_result.findings[fi];
+          int  cat = (int)f->category;
+          ImVec4 cv = s_audit_cat_colors[cat];
+
+          ImGui::TextColored(cv, "%-14s", HW_AUDIT_CAT_NAMES[cat]);
+          ImGui::SameLine();
+          ImGui::TextDisabled("seq:#%llu  %s",
+                              (unsigned long long)f->seq, f->detail);
+
+          /* Invisible selectable */
+          ImGui::SameLine(0, 0);
+          float rw = ImGui::GetContentRegionAvail().x;
+          char sel_id[24];
+          snprintf(sel_id, sizeof(sel_id), "##af%d", fi);
+          bool sel = (s_audit_selected == fi);
+          if (ImGui::Selectable(sel_id, sel,
+                                ImGuiSelectableFlags_SpanAllColumns |
+                                ImGuiSelectableFlags_AllowOverlap,
+                                ImVec2(rw, 0)))
+               s_audit_selected = sel ? -1 : fi;
+     }
+
+     ImGui::PopStyleVar();
+     ImGui::EndChild();
+
+     /* Detail panel for selected finding */
+     if (s_audit_selected >= 0 && s_audit_selected < total_findings) {
+          const HwAuditFinding *f = &s_audit_result.findings[s_audit_selected];
+          int   cat = (int)f->category;
+          ImVec4 cv = s_audit_cat_colors[cat];
+
+          ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                                ImVec4(cv.x*0.12f, cv.y*0.12f, cv.z*0.12f, 0.5f));
+          ImGui::BeginChild("##audit_detail", ImVec2(0, 90), true);
+
+          ImGui::TextColored(cv, "%s", HW_AUDIT_CAT_NAMES[cat]);
+          ImGui::SameLine(); ImGui::TextDisabled("seq:#%llu  T:%d",
+                                                 (unsigned long long)f->seq,
+                                                 f->timestamp);
+          ImGui::Separator();
+          ImGui::Text("Event type : %d", (int)f->type);
+          ImGui::Text("Addr       : %04X", f->addr);
+          if (f->net_id >= 0)
+               ImGui::Text("Net id     : %d", f->net_id);
+          ImGui::TextWrapped("Detail: %s", f->detail);
+
+          ImGui::EndChild();
+          ImGui::PopStyleColor();
+     }
+
+     ImGui::EndChild(); /* ##sch_trace_child */
 }

@@ -126,6 +126,7 @@ void gb_dma_sync(struct gb *gb)
 
         gb->gpu.oam[dma->position] = b;
         gb->debug.sys_viz.fade_dma_oam = 1.0f;
+        gb_debug_hw_trace_oam_dma(gb, (uint8_t)dma->position, (uint8_t)b);
 
         dma->position++;
 

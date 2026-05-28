@@ -123,10 +123,11 @@ void gb_cpu_reset(struct gb *gb)
                cpu->d = 0x00; cpu->e = 0x00; cpu->h = 0xc0; cpu->l = 0x60;
                cpu->f_z = false; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
                break;
+          case GB_HW_CGB0:
           case GB_HW_CGB:
-               cpu->a = 0x11; cpu->b = 0x00; cpu->c = 0x13;
-               cpu->d = 0x00; cpu->e = 0xd8; cpu->h = 0x01; cpu->l = 0x4d;
-               cpu->f_z = true; cpu->f_n = false; cpu->f_h = true; cpu->f_c = true;
+               cpu->a = 0x11; cpu->b = 0x00; cpu->c = 0x00;
+               cpu->d = 0x00; cpu->e = 0x08; cpu->h = 0x00; cpu->l = 0x7c;
+               cpu->f_z = true; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
                break;
           default: /* GB_HW_DMG */
                cpu->a = 0x01; cpu->b = 0x00; cpu->c = 0x13;
@@ -3824,6 +3825,7 @@ static void gb_cpu_check_interrupts(struct gb *gb)
      if (i < 5)
      {
           irq->irq_flags &= ~(1U << i);
+          gb_debug_hw_trace_irq(gb, true, irq->irq_flags, irq->irq_enable);
      }
 
      /* Jump to the IRQ handler */
@@ -3860,11 +3862,13 @@ static void gb_cpu_update_ime(struct gb *gb)
 static void gb_cpu_run_instruction(struct gb *gb)
 {
      uint8_t instruction;
+     uint16_t fetch_pc = gb->cpu.pc;
 
-     gb->cpu.trace_buf[gb->cpu.trace_head] = gb->cpu.pc;
+     gb->cpu.trace_buf[gb->cpu.trace_head] = fetch_pc;
      gb->cpu.trace_head = (gb->cpu.trace_head + 1) % GB_CPU_TRACE_SIZE;
 
      instruction = gb_cpu_next_i8(gb);
+     gb_debug_hw_trace_cpu_fetch(gb, fetch_pc, instruction);
 
      gb_instructions[instruction](gb);
 }

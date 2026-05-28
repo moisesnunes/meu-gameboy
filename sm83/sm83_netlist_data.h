@@ -65,6 +65,16 @@
 #define SM83_ARC_PTRANS_START  0
 #define SM83_ARC_PTRANS_END    0
 
+/* Power rail candidates identified by find_power_rails.py (heuristic, not confirmed by name).
+ * GND: net@277 (id=270) — 219 N-trans terminals, 1 P-trans terminal, ratio 219:1.
+ * VCC: net@28  (id=25)  — 84  P-trans terminals, 6  N-trans terminals, ratio 14:1.
+ *      (Previous best was net@35/id=32, ratio 3.9:1 — corrected after deeper analysis.)
+ * Status: HEURISTIC — not confirmed by die inspection yet. */
+#define SM83_GND_NET_HEURISTIC   270  /* net@277: n=219 p=1  arcs=155 — best GND ratio 219:1 */
+#define SM83_VCC_NET_HEURISTIC    25  /* net@28:  n=6   p=84 arcs=349 — best VCC ratio 14:1  */
+/* Runners-up: GND: 226(net@228 n=216 p=17 ratio=12.7), 243(net@245 n=179 p=2 ratio=89.5) */
+/* Runners-up: VCC:  31(net@34  n=22  p=93 ratio=4.2),  32(net@35  n=25  p=97 ratio=3.9)  */
+
 /* Transistor: normalized position and size (nx,ny,nw,nh in [0,1]), layer (0=ntrans,1=ptrans).
  * gate_net/s1_net/s2_net are indices into sm83_nets[]; -1 = unresolved. */
 typedef struct {

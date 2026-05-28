@@ -123,6 +123,12 @@
 #define REG_SVBK 0xff70U
 /* Modo de prioridade de objetos (GBC) */
 #define REG_OPRI 0xff6cU
+/* Registradores CGB não documentados */
+#define REG_CGB_FF72 0xff72U
+#define REG_CGB_FF73 0xff73U
+#define REG_CGB_FF75 0xff75U
+#define REG_PCM12 0xff76U
+#define REG_PCM34 0xff77U
 
 /* Retorna o offset real dentro da RAM interna, aplicando o banco alto (GBC). */
 static uint16_t gb_memory_iram_off(struct gb *gb, uint16_t off)
@@ -140,6 +146,11 @@ static uint16_t gb_memory_iram_off(struct gb *gb, uint16_t off)
      }
 
      return off;
+}
+
+static bool gb_memory_is_cgb_hardware(const struct gb *gb)
+{
+     return gb->gbc || gb->hw_model == GB_HW_CGB0 || gb->hw_model == GB_HW_CGB;
 }
 
 /* Lê um byte da paleta de cores GBC (BCPD/OCPD), bloqueando durante o Mode 3. */
@@ -708,7 +719,7 @@ uint8_t gb_memory_peekb(struct gb *gb, uint16_t addr)
 
      if (gb->gbc && addr == REG_KEY1)
           return (gb->double_speed << 7) | gb->speed_switch_pending | 0x7e;
-     if (gb->gbc && addr == REG_VBK)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_VBK)
           return gb->vram_high_bank | 0xfe;
      if (gb->gbc && addr == REG_HDMA1)
           return gb->hdma.source >> 8;
@@ -720,9 +731,9 @@ uint8_t gb_memory_peekb(struct gb *gb, uint16_t addr)
           return gb->hdma.destination & 0xff;
      if (gb->gbc && addr == REG_HDMA5)
           return ((!gb->hdma.run_on_hblank) << 7) | (gb->hdma.length & 0x7f);
-     if (gb->gbc && addr == REG_BCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_BCPS)
           return (gb->gpu.bg_palettes.auto_increment << 7) |
-                 gb->gpu.bg_palettes.write_index;
+                 gb->gpu.bg_palettes.write_index | 0x40;
      if (gb->gbc && addr == REG_BCPD)
      {
           struct gb_color_palette *p = &gb->gpu.bg_palettes;
@@ -732,9 +743,9 @@ uint8_t gb_memory_peekb(struct gb *gb, uint16_t addr)
           uint16_t col = p->colors[palette][color_index];
           return (index & 1) ? (col >> 8) : (col & 0xff);
      }
-     if (gb->gbc && addr == REG_OCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_OCPS)
           return (gb->gpu.sprite_palettes.auto_increment << 7) |
-                 gb->gpu.sprite_palettes.write_index;
+                 gb->gpu.sprite_palettes.write_index | 0x40;
      if (gb->gbc && addr == REG_OCPD)
      {
           struct gb_color_palette *p = &gb->gpu.sprite_palettes;
@@ -748,6 +759,14 @@ uint8_t gb_memory_peekb(struct gb *gb, uint16_t addr)
           return (gb->gpu.opri & 0x01) | 0xfe;
      if (gb->gbc && addr == REG_SVBK)
           return gb->iram_high_bank | 0xf8;
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF72)
+          return gb->cgb_reg_ff72;
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF73)
+          return gb->cgb_reg_ff73;
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF75)
+          return gb->cgb_reg_ff75 | 0x8f;
+     if (gb_memory_is_cgb_hardware(gb) && (addr == REG_PCM12 || addr == REG_PCM34))
+          return 0x00;
 
      if (addr == REG_BOOT)
           return gb->bootrom_mapped ? 0x00 : 0xff;
@@ -773,6 +792,7 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           else if (addr < 0xfe00u)                            sv->fade_cpu_wram = 1.0f;
           else if (addr < 0xff00u)                            sv->fade_cpu_oam  = 1.0f;
           else                                                sv->fade_cpu_io   = 1.0f;
+          gb_debug_hw_trace_cpu_read(gb, addr, 0);
      }
 
      gb_memory_sync_dma_before_cpu_access(gb);
@@ -1131,7 +1151,7 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           return r | 0x7e;
      }
 
-     if (gb->gbc && addr == REG_VBK)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_VBK)
      {
           return gb->vram_high_bank | 0xfe;
      }
@@ -1163,14 +1183,14 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           return (gb->ir_port & 0x83) | 0x3C;
      }
 
-     if (gb->gbc && addr == REG_BCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_BCPS)
      {
           uint8_t r = 0;
 
           r |= gb->gpu.bg_palettes.auto_increment << 7;
           r |= gb->gpu.bg_palettes.write_index;
 
-          return r;
+          return r | 0x40;
      }
 
      if (gb->gbc && addr == REG_BCPD)
@@ -1178,14 +1198,14 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           return gb_memory_cgb_palette_read(gb, &gb->gpu.bg_palettes);
      }
 
-     if (gb->gbc && addr == REG_OCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_OCPS)
      {
           uint8_t r = 0;
 
           r |= gb->gpu.sprite_palettes.auto_increment << 7;
           r |= gb->gpu.sprite_palettes.write_index;
 
-          return r;
+          return r | 0x40;
      }
 
      if (gb->gbc && addr == REG_OCPD)
@@ -1203,6 +1223,18 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
      {
           return gb->iram_high_bank | 0xf8;
      }
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF72)
+          return gb->cgb_reg_ff72;
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF73)
+          return gb->cgb_reg_ff73;
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF75)
+          return gb->cgb_reg_ff75 | 0x8f;
+
+     if (gb_memory_is_cgb_hardware(gb) && (addr == REG_PCM12 || addr == REG_PCM34))
+          return 0x00;
 
      if (addr == REG_BOOT)
           return gb->bootrom_mapped ? 0x00 : 0xff;
@@ -1232,6 +1264,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           else if (addr < 0xfe00u)                            sv->fade_cpu_wram = 1.0f;
           else if (addr < 0xff00u)                            sv->fade_cpu_oam  = 1.0f;
           else                                                sv->fade_cpu_io   = 1.0f;
+          gb_debug_hw_trace_cpu_write(gb, addr, val);
      }
 
      gb_memory_sync_dma_before_cpu_access(gb);
@@ -1842,7 +1875,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           return;
      }
 
-     if (gb->gbc && addr == REG_VBK)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_VBK)
      {
           gb->vram_high_bank = val & 1;
           return;
@@ -1910,7 +1943,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           return;
      }
 
-     if (gb->gbc && addr == REG_BCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_BCPS)
      {
           gb->gpu.bg_palettes.auto_increment = val & 0x80;
           gb->gpu.bg_palettes.write_index = val & 0x3f;
@@ -1923,7 +1956,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           return;
      }
 
-     if (gb->gbc && addr == REG_OCPS)
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_OCPS)
      {
           gb->gpu.sprite_palettes.auto_increment = val & 0x80;
           gb->gpu.sprite_palettes.write_index = val & 0x3f;
@@ -1947,6 +1980,29 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
      if (gb->gbc && addr == REG_SVBK)
      {
           gb->iram_high_bank = val & 7;
+          return;
+     }
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF72)
+     {
+          gb->cgb_reg_ff72 = val;
+          return;
+     }
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF73)
+     {
+          gb->cgb_reg_ff73 = val;
+          return;
+     }
+
+     if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF75)
+     {
+          gb->cgb_reg_ff75 = val;
+          return;
+     }
+
+     if (gb_memory_is_cgb_hardware(gb) && (addr == REG_PCM12 || addr == REG_PCM34))
+     {
           return;
      }
 

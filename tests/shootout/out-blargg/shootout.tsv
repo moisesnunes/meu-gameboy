@@ -1,0 +1,234 @@
+status	suite	name	model	expect	rom	refs	matched_ref	cycles	seconds	exit_code	output	stderr
+PASS	Blargg	blargg/cgb sound/cgb sound (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/cgb_sound.gb	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/cgb_sound-cgb.png		503316480	7.310	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/cgb_sound.gb	cycles=153228768	frames=2179	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/cgb_sound.gb
+Title: 'CGB_SOUND'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/01-registers (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/01-registers.gb			150000000	0.179	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/01-registers.gb	cycles=3511200	frames=47	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/01-registers.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/02-len ctr (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/02-len ctr.gb			150000000	1.964	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/02-len ctr.gb	cycles=39676560	frames=562	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/02-len ctr.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/03-trigger (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/03-trigger.gb			150000000	3.217	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/03-trigger.gb	cycles=70856016	frames=1006	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/03-trigger.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/04-sweep (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/04-sweep.gb			150000000	0.248	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/04-sweep.gb	cycles=5196576	frames=71	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/04-sweep.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/05-sweep details (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/05-sweep details.gb			150000000	0.229	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/05-sweep details.gb	cycles=4985904	frames=68	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/05-sweep details.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/06-overflow on trigger (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/06-overflow on trigger.gb			150000000	0.172	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/06-overflow on trigger.gb	cycles=3862320	frames=52	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/06-overflow on trigger.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/07-len sweep period sync (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/07-len sweep period sync.gb			150000000	0.113	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/07-len sweep period sync.gb	cycles=2457840	frames=32	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/07-len sweep period sync.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/08-len ctr during power (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/08-len ctr during power.gb			150000000	0.473	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/08-len ctr during power.gb	cycles=10322928	frames=144	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/08-len ctr during power.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/09-wave read while on (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/09-wave read while on.gb			150000000	0.117	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/09-wave read while on.gb	cycles=2528064	frames=33	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/09-wave read while on.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/10-wave trigger while on (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/10-wave trigger while on.gb			150000000	0.813	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/10-wave trigger while on.gb	cycles=16432416	frames=231	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/10-wave trigger while on.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/11-regs after power (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/11-regs after power.gb			150000000	0.169	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/11-regs after power.gb	cycles=3792096	frames=51	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/11-regs after power.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cgb sound/rom singles/12-wave (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/12-wave.gb			150000000	0.084	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/12-wave.gb	cycles=1825824	frames=23	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cgb_sound/rom_singles/12-wave.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/cpu instrs/cpu instrs (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/cpu_instrs.gb	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/cpu_instrs-dmg-cgb.png		250000000	9.432	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/cpu_instrs.gb	cycles=224365680	frames=3192	serial=""cpu_instrs\n\n01:ok  02:ok  03:ok  04:ok  05:ok  06:ok  07:ok  08:ok  09:ok  10:ok  11:ok  \n\nPassed all """	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/cpu_instrs.gb
+Title: 'CPU_INSTRS'
+ROM banks: 4 (64KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/01-special (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/01-special.gb			100000000	0.452	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/01-special.gb	cycles=9831360	frames=137	serial=""01-special\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/01-special.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/02-interrupts (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/02-interrupts.gb			100000000	0.079	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/02-interrupts.gb	cycles=1825824	frames=23	serial=""02-interrupts\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/02-interrupts.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/03-op sp,hl (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/03-op sp,hl.gb			100000000	0.415	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/03-op sp,hl.gb	cycles=9901584	frames=138	serial=""03-op sp,hl\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/03-op sp,hl.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/04-op r,imm (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/04-op r,imm.gb			100000000	0.500	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/04-op r,imm.gb	cycles=11516736	frames=161	serial=""04-op r,imm\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/04-op r,imm.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/05-op rp (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/05-op rp.gb			100000000	0.667	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/05-op rp.gb	cycles=15800400	frames=222	serial=""05-op rp\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/05-op rp.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/06-ld r,r (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/06-ld r,r.gb			100000000	0.109	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/06-ld r,r.gb	cycles=2457840	frames=32	serial=""06-ld r,r\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/06-ld r,r.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/07-jr,jp,call,ret,rst (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb			100000000	0.128	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb	cycles=3019632	frames=40	serial=""07-jr,jp,call,ret,rst\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/08-misc instrs (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/08-misc instrs.gb			100000000	0.100	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/08-misc instrs.gb	cycles=2317392	frames=30	serial=""08-misc instrs\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/08-misc instrs.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/09-op r,r (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/09-op r,r.gb			100000000	1.647	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/09-op r,r.gb	cycles=38342304	frames=543	serial=""09-op r,r\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/09-op r,r.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/10-bit ops (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/10-bit ops.gb			100000000	2.600	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/10-bit ops.gb	cycles=58215696	frames=826	serial=""10-bit ops\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/10-bit ops.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/cpu instrs/individual/11-op a,(hl) (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/11-op a,(hl).gb			100000000	2.985	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/11-op a,(hl).gb	cycles=73805424	frames=1048	serial=""11-op a,(hl)\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/cpu_instrs/individual/11-op a,(hl).gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/dmg sound/dmg sound (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/dmg_sound.gb	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/dmg_sound-dmg.png		503316480	6.951	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/dmg_sound.gb	cycles=149717568	frames=2129	serial="""""	"Loaded RAM save from '/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/dmg_sound.sav'
+Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/dmg_sound.gb
+Title: 'DMG_SOUND'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/01-registers (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/01-registers.gb			150000000	0.161	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/01-registers.gb	cycles=3440976	frames=46	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/01-registers.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/02-len ctr (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/02-len ctr.gb			150000000	1.819	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/02-len ctr.gb	cycles=39606336	frames=561	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/02-len ctr.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/03-trigger (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/03-trigger.gb			150000000	3.200	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/03-trigger.gb	cycles=70785792	frames=1005	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/03-trigger.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/04-sweep (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/04-sweep.gb			150000000	0.227	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/04-sweep.gb	cycles=5126352	frames=70	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/04-sweep.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/05-sweep details (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/05-sweep details.gb			150000000	0.221	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/05-sweep details.gb	cycles=4985904	frames=68	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/05-sweep details.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/06-overflow on trigger (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/06-overflow on trigger.gb			150000000	0.164	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/06-overflow on trigger.gb	cycles=3792096	frames=51	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/06-overflow on trigger.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/07-len sweep period sync (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/07-len sweep period sync.gb			150000000	0.108	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/07-len sweep period sync.gb	cycles=2387616	frames=31	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/07-len sweep period sync.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/08-len ctr during power (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/08-len ctr during power.gb			150000000	0.251	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/08-len ctr during power.gb	cycles=5688144	frames=78	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/08-len ctr during power.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/09-wave read while on (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/09-wave read while on.gb			150000000	0.110	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/09-wave read while on.gb	cycles=2457840	frames=32	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/09-wave read while on.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/10-wave trigger while on (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/10-wave trigger while on.gb			150000000	0.761	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/10-wave trigger while on.gb	cycles=16362192	frames=230	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/10-wave trigger while on.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/11-regs after power (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/11-regs after power.gb			150000000	0.131	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/11-regs after power.gb	cycles=2949408	frames=39	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/11-regs after power.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/dmg sound/rom singles/12-wave write while on (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/12-wave write while on.gb			150000000	0.766	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/12-wave write while on.gb	cycles=16362192	frames=230	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/dmg_sound/rom_singles/12-wave write while on.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/halt bug (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/halt_bug.gb	roms/game-boy-test-roms-v7.0/blargg/halt_bug-dmg-cgb.png		100000000	0.313	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/halt_bug.gb	cycles=7373520	frames=102	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/halt_bug.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/instr timing/instr timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/instr_timing/instr_timing.gb	roms/game-boy-test-roms-v7.0/blargg/instr_timing/instr_timing-dmg-cgb.png		100000000	0.113	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/instr_timing/instr_timing.gb	cycles=2738736	frames=36	serial=""instr_timing\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/instr_timing/instr_timing.gb
+Title: 'INSTR_TIMING'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/interrupt time/interrupt time (GBC)	GBC	blargg	roms/game-boy-test-roms-v7.0/blargg/interrupt_time/interrupt_time.gb	roms/game-boy-test-roms-v7.0/blargg/interrupt_time/interrupt_time-cgb.png		100000000	0.106	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/interrupt_time/interrupt_time.gb	cycles=2176944	frames=28	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/interrupt_time/interrupt_time.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/mem timing/individual/01-read timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/01-read_timing.gb			100000000	0.082	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/01-read_timing.gb	cycles=1966272	frames=25	serial=""01-read_timing\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/01-read_timing.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/mem timing/individual/02-write timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/02-write_timing.gb			100000000	0.079	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/02-write_timing.gb	cycles=1896048	frames=24	serial=""02-write_timing\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/02-write_timing.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/mem timing/individual/03-modify timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/03-modify_timing.gb			100000000	0.088	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/03-modify_timing.gb	cycles=2106720	frames=27	serial=""03-modify_timing\n\n\nPassed\n"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/individual/03-modify_timing.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/mem timing/mem timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing/mem_timing.gb	roms/game-boy-test-roms-v7.0/blargg/mem_timing/mem_timing-dmg-cgb.png		100000000	0.261	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/mem_timing.gb	cycles=6320160	frames=87	serial=""mem_timing\n\n01:ok  02:ok  03:ok  \n\nPassed all"""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing/mem_timing.gb
+Title: 'MEM_TIMING'
+ROM banks: 4 (64KiB)
+RAM banks: 0 (0KiB)"
+PASS	Blargg	blargg/mem timing-2/mem timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/mem_timing.gb	roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/mem_timing-dmg-cgb.png		100000000	0.492	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/mem_timing.gb	cycles=11516736	frames=161	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/mem_timing.gb
+Title: 'MEM_TIMING'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/mem timing-2/rom singles/01-read timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/01-read_timing.gb			100000000	0.083	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/01-read_timing.gb	cycles=1896048	frames=24	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/01-read_timing.gb
+Title: 'foo'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/mem timing-2/rom singles/02-write timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/02-write_timing.gb			100000000	0.079	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/02-write_timing.gb	cycles=1825824	frames=23	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/02-write_timing.gb
+Title: '02-WRITE_TIMING?'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/mem timing-2/rom singles/03-modify timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/03-modify_timing.gb			100000000	0.089	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/03-modify_timing.gb	cycles=2036496	frames=26	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/mem_timing-2/rom_singles/03-modify_timing.gb
+Title: '03-MODIFY_TIMIN?'
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/oam bug (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/oam_bug.gb	roms/game-boy-test-roms-v7.0/blargg/oam_bug/oam_bug-dmg.png		503316480	2.967	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/oam_bug.gb	cycles=83145216	frames=445	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/oam_bug.gb
+Title: 'OAM_BUG'
+ROM banks: 4 (64KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/1-lcd sync (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/1-lcd_sync.gb			100000000	0.083	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/1-lcd_sync.gb	cycles=1966272	frames=23	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/1-lcd_sync.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/2-causes (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/2-causes.gb			100000000	0.287	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/2-causes.gb	cycles=7022400	frames=71	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/2-causes.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/3-non causes (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/3-non_causes.gb			100000000	0.263	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/3-non_causes.gb	cycles=6741504	frames=61	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/3-non_causes.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/4-scanline timing (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/4-scanline_timing.gb			100000000	0.157	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/4-scanline_timing.gb	cycles=3862320	frames=41	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/4-scanline_timing.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/5-timing bug (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/5-timing_bug.gb			100000000	0.159	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/5-timing_bug.gb	cycles=3862320	frames=41	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/5-timing_bug.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/6-timing no bug (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/6-timing_no_bug.gb			100000000	0.225	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/6-timing_no_bug.gb	cycles=5969040	frames=36	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/6-timing_no_bug.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+FAIL	Blargg	blargg/oam bug/rom singles/7-timing effect (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/7-timing_effect.gb			503316480	16.747	1	"FAIL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/7-timing_effect.gb	cycles=503316480	frames=305	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/7-timing_effect.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"
+PASS	Blargg	blargg/oam bug/rom singles/8-instr effect (DMG)	DMG	blargg	roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/8-instr_effect.gb			100000000	0.850	0	"PASS	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/8-instr_effect.gb	cycles=24718848	frames=71	serial="""""	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/blargg/oam_bug/rom_singles/8-instr_effect.gb
+Title: ''
+ROM banks: 2 (32KiB)
+RAM banks: 1 (8KiB)"

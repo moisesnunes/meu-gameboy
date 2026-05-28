@@ -405,6 +405,10 @@ static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
      gb_cart_unload(gb);
      gb_cart_load(gb, rom_path);
 
+     bool cart_requests_cgb = gb->cart.rom && gb->cart.rom_length >= 0x144 &&
+                              (gb->cart.rom[0x143] == 0x80 ||
+                               gb->cart.rom[0x143] == 0xc0);
+
      if (mode == MODE_DMG)
      {
           gb->gbc = false;
@@ -412,8 +416,8 @@ static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
      }
      else if (mode == MODE_GBC)
      {
-          gb->gbc = true;
-          gb->hw_model = GB_HW_CGB;
+          gb->gbc = cart_requests_cgb;
+          gb->hw_model = strstr(rom_path, "cgb0") ? GB_HW_CGB0 : GB_HW_CGB;
      }
      else if (mode == MODE_DMG0)
      {
@@ -438,8 +442,6 @@ static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
      else /* MODE_AUTO */
      {
           /* Detect hardware model from ROM filename suffix for hw-specific tests */
-          bool is_gbc = gb->cart.rom && gb->cart.rom_length >= 0x144 &&
-                        (gb->cart.rom[0x143] == 0x80 || gb->cart.rom[0x143] == 0xc0);
           if (strstr(rom_path, "-dmg0") || strstr(rom_path, "_dmg0"))
           {
                gb->gbc = false;
@@ -470,7 +472,17 @@ static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
                gb->gbc = false;
                gb->hw_model = GB_HW_SGB;
           }
-          else if (is_gbc)
+          else if (strstr(rom_path, "cgb0"))
+          {
+               gb->gbc = cart_requests_cgb;
+               gb->hw_model = GB_HW_CGB0;
+          }
+          else if (strstr(rom_path, "cgbABCDE") || strstr(rom_path, "-C.gb"))
+          {
+               gb->gbc = cart_requests_cgb;
+               gb->hw_model = GB_HW_CGB;
+          }
+          else if (cart_requests_cgb)
           {
                gb->gbc = true;
                gb->hw_model = GB_HW_CGB;
@@ -501,6 +513,9 @@ static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
      gb->iram_high_bank = 1;
      gb->vram_high_bank = false;
      gb->ir_port = 0;
+     gb->cgb_reg_ff72 = 0;
+     gb->cgb_reg_ff73 = 0;
+     gb->cgb_reg_ff75 = 0;
 
      memset(gb->iram, 0xff, sizeof(gb->iram));
      memset(gb->zram, 0, sizeof(gb->zram));

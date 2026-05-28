@@ -318,6 +318,13 @@ void gb_gpu_reset(struct gb *gb)
      gpu->window_line = 0;  /* Contador interno de linhas da window */
      gb_gpu_reset_line_state(gpu);
 
+     if (!gb->bootrom && gb->hw_model == GB_HW_DMG0)
+     {
+          gpu->ly = 145;
+          gpu->line_pos = 156;
+          gpu->stat_lyc_flag = false;
+     }
+
      for (i = 0; i < sizeof(gpu->oam); i++)
      {
           gpu->oam[i] = 0;
@@ -335,10 +342,10 @@ void gb_gpu_reset(struct gb *gb)
                gpu->sprite_palettes.colors[i][c] = 0x7fff;
           }
      }
-     gpu->bg_palettes.write_index     = 0;
-     gpu->bg_palettes.auto_increment  = false;
-     gpu->sprite_palettes.write_index    = 0;
-     gpu->sprite_palettes.auto_increment = false;
+     gpu->bg_palettes.write_index     = 0x08;
+     gpu->bg_palettes.auto_increment  = true;
+     gpu->sprite_palettes.write_index    = 0x10;
+     gpu->sprite_palettes.auto_increment = true;
      gpu->opri = 0;
 }
 
@@ -961,6 +968,12 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
      unsigned sprite_flip_height;
      uint8_t tile_index;
      enum gb_color col;
+
+     if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb) &&
+         gpu->bg_enable && p->opaque && p->bg_priority)
+     {
+          return false;
+     }
 
      if (sprite->background && p->opaque && (!gb->gbc || gpu->bg_enable))
      {
@@ -1675,6 +1688,8 @@ static void gb_gpu_emit_cur_line(struct gb *gb)
 
      gpu->line_sent = true;
 
+     gb_debug_hw_trace_ppu_hblank(gb, (uint8_t)gpu->ly);
+
      if (gpu->window_rendered)
      {
           gpu->window_line++;
@@ -1704,6 +1719,7 @@ static void gb_gpu_finish_scanline(struct gb *gb)
            */
           gb->frontend.flip(gb);
           gb_irq_trigger(gb, GB_IRQ_VSYNC);
+          gb_debug_hw_trace_ppu_vblank(gb, (uint8_t)gpu->ly);
 
           if (!gpu->stat_irq_line && gpu->iten_mode2)
           {

@@ -533,7 +533,7 @@ static int exec_ldr_str_h(struct gba *gba, uint32_t instr)
      uint8_t rd = (instr >> 12) & 0xF;
      uint8_t sh_h = (instr >> 5) & 0x3;
 
-     uint32_t offset = imm ? ((instr & 0xF) | ((instr >> 4) & 0xF0)) : cpu->r[instr & 0xF];
+     uint32_t offset = imm ? ((instr & 0xF) | (((instr >> 8) & 0xF) << 4)) : cpu->r[instr & 0xF];
      uint32_t base = cpu->r[rn];
      uint32_t addr = pre ? (up ? base + offset : base - offset) : base;
 

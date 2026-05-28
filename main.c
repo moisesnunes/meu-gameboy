@@ -55,6 +55,9 @@ static void load_rom(struct gb *gb, const char *path)
      gb->iram_high_bank = 1;
      gb->vram_high_bank = false;
      gb->ir_port = 0;
+     gb->cgb_reg_ff72 = 0;
+     gb->cgb_reg_ff73 = 0;
+     gb->cgb_reg_ff75 = 0;
 
      memset(gb->iram, 0, sizeof(gb->iram));
      memset(gb->zram, 0, sizeof(gb->zram));
@@ -112,6 +115,7 @@ int main(int argc, char **argv)
           load_rom(gb, rom_file);
 
      gb->debug.enabled = debug_flag;
+     gb->debug.hw_trace.enabled = debug_flag; /* HW Trace on by default when debug mode is on */
      if (rom_file)
      {
           bool pause_on_load = gb->debug.enabled && debug_ui_start_paused();

@@ -30,12 +30,15 @@ void hw_schematic_view_fit(HwSchematicView *v)
 {
      /* zoom is pixels per normalized X unit. Y is scaled by the A4 H/W aspect. */
      v->zoom = v->canvas_w;
-     v->pan_x = 0.0f;
      if (v->zoom * HW_SCHEMATIC_ASPECT > v->canvas_h)
      {
           v->zoom = v->canvas_h / HW_SCHEMATIC_ASPECT;
      }
-     v->pan_y = 0.0f;
+
+     float fit_w = v->zoom;
+     float fit_h = v->zoom * HW_SCHEMATIC_ASPECT;
+     v->pan_x = -((v->canvas_w - fit_w) * 0.5f) / v->zoom;
+     v->pan_y = -((v->canvas_h - fit_h) * 0.5f) / (v->zoom * HW_SCHEMATIC_ASPECT);
 }
 
 static bool hw_schematic_upload_texture(const unsigned char *pixels, int w, int h)

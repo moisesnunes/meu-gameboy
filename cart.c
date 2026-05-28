@@ -642,6 +642,7 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
       * Jogos exclusivos de DMG deixam este byte como parte do título.
       */
      gb->gbc = (cart->rom[GB_CART_OFF_GBC] & 0x80);
+     gb->hw_model = gb->gbc ? GB_HW_CGB : GB_HW_DMG;
 
      /* Detecta MBC1M (multi-cart): dois jogos de 4 MB num unico cartucho MBC1.
       * O sinal e que o logo/header em 0x0104 e identico ao em 0x40104.

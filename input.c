@@ -6,7 +6,9 @@ void gb_input_reset(struct gb *gb)
 
     input->dpad_state = ~0x10;
     input->buttons_state = ~0x20;
-    input->dpad_selected = gb->hw_model != GB_HW_SGB &&
+    input->dpad_selected = gb->hw_model != GB_HW_CGB0 &&
+                           gb->hw_model != GB_HW_CGB &&
+                           gb->hw_model != GB_HW_SGB &&
                            gb->hw_model != GB_HW_SGB2;
     input->buttons_selected = input->dpad_selected;
 }
@@ -41,6 +43,8 @@ void gb_input_set(struct gb *gb, unsigned button, bool pressed)
     {
         *state |= 1U << bit;
     }
+    gb_debug_hw_trace_joypad(gb, gb_input_get_state(gb), pressed);
+
     if (pressed && prev_state != gb_input_get_state(gb))
     {
         /* A button was pressed and it's currently selected, that means that

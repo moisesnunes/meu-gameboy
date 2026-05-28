@@ -56,21 +56,41 @@ void gba_cpu_switch_mode(struct gba *gba, enum gba_cpu_mode new_mode)
           cpu->r14_usr = cpu->r[14];
           break;
      case GBA_MODE_SVC:
+          cpu->r8_usr = cpu->r[8];
+          cpu->r9_usr = cpu->r[9];
+          cpu->r10_usr = cpu->r[10];
+          cpu->r11_usr = cpu->r[11];
+          cpu->r12_usr = cpu->r[12];
           cpu->r13_svc = cpu->r[13];
           cpu->r14_svc = cpu->r[14];
           cpu->spsr_svc = cpu->spsr;
           break;
      case GBA_MODE_ABT:
+          cpu->r8_usr = cpu->r[8];
+          cpu->r9_usr = cpu->r[9];
+          cpu->r10_usr = cpu->r[10];
+          cpu->r11_usr = cpu->r[11];
+          cpu->r12_usr = cpu->r[12];
           cpu->r13_abt = cpu->r[13];
           cpu->r14_abt = cpu->r[14];
           cpu->spsr_abt = cpu->spsr;
           break;
      case GBA_MODE_IRQ:
+          cpu->r8_usr = cpu->r[8];
+          cpu->r9_usr = cpu->r[9];
+          cpu->r10_usr = cpu->r[10];
+          cpu->r11_usr = cpu->r[11];
+          cpu->r12_usr = cpu->r[12];
           cpu->r13_irq = cpu->r[13];
           cpu->r14_irq = cpu->r[14];
           cpu->spsr_irq = cpu->spsr;
           break;
      case GBA_MODE_UND:
+          cpu->r8_usr = cpu->r[8];
+          cpu->r9_usr = cpu->r[9];
+          cpu->r10_usr = cpu->r[10];
+          cpu->r11_usr = cpu->r[11];
+          cpu->r12_usr = cpu->r[12];
           cpu->r13_und = cpu->r[13];
           cpu->r14_und = cpu->r[14];
           cpu->spsr_und = cpu->spsr;
@@ -89,16 +109,20 @@ void gba_cpu_switch_mode(struct gba *gba, enum gba_cpu_mode new_mode)
           break;
      }
 
-     /* Restore banked regs for new mode */
-     switch (new_mode)
+     if (old_mode == GBA_MODE_FIQ && new_mode != GBA_MODE_FIQ)
      {
-     case GBA_MODE_USR:
-     case GBA_MODE_SYS:
           cpu->r[8] = cpu->r8_usr;
           cpu->r[9] = cpu->r9_usr;
           cpu->r[10] = cpu->r10_usr;
           cpu->r[11] = cpu->r11_usr;
           cpu->r[12] = cpu->r12_usr;
+     }
+
+     /* Restore banked regs for new mode */
+     switch (new_mode)
+     {
+     case GBA_MODE_USR:
+     case GBA_MODE_SYS:
           cpu->r[13] = cpu->r13_usr;
           cpu->r[14] = cpu->r14_usr;
           break;

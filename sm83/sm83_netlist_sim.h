@@ -10,15 +10,17 @@
  *   - One state value per net (SM83_NET_COUNT nets from sm83_netlist_data.h).
  *   - N-transistor: gate HIGH -> connects s1_net <-> s2_net.
  *   - P-transistor: gate LOW  -> connects s1_net <-> s2_net.
- *   - Propagation: iterative union-find style, converges in a few passes.
- *   - Special nets: VCC (always HIGH) and GND (always LOW) anchored by name.
+ *   - Propagation: iterative relaxation, converges in a few passes.
+ *   - Special nets: VCC (always HIGH_STRONG) and GND (always LOW_STRONG).
+ *   - CONFLICT detected when HIGH_STRONG and LOW_STRONG meet on same net.
  *
  * Usage:
- *   sm83_sim_init(&sim);          -- allocate and reset
+ *   sm83_sim_init(&sim);             -- allocate and reset
  *   sm83_sim_seed_from_gb(&sim, gb); -- copy known signals from emulator
- *   sm83_sim_step(&sim);          -- run propagation until stable
- *   sm83_sim_net_state(&sim, id); -- query per-net state for rendering
- *   sm83_sim_shutdown(&sim);      -- free
+ *   sm83_sim_step(&sim, 64);         -- run propagation until stable
+ *   sm83_sim_net_state(&sim, id);    -- query per-net state for rendering
+ *   sm83_sim_net_source(&sim, id);   -- query why a net has that value
+ *   sm83_sim_shutdown(&sim);         -- free
  */
 #ifndef SM83_NETLIST_SIM_H
 #define SM83_NETLIST_SIM_H
@@ -28,22 +30,68 @@
 
 struct gb; /* forward — only used in sm83_sim_seed_from_gb */
 
-/* Net state values (4 fit in 2 bits, stored as uint8_t for cache friendliness) */
+/* -------------------------------------------------------------------------
+ * Net logical state
+ * Ordered so that (state & SM83_SIM_DRIVEN_MASK) != 0 means "driven".
+ * CONFLICT is always shown in the UI as an error.
+ * ------------------------------------------------------------------------- */
 typedef enum {
-    SM83_SIM_UNKNOWN = 0, /* not yet resolved */
-    SM83_SIM_LOW     = 1, /* logic 0 */
-    SM83_SIM_HIGH    = 2, /* logic 1 */
-    SM83_SIM_FLOAT   = 3, /* undriven / high-Z */
+    SM83_SIM_UNKNOWN      = 0, /* never resolved */
+    SM83_SIM_FLOAT        = 1, /* transistor path exists but no driver */
+    SM83_SIM_LOW_WEAK     = 2, /* propagated LOW (not directly driven) */
+    SM83_SIM_HIGH_WEAK    = 3, /* propagated HIGH (not directly driven) */
+    SM83_SIM_LOW          = 4, /* driven LOW  (seed or rail) */
+    SM83_SIM_HIGH         = 5, /* driven HIGH (seed or rail) */
+    SM83_SIM_CONFLICT     = 6, /* HIGH and LOW drivers on same net — error */
+    SM83_SIM_STATE_COUNT  = 7,
 } Sm83SimState;
 
+/* True when state represents a definite logic level (driven or weak) */
+#define SM83_SIM_IS_HIGH(s)    ((s) == SM83_SIM_HIGH || (s) == SM83_SIM_HIGH_WEAK)
+#define SM83_SIM_IS_LOW(s)     ((s) == SM83_SIM_LOW  || (s) == SM83_SIM_LOW_WEAK)
+#define SM83_SIM_IS_DRIVEN(s)  ((s) == SM83_SIM_HIGH || (s) == SM83_SIM_LOW)
+#define SM83_SIM_IS_RESOLVED(s) ((s) != SM83_SIM_UNKNOWN && (s) != SM83_SIM_FLOAT)
+
+/* -------------------------------------------------------------------------
+ * Net value origin — stored in a parallel array so the UI can explain why.
+ * ------------------------------------------------------------------------- */
+typedef enum {
+    SM83_SRC_NONE       = 0, /* UNKNOWN or FLOAT — no source */
+    SM83_SRC_RAIL       = 1, /* anchored by VCC/GND */
+    SM83_SRC_SEED       = 2, /* directly seeded from gb->cpu state */
+    SM83_SRC_PROP       = 3, /* propagated through conducting transistor */
+    SM83_SRC_CONFLICT   = 4, /* conflict: two drivers disagree */
+} Sm83NetSource;
+
+/* -------------------------------------------------------------------------
+ * How VCC/GND rail indices were resolved
+ * ------------------------------------------------------------------------- */
+typedef enum {
+    SM83_RAILS_MISSING    = 0, /* no rails found — sim cannot propagate */
+    SM83_RAILS_NAMED      = 1, /* resolved by net name (vcc/gnd/vdd/vss) */
+    SM83_RAILS_HEURISTIC  = 2, /* resolved by connectivity heuristic */
+    SM83_RAILS_MANUAL     = 3, /* overridden by user */
+} Sm83RailSource;
+
+/* -------------------------------------------------------------------------
+ * Simulator state
+ * ------------------------------------------------------------------------- */
 typedef struct {
-    uint8_t  *net_state;      /* SM83_NET_COUNT entries, Sm83SimState per net */
-    bool      initialized;
-    bool      enabled;        /* false = sim is dormant, panel shows nothing */
-    int       vcc_net;        /* index of VCC net (-1 if not found) */
-    int       gnd_net;        /* index of GND net (-1 if not found) */
-    int       iterations;     /* propagation passes used in last step */
+    uint8_t        *net_state;      /* SM83_NET_COUNT entries, Sm83SimState */
+    uint8_t        *net_source;     /* SM83_NET_COUNT entries, Sm83NetSource */
+    bool            initialized;
+    bool            enabled;        /* false = sim dormant, panel shows nothing */
+    int             vcc_net;        /* index of VCC net (-1 if not found) */
+    int             gnd_net;        /* index of GND net (-1 if not found) */
+    int             iterations;     /* propagation passes used in last step */
+    int             conflict_count; /* nets in CONFLICT state after last step */
+    bool            rails_found;
+    Sm83RailSource  rail_source;
 } Sm83NetlistSim;
+
+/* -------------------------------------------------------------------------
+ * API
+ * ------------------------------------------------------------------------- */
 
 /* Allocate state arrays and find VCC/GND nets. Call once. */
 void sm83_sim_init(Sm83NetlistSim *sim);
@@ -51,7 +99,7 @@ void sm83_sim_init(Sm83NetlistSim *sim);
 /* Free state arrays. */
 void sm83_sim_shutdown(Sm83NetlistSim *sim);
 
-/* Reset all nets to UNKNOWN. */
+/* Reset all nets to UNKNOWN; re-anchor VCC/GND. */
 void sm83_sim_reset(Sm83NetlistSim *sim);
 
 /* Seed known signals from the emulator's CPU state.
@@ -60,13 +108,16 @@ void sm83_sim_reset(Sm83NetlistSim *sim);
 void sm83_sim_seed_from_gb(Sm83NetlistSim *sim, const struct gb *gb);
 
 /* Run propagation until stable or max_iters reached.
- * Returns number of iterations used. */
+ * Returns number of iterations used. Updates conflict_count. */
 int sm83_sim_step(Sm83NetlistSim *sim, int max_iters);
 
-/* Return the state of a single net by index. */
+/* Return the logical state of a single net by index. */
 Sm83SimState sm83_sim_net_state(const Sm83NetlistSim *sim, int net_id);
 
-/* Find the net index for a given net name string (linear scan, slow — for init only). */
+/* Return the value origin of a single net by index. */
+Sm83NetSource sm83_sim_net_source(const Sm83NetlistSim *sim, int net_id);
+
+/* Find the net index for a given net name string (linear scan — for init only). */
 int sm83_sim_find_net(const char *name);
 
 #endif /* SM83_NETLIST_SIM_H */

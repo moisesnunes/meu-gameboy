@@ -1,0 +1,13 @@
+status	suite	name	model	expect	rom	refs	matched_ref	cycles	seconds	exit_code	output	stderr
+FAIL	CGB Acid Hell	cgb-acid-hell/cgb-acid-hell (GBC)	GBC	visual	roms/game-boy-test-roms-v7.0/cgb-acid-hell/cgb-acid-hell.gbc	roms/game-boy-test-roms-v7.0/cgb-acid-hell/cgb-acid-hell.png		8426880	0.312	0	"VISUAL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/cgb-acid-hell/cgb-acid-hell.gbc	cycles=8426880	frames=113	serial=""""	ppm=tests/shootout/out-acid-targets-experiment/screenshots/cgb-acid-hell_cgb-acid-hell_GBC.ppm"	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/cgb-acid-hell/cgb-acid-hell.gbc
+Title: 'CGB-ACID-HELL'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+FAIL	CGB Acid2	cgb-acid2/cgb-acid2 (GBC)	GBC	visual	roms/game-boy-test-roms-v7.0/cgb-acid2/cgb-acid2.gbc	roms/game-boy-test-roms-v7.0/cgb-acid2/cgb-acid2.png		8426880	0.225	0	"VISUAL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/cgb-acid2/cgb-acid2.gbc	cycles=8426880	frames=107	serial=""""	ppm=tests/shootout/out-acid-targets-experiment/screenshots/cgb-acid2_cgb-acid2_GBC.ppm"	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/cgb-acid2/cgb-acid2.gbc
+Title: 'CGB-ACID2'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"
+PASS	DMG Acid2	dmg-acid2/dmg-acid2 (DMG)	DMG	visual	roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2.gb	roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2-cgb.png,roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2-dmg.png	roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2-cgb.png	8426880	0.197	0	"VISUAL	/home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2.gb	cycles=8426880	frames=112	serial=""""	ppm=tests/shootout/out-acid-targets-experiment/screenshots/dmg-acid2_dmg-acid2_DMG.ppm"	"Succesfully Loaded /home/moisa/c/projects/meu-gameboy/roms/game-boy-test-roms-v7.0/dmg-acid2/dmg-acid2.gb
+Title: 'DMG-ACID2'
+ROM banks: 2 (32KiB)
+RAM banks: 0 (0KiB)"

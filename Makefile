@@ -28,9 +28,10 @@ UI_SRC = ui/debug_ui.cpp ui/debug_ui_config.cpp ui/debug_ui_actions.cpp \
          ui/debug_ui_menus.cpp ui/debug_ui_panels.cpp
 
 SM83_C_SRC = sm83/sm83_netlist_data.c sm83/sm83_die_view.c sm83/sm83_signal_overlay.c \
-             sm83/sm83_netlist_sim.c
+             sm83/sm83_netlist_sim.c sm83/sm83_semantic_map.c
 
-HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/hw_schematic_view.c
+HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/hw_schematic_view.c \
+               hw_schematic/hw_schematic_map.c hw_schematic/hw_schematic_trace.c
 
 CORE_C_SRC = cpu.c memory.c cart.c gpu.c sync.c input.c irq.c dma.c \
              hdma.c timer.c spu.c debug.c disasm.c rtc.c \
@@ -85,7 +86,8 @@ COMPAT_OBJ  = $(BUILD_TEST_DIR)/compat_test.o $(CORE_OBJ)
 SM83_VALIDATE_NAME = sm83_netlist_validate
 SM83_VALIDATE_OBJ  = $(BUILD_TEST_DIR)/sm83_netlist_validate.o \
                      $(BUILD_CORE_DIR)/sm83/sm83_netlist_data.o \
-                     $(BUILD_CORE_DIR)/sm83/sm83_netlist_sim.o
+                     $(BUILD_CORE_DIR)/sm83/sm83_netlist_sim.o \
+                     $(BUILD_CORE_DIR)/sm83/sm83_semantic_map.o
 SM83_VALIDATE_DEP  = $(SM83_VALIDATE_OBJ:.o=.d)
 
 SIMPLE_DEP = $(SIMPLE_OBJ:.o=.d)

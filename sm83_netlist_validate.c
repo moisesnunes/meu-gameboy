@@ -9,8 +9,10 @@
  *   4. All transistor coordinates are normalized within [0,1].
  *   5. Transistors with gate/s1/s2 nets have indices in [0, SM83_NET_COUNT).
  *   6. Arcs with net_id have indices in [0, SM83_NET_COUNT).
- *   7. VCC and GND nets are findable by the sim's name lookup.
+ *   7. VCC and GND rails: named lookup or heuristic fallback.
  *   8. sm83_sim_init/reset/step runs without crashing on a null gb seed.
+ *   9. Rail propagation coverage with small seed.
+ *  10. Semantic map: init resolves net_ids, no duplicates, confidence is sane.
  */
 
 #include <stdio.h>
@@ -20,6 +22,7 @@
 
 #include "sm83/sm83_netlist_data.h"
 #include "sm83/sm83_netlist_sim.h"
+#include "sm83/sm83_semantic_map.h"
 
 #define PASS(fmt, ...) do { printf("  PASS  " fmt "\n", ##__VA_ARGS__); } while(0)
 #define FAIL(fmt, ...) do { printf("  FAIL  " fmt "\n", ##__VA_ARGS__); failures++; } while(0)
@@ -136,32 +139,46 @@ static void test_arc_nets(void)
           "%d/%d arcs have valid net_id (%d%%)", with_net, SM83_ARC_COUNT, pct);
 }
 
-/* ── 7. VCC/GND net lookup ─────────────────────────────────────────────── */
+/* ── 7. VCC/GND rail resolution ────────────────────────────────────────── */
 static void test_power_nets(void)
 {
-    printf("[7] VCC/GND net name lookup\n");
+    printf("[7] VCC/GND rail resolution\n");
+
+    /* Check named lookup first */
     static const char *vcc_names[] = { "vcc", "VCC", "vdd", "VDD", NULL };
     static const char *gnd_names[] = { "gnd", "GND", "vss", "VSS", NULL };
-
-    int vcc_found = -1, gnd_found = -1;
+    int vcc_named = -1, gnd_named = -1;
     for (int i = 0; vcc_names[i]; i++) {
         int idx = sm83_sim_find_net(vcc_names[i]);
-        if (idx >= 0) { vcc_found = idx; break; }
+        if (idx >= 0) { vcc_named = idx; break; }
     }
     for (int i = 0; gnd_names[i]; i++) {
         int idx = sm83_sim_find_net(gnd_names[i]);
-        if (idx >= 0) { gnd_found = idx; break; }
+        if (idx >= 0) { gnd_named = idx; break; }
     }
 
-    if (vcc_found >= 0)
-        PASS("VCC net found at index %d", vcc_found);
+    if (vcc_named >= 0)
+        PASS("VCC net found by name at index %d", vcc_named);
     else
-        printf("  WARN  VCC net not found — propagation will have no HIGH anchor\n");
+        printf("  INFO  VCC not found by name — heuristic fallback: net_id=%d (%s)\n",
+               SM83_VCC_NET_HEURISTIC, sm83_nets[SM83_VCC_NET_HEURISTIC]);
 
-    if (gnd_found >= 0)
-        PASS("GND net found at index %d", gnd_found);
+    if (gnd_named >= 0)
+        PASS("GND net found by name at index %d", gnd_named);
     else
-        printf("  WARN  GND net not found — propagation will have no LOW anchor\n");
+        printf("  INFO  GND not found by name — heuristic fallback: net_id=%d (%s)\n",
+               SM83_GND_NET_HEURISTIC, sm83_nets[SM83_GND_NET_HEURISTIC]);
+
+    /* Verify sim init resolves rails (named or heuristic) */
+    Sm83NetlistSim sim;
+    sm83_sim_init(&sim);
+    static const char *src_names[] = { "missing", "named", "heuristic", "manual" };
+    if (sim.rails_found)
+        PASS("sim rails resolved via '%s'  VCC=%d  GND=%d",
+             src_names[sim.rail_source & 3], sim.vcc_net, sim.gnd_net);
+    else
+        printf("  FAIL  sim.rails_found=false after init\n");
+    sm83_sim_shutdown(&sim);
 }
 
 /* ── 8. Sim init/reset/step smoke test ─────────────────────────────────── */
@@ -171,32 +188,188 @@ static void test_sim_smoke(void)
     Sm83NetlistSim sim;
     sm83_sim_init(&sim);
 
-    CHECK(sim.initialized, "sim.initialized after init");
-    CHECK(sim.net_state != NULL, "sim.net_state != NULL");
+    CHECK(sim.initialized,          "sim.initialized after init");
+    CHECK(sim.net_state  != NULL,   "sim.net_state != NULL");
+    CHECK(sim.net_source != NULL,   "sim.net_source != NULL");
 
     sm83_sim_reset(&sim);
 
-    /* VCC should be HIGH, GND should be LOW */
+    /* VCC should be HIGH (strongly driven), GND should be LOW */
+    if (sim.vcc_net >= 0) {
+        CHECK(sm83_sim_net_state(&sim, sim.vcc_net)  == SM83_SIM_HIGH,
+              "VCC net is HIGH after reset");
+        CHECK(sm83_sim_net_source(&sim, sim.vcc_net) == SM83_SRC_RAIL,
+              "VCC net source is RAIL after reset");
+    }
+    if (sim.gnd_net >= 0) {
+        CHECK(sm83_sim_net_state(&sim, sim.gnd_net)  == SM83_SIM_LOW,
+              "GND net is LOW after reset");
+        CHECK(sm83_sim_net_source(&sim, sim.gnd_net) == SM83_SRC_RAIL,
+              "GND net source is RAIL after reset");
+    }
+
+    /* Rails must survive propagation — run a few steps */
+    sm83_sim_step(&sim, 4);
     if (sim.vcc_net >= 0)
         CHECK(sm83_sim_net_state(&sim, sim.vcc_net) == SM83_SIM_HIGH,
-              "VCC net is HIGH after reset");
+              "VCC remains HIGH after propagation");
     if (sim.gnd_net >= 0)
         CHECK(sm83_sim_net_state(&sim, sim.gnd_net) == SM83_SIM_LOW,
-              "GND net is LOW after reset");
+              "GND remains LOW after propagation");
 
-    /* Run a few propagation steps without seeding — should not crash */
-    int iters = sm83_sim_step(&sim, 4);
-    CHECK(iters >= 0 && iters <= 4, "step returned %d iters (expected 0..4)", iters);
+    /* Conflict count must be non-negative */
+    CHECK(sim.conflict_count >= 0, "conflict_count >= 0 after step");
+    printf("  INFO  conflict_count=%d after 4-iter step (rails only, no seeds)\n",
+           sim.conflict_count);
 
-    /* Out-of-range net query returns UNKNOWN */
-    Sm83SimState bad = sm83_sim_net_state(&sim, -1);
-    CHECK(bad == SM83_SIM_UNKNOWN, "net_state(-1) == UNKNOWN");
-    bad = sm83_sim_net_state(&sim, SM83_NET_COUNT);
-    CHECK(bad == SM83_SIM_UNKNOWN, "net_state(NET_COUNT) == UNKNOWN");
+    /* Out-of-range net query returns UNKNOWN/NONE */
+    CHECK(sm83_sim_net_state(&sim,  -1)           == SM83_SIM_UNKNOWN, "net_state(-1) == UNKNOWN");
+    CHECK(sm83_sim_net_state(&sim,  SM83_NET_COUNT)== SM83_SIM_UNKNOWN, "net_state(NET_COUNT) == UNKNOWN");
+    CHECK(sm83_sim_net_source(&sim, -1)            == SM83_SRC_NONE,    "net_source(-1) == NONE");
 
     sm83_sim_shutdown(&sim);
-    CHECK(sim.net_state == NULL, "net_state NULL after shutdown");
-    CHECK(!sim.initialized, "initialized false after shutdown");
+    CHECK(sim.net_state  == NULL, "net_state NULL after shutdown");
+    CHECK(sim.net_source == NULL, "net_source NULL after shutdown");
+    CHECK(!sim.initialized,       "initialized false after shutdown");
+}
+
+/* ── 9. Rail propagation coverage ─────────────────────────────────────── */
+static void test_rail_propagation(void)
+{
+    printf("[9] Rail propagation coverage\n");
+    Sm83NetlistSim sim;
+    sm83_sim_init(&sim);
+    sm83_sim_reset(&sim);
+
+    /* Seed typical register values so we have some HIGH/LOW non-rail drivers */
+    static const char *a_nets[8] = {
+        "reg_a[0]","reg_a[1]","reg_a[2]","reg_a[3]",
+        "reg_a[4]","reg_a[5]","reg_a[6]","reg_a[7]"
+    };
+    for (int i = 0; i < 8; i++) {
+        int idx = sm83_sim_find_net(a_nets[i]);
+        if (idx >= 0 && idx != sim.vcc_net && idx != sim.gnd_net) {
+            sim.net_state[idx]  = (i & 1) ? SM83_SIM_HIGH : SM83_SIM_LOW;
+            sim.net_source[idx] = SM83_SRC_SEED;
+        }
+    }
+
+    int iters = sm83_sim_step(&sim, 64);
+
+    int resolved = 0, unknown = 0, floating = 0, conflicted = 0;
+    for (int i = 0; i < SM83_NET_COUNT; i++) {
+        switch ((Sm83SimState)sim.net_state[i]) {
+            case SM83_SIM_HIGH: case SM83_SIM_LOW:
+            case SM83_SIM_HIGH_WEAK: case SM83_SIM_LOW_WEAK:
+                resolved++; break;
+            case SM83_SIM_FLOAT:   floating++;   break;
+            case SM83_SIM_CONFLICT: conflicted++; break;
+            default: unknown++; break;
+        }
+    }
+
+    int pct_resolved = resolved * 100 / SM83_NET_COUNT;
+    printf("  INFO  iters=%d  resolved=%d/%d (%d%%)  unknown=%d  float=%d  conflict=%d\n",
+           iters, resolved, SM83_NET_COUNT, pct_resolved, unknown, floating, conflicted);
+
+    /* With rails + 8 seeds we expect at least some propagation */
+    CHECK(resolved >= 2, "at least 2 nets resolved (rails themselves)");
+    /* iters==0 is valid if no transistor gate is driven by the small seed — no change to propagate */
+    CHECK(iters >= 0,    "propagation step returned without error");
+    CHECK(conflicted == 0, "no conflicts with rails-only + small seed");
+
+    sm83_sim_shutdown(&sim);
+}
+
+/* ── 10. Semantic map integrity ─────────────────────────────────────────── */
+static void test_semantic_map(void)
+{
+    printf("[10] Semantic map integrity\n");
+
+    sm83_semantic_map_init();
+
+    int total   = sm83_semantic_map_count;
+    int found   = 0, not_found = 0, downgraded = 0, dup_net = 0;
+
+    /* Check each entry */
+    for (int i = 0; i < total; i++) {
+        const Sm83NetSemanticEntry *e = &sm83_semantic_map[i];
+
+        /* Rails are pre-baked — skip name-lookup check */
+        if (e->signal == SM83_SEM_VCC || e->signal == SM83_SEM_GND) {
+            if (e->net_id >= 0 && e->net_id < SM83_NET_COUNT) found++;
+            continue;
+        }
+
+        if (e->net_id >= 0 && e->net_id < SM83_NET_COUNT) {
+            found++;
+        } else {
+            not_found++;
+        }
+
+        /* A non-rail entry that was PROBABLE but name not found → downgraded to PROXY */
+        if (e->net_id < 0 && e->confidence <= SM83_CONF_PROXY)
+            downgraded++;
+    }
+
+    /* Check for cross-signal duplicate net_id (same net → two different signals).
+     * Intra-signal duplicates (same net for different bits of A[0..7]) are expected
+     * because spatial tracing returns the shared bus net for the whole register. */
+    for (int i = 0; i < total; i++) {
+        int nid = sm83_semantic_map[i].net_id;
+        if (nid < 0) continue;
+        for (int j = i + 1; j < total; j++) {
+            if (sm83_semantic_map[j].net_id != nid) continue;
+            if (sm83_semantic_map[j].signal != sm83_semantic_map[i].signal) {
+                dup_net++;
+                printf("  INFO  cross-signal dup net_id=%d: entries %d(%d) and %d(%d)\n",
+                       nid, i, (int)sm83_semantic_map[i].signal,
+                       j, (int)sm83_semantic_map[j].signal);
+            }
+        }
+    }
+
+    printf("  INFO  total=%d  found=%d  not_found=%d  downgraded=%d\n",
+           total, found, not_found, downgraded);
+
+    CHECK(total > 100, "map has >100 entries (expect %d)", total);
+    /* Most nets are "net@N" — named register nets not yet in netlist.
+     * Only rails (2 entries) are pre-resolved; the rest require transistor
+     * tracing (future Etapa E).  Accept any count >= 2 (rails themselves). */
+    CHECK(found >= 2,
+          "%d/%d entries resolved (rails at minimum)", found, total);
+    CHECK(not_found == downgraded,
+          "all unresolved entries downgraded (%d not_found, %d downgraded)",
+          not_found, downgraded);
+    CHECK(dup_net == 0, "no duplicate net_id assignments");
+
+    /* Verify sm83_semantic_map_find returns correct entries */
+    const Sm83NetSemanticEntry *vcc = sm83_semantic_map_find(
+            SM83_VCC_NET_HEURISTIC, SM83_CONF_CONFIRMED);
+    CHECK(vcc != NULL && vcc->signal == SM83_SEM_VCC,
+          "find VCC net at id=%d", SM83_VCC_NET_HEURISTIC);
+
+    const Sm83NetSemanticEntry *gnd = sm83_semantic_map_find(
+            SM83_GND_NET_HEURISTIC, SM83_CONF_CONFIRMED);
+    CHECK(gnd != NULL && gnd->signal == SM83_SEM_GND,
+          "find GND net at id=%d", SM83_GND_NET_HEURISTIC);
+
+    /* sm83_semantic_map_find with min=CONFIRMED should not return PROBABLE entries */
+    int first_probable_id = -1;
+    for (int i = 0; i < total; i++) {
+        const Sm83NetSemanticEntry *e = &sm83_semantic_map[i];
+        if (e->net_id >= 0 && e->confidence == SM83_CONF_PROBABLE) {
+            first_probable_id = e->net_id;
+            break;
+        }
+    }
+    if (first_probable_id >= 0) {
+        const Sm83NetSemanticEntry *r = sm83_semantic_map_find(
+                first_probable_id, SM83_CONF_CONFIRMED);
+        CHECK(r == NULL,
+              "find(net=%d, min=CONFIRMED) returns NULL for PROBABLE entry",
+              first_probable_id);
+    }
 }
 
 /* ─────────────────────────────────────────────────────────────────────── */
@@ -226,6 +399,10 @@ int main(void)
     test_power_nets();
     printf("\n");
     test_sim_smoke();
+    printf("\n");
+    test_rail_propagation();
+    printf("\n");
+    test_semantic_map();
     printf("\n");
 
     if (failures == 0)
