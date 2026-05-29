@@ -235,9 +235,15 @@ void hw_project_event(HwSchematicActivityState *st, const gb_hw_trace_event *ev)
         break;
 
     case GB_HW_EVT_PPU_MODE:
-        /* PPU mode change: light up LCD connector */
-        pulse_comp(st, 11, 0.6f, seq, type); /* J2 = LCD connector */
-        pulse_comp(st, COMP_U1, 0.4f, seq, type);
+        /* PPU mode transition: data=new mode (0-3), extra=LY.
+         * Mode 3 (drawing): brightest; mode 2 (OAM scan): medium; 0/1: dim. */
+        {
+            float lcd_int = (ev->data == 3) ? 0.8f :
+                            (ev->data == 2) ? 0.5f :
+                            (ev->data == 1) ? 0.6f : 0.3f;
+            pulse_comp(st, 11, lcd_int, seq, type); /* J2 = LCD connector */
+            pulse_comp(st, COMP_U1, 0.4f, seq, type);
+        }
         break;
 
     case GB_HW_EVT_APU_SAMPLE:
@@ -282,6 +288,30 @@ void hw_project_event(HwSchematicActivityState *st, const gb_hw_trace_event *ev)
     case GB_HW_EVT_JOYPAD:
         /* Joypad: data=button state byte; write=pressed */
         project_data(st, ev->data, seq, type);
+        pulse_comp(st, COMP_U1, 0.5f, seq, type);
+        break;
+
+    case GB_HW_EVT_SERIAL_START:
+        /* Serial transfer begin: light up link port connector (J1) and CPU.
+         * extra=SC byte; no address/data bus activity (serial is off-bus). */
+        pulse_comp(st, 12, 0.9f, seq, type); /* J1 = link port connector */
+        pulse_comp(st, COMP_U1, 0.6f, seq, type);
+        break;
+
+    case GB_HW_EVT_SERIAL_DONE:
+        /* Serial transfer complete: link port dims, data=received byte. */
+        project_data(st, ev->data, seq, type);
+        pulse_comp(st, 12, 0.7f, seq, type); /* J1 = link port */
+        pulse_comp(st, COMP_U1, 0.5f, seq, type);
+        break;
+
+    case GB_HW_EVT_MBC_SWITCH:
+        /* MBC bank switch: cartridge connector active; address bus = write addr.
+         * data=new ROM bank low, extra encodes ROM bank MSB + RAM bank. */
+        project_address(st, ev->addr, seq, type);
+        pulse_net(st, NET_nWR, 0.8f, seq, type, 0);
+        pulse_net(st, NET_nCS,  0.8f, seq, type, 0);
+        pulse_comp(st, COMP_P1, 1.0f, seq, type); /* cartridge */
         pulse_comp(st, COMP_U1, 0.5f, seq, type);
         break;
 

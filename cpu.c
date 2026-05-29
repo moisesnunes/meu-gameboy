@@ -165,6 +165,7 @@ static uint8_t gb_cpu_readb(struct gb *gb, uint16_t addr)
      gb->debug.cpu_viz.data_bus      = b;
      gb->debug.cpu_viz.bus_write     = false;
      gb->debug.cpu_viz.activity_fade = 1.0f;
+     gb_debug_hw_trace_cpu_read(gb, addr, b);
 
      gb_cpu_clock_tick(gb, 4);
 

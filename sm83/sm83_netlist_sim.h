@@ -30,6 +30,19 @@
 
 struct gb; /* forward — only used in sm83_sim_seed_from_gb */
 
+/* Minimal CPU snapshot for die sim seeding from a historical trace event.
+ * Mirrors the snap_* fields of gb_hw_trace_event without requiring debug.h. */
+typedef struct {
+    uint16_t pc;
+    uint8_t  a, b, c, d, e, h, l;
+    uint16_t sp;
+    uint8_t  flags;   /* (Z<<3)|(N<<2)|(H<<1)|C */
+    uint8_t  ir;      /* instruction register */
+    uint8_t  dbus;    /* data bus */
+    uint8_t  alu_op;  /* GB_VIZ_ALU_* */
+    uint8_t  src, dst;/* GB_VIZ_REG_* */
+} Sm83CpuSnapshot;
+
 /* -------------------------------------------------------------------------
  * Net logical state
  * Ordered so that (state & SM83_SIM_DRIVEN_MASK) != 0 means "driven".
@@ -106,6 +119,26 @@ void sm83_sim_reset(Sm83NetlistSim *sim);
  * Only sets nets that have a named mapping in sm83_node_map.h.
  * Does not run propagation — call sm83_sim_step() after. */
 void sm83_sim_seed_from_gb(Sm83NetlistSim *sim, const struct gb *gb);
+
+/* Seed from a CPU snapshot (built from a historical FETCH trace event).
+ * Allows replay: select any event in the die viewer timeline and seed the sim
+ * with the CPU register snapshot captured at that instruction boundary. */
+void sm83_sim_seed_from_snapshot(Sm83NetlistSim *sim, const Sm83CpuSnapshot *snap);
+
+/* Phase-aware partial seed — does NOT reset; updates only the nets that change
+ * during a specific micro-event type.  ev_type is a gb_hw_trace_event_type value:
+ *   CPU_READ / CPU_WRITE : seeds DBUS (ev_data8), ABUS (ev_addr)
+ *   CPU_ALU              : seeds flag nets (ev_flags_after), snap_a into reg_a nets
+ *   CPU_WRITEBACK        : seeds the destination register bits (ev_dst, ev_data8/addr)
+ *   CPU_FETCH            : equivalent to seed_from_snapshot (full register seed)
+ * All other event types are no-ops.  Call sm83_sim_step() after to propagate. */
+void sm83_sim_phase_seed(Sm83NetlistSim *sim,
+                         int              ev_type,     /* gb_hw_trace_event_type */
+                         uint16_t         ev_addr,
+                         uint8_t          ev_data8,
+                         uint8_t          ev_extra,    /* dst reg for WRITEBACK */
+                         uint8_t          ev_flags,    /* flags_after for ALU */
+                         const Sm83CpuSnapshot *snap); /* may be NULL */
 
 /* Run propagation until stable or max_iters reached.
  * Returns number of iterations used. Updates conflict_count. */

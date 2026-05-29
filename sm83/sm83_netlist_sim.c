@@ -187,6 +187,162 @@ void sm83_sim_seed_from_gb(Sm83NetlistSim *sim, const struct gb *gb)
     seed_net(sim, flag_nets[3], gb->cpu.f_c);
 }
 
+void sm83_sim_seed_from_snapshot(Sm83NetlistSim *sim, const Sm83CpuSnapshot *snap)
+{
+    if (!sim->net_state || !snap) return;
+
+    sm83_sim_reset(sim);
+
+    static const char *pcl_nets[8]  = {"reg_pcl[0]","reg_pcl[1]","reg_pcl[2]","reg_pcl[3]","reg_pcl[4]","reg_pcl[5]","reg_pcl[6]","reg_pcl[7]"};
+    static const char *pch_nets[8]  = {"reg_pch[0]","reg_pch[1]","reg_pch[2]","reg_pch[3]","reg_pch[4]","reg_pch[5]","reg_pch[6]","reg_pch[7]"};
+    static const char *reg_a_nets[8]= {"reg_a[0]","reg_a[1]","reg_a[2]","reg_a[3]","reg_a[4]","reg_a[5]","reg_a[6]","reg_a[7]"};
+    static const char *reg_b_nets[8]= {"reg_b[0]","reg_b[1]","reg_b[2]","reg_b[3]","reg_b[4]","reg_b[5]","reg_b[6]","reg_b[7]"};
+    static const char *reg_c_nets[8]= {"reg_c[0]","reg_c[1]","reg_c[2]","reg_c[3]","reg_c[4]","reg_c[5]","reg_c[6]","reg_c[7]"};
+    static const char *reg_d_nets[8]= {"reg_d[0]","reg_d[1]","reg_d[2]","reg_d[3]","reg_d[4]","reg_d[5]","reg_d[6]","reg_d[7]"};
+    static const char *reg_e_nets[8]= {"reg_e[0]","reg_e[1]","reg_e[2]","reg_e[3]","reg_e[4]","reg_e[5]","reg_e[6]","reg_e[7]"};
+    static const char *reg_h_nets[8]= {"reg_h[0]","reg_h[1]","reg_h[2]","reg_h[3]","reg_h[4]","reg_h[5]","reg_h[6]","reg_h[7]"};
+    static const char *reg_l_nets[8]= {"reg_l[0]","reg_l[1]","reg_l[2]","reg_l[3]","reg_l[4]","reg_l[5]","reg_l[6]","reg_l[7]"};
+    static const char *reg_spl_nets[8]={"reg_spl[0]","reg_spl[1]","reg_spl[2]","reg_spl[3]","reg_spl[4]","reg_spl[5]","reg_spl[6]","reg_spl[7]"};
+    static const char *reg_sph_nets[8]={"reg_sph[0]","reg_sph[1]","reg_sph[2]","reg_sph[3]","reg_sph[4]","reg_sph[5]","reg_sph[6]","reg_sph[7]"};
+    static const char *reg_ir_nets[8]= {"reg_ir[0]","reg_ir[1]","reg_ir[2]","reg_ir[3]","reg_ir[4]","reg_ir[5]","reg_ir[6]","reg_ir[7]"};
+    static const char *dbus_nets[8] = {"dbus_bridge[0]","dbus_bridge[1]","dbus_bridge[2]","dbus_bridge[3]","dbus_bridge[4]","dbus_bridge[5]","dbus_bridge[6]","dbus_bridge[7]"};
+    static const char *flag_nets[4] = {"flag_z","flag_n","flag_h","flag_c"};
+
+    for (int i = 0; i < 8; i++) {
+        seed_net(sim, pcl_nets[i],     (snap->pc    >> i)       & 1);
+        seed_net(sim, pch_nets[i],     (snap->pc    >> (8 + i)) & 1);
+        seed_net(sim, reg_a_nets[i],   (snap->a     >> i)       & 1);
+        seed_net(sim, reg_b_nets[i],   (snap->b     >> i)       & 1);
+        seed_net(sim, reg_c_nets[i],   (snap->c     >> i)       & 1);
+        seed_net(sim, reg_d_nets[i],   (snap->d     >> i)       & 1);
+        seed_net(sim, reg_e_nets[i],   (snap->e     >> i)       & 1);
+        seed_net(sim, reg_h_nets[i],   (snap->h     >> i)       & 1);
+        seed_net(sim, reg_l_nets[i],   (snap->l     >> i)       & 1);
+        seed_net(sim, reg_spl_nets[i], (snap->sp    >> i)       & 1);
+        seed_net(sim, reg_sph_nets[i], (snap->sp    >> (8 + i)) & 1);
+        seed_net(sim, reg_ir_nets[i],  (snap->ir    >> i)       & 1);
+        seed_net(sim, dbus_nets[i],    (snap->dbus  >> i)       & 1);
+    }
+    seed_net(sim, flag_nets[0], (snap->flags >> 3) & 1); /* Z */
+    seed_net(sim, flag_nets[1], (snap->flags >> 2) & 1); /* N */
+    seed_net(sim, flag_nets[2], (snap->flags >> 1) & 1); /* H */
+    seed_net(sim, flag_nets[3], (snap->flags >> 0) & 1); /* C */
+}
+
+/* -----------------------------------------------------------------------
+ * Phase-aware partial seed
+ * ----------------------------------------------------------------------- */
+
+/* seed_bits: write 'bits' (count bits) of 'value' into nets[]. */
+static void seed_bits8(Sm83NetlistSim *sim, const char **nets, uint8_t value)
+{
+    for (int i = 0; i < 8; i++)
+        seed_net(sim, nets[i], (value >> i) & 1);
+}
+
+void sm83_sim_phase_seed(Sm83NetlistSim *sim,
+                         int              ev_type,
+                         uint16_t         ev_addr,
+                         uint8_t          ev_data8,
+                         uint8_t          ev_extra,
+                         uint8_t          ev_flags,
+                         const Sm83CpuSnapshot *snap)
+{
+    if (!sim->net_state) return;
+
+    /* Net name tables for address bus (low/high) and data bus */
+    static const char *abus_lo[8] = {
+        "abus[0]","abus[1]","abus[2]","abus[3]",
+        "abus[4]","abus[5]","abus[6]","abus[7]"
+    };
+    static const char *abus_hi[8] = {
+        "abus[8]","abus[9]","abus[10]","abus[11]",
+        "abus[12]","abus[13]","abus[14]","abus[15]"
+    };
+    static const char *dbus[8] = {
+        "dbus_bridge[0]","dbus_bridge[1]","dbus_bridge[2]","dbus_bridge[3]",
+        "dbus_bridge[4]","dbus_bridge[5]","dbus_bridge[6]","dbus_bridge[7]"
+    };
+    static const char *flag_nets[4] = { "flag_z","flag_n","flag_h","flag_c" };
+
+    /* Register net tables for WRITEBACK destination lookup */
+    static const char *reg_a[8] = {"reg_a[0]","reg_a[1]","reg_a[2]","reg_a[3]","reg_a[4]","reg_a[5]","reg_a[6]","reg_a[7]"};
+    static const char *reg_b[8] = {"reg_b[0]","reg_b[1]","reg_b[2]","reg_b[3]","reg_b[4]","reg_b[5]","reg_b[6]","reg_b[7]"};
+    static const char *reg_c[8] = {"reg_c[0]","reg_c[1]","reg_c[2]","reg_c[3]","reg_c[4]","reg_c[5]","reg_c[6]","reg_c[7]"};
+    static const char *reg_d[8] = {"reg_d[0]","reg_d[1]","reg_d[2]","reg_d[3]","reg_d[4]","reg_d[5]","reg_d[6]","reg_d[7]"};
+    static const char *reg_e[8] = {"reg_e[0]","reg_e[1]","reg_e[2]","reg_e[3]","reg_e[4]","reg_e[5]","reg_e[6]","reg_e[7]"};
+    static const char *reg_h[8] = {"reg_h[0]","reg_h[1]","reg_h[2]","reg_h[3]","reg_h[4]","reg_h[5]","reg_h[6]","reg_h[7]"};
+    static const char *reg_l[8] = {"reg_l[0]","reg_l[1]","reg_l[2]","reg_l[3]","reg_l[4]","reg_l[5]","reg_l[6]","reg_l[7]"};
+    static const char *reg_spl[8] = {"reg_spl[0]","reg_spl[1]","reg_spl[2]","reg_spl[3]","reg_spl[4]","reg_spl[5]","reg_spl[6]","reg_spl[7]"};
+    static const char *reg_sph[8] = {"reg_sph[0]","reg_sph[1]","reg_sph[2]","reg_sph[3]","reg_sph[4]","reg_sph[5]","reg_sph[6]","reg_sph[7]"};
+
+    /* Import GB_VIZ_REG_* constants without pulling in debug.h */
+    enum { VIZ_NONE=0,VIZ_A=1,VIZ_B=2,VIZ_C=3,VIZ_D=4,VIZ_E=5,
+           VIZ_H=6,VIZ_L=7,VIZ_HL=8,VIZ_BC=9,VIZ_DE=10,VIZ_SP=11 };
+    /* Import GB_HW_EVT_* ordinals (must match debug.h enum order) */
+    enum { EVT_NONE=0,EVT_FETCH=1,EVT_READ=2,EVT_WRITE=3,
+           EVT_IRQ_REQ=4,EVT_IRQ_ACK=5,EVT_ALU=6,EVT_WRITEBACK=7 };
+
+    switch (ev_type) {
+    case EVT_READ:
+    case EVT_WRITE:
+        /* Update address bus and data bus nets */
+        seed_bits8(sim, abus_lo, (uint8_t)(ev_addr & 0xFF));
+        seed_bits8(sim, abus_hi, (uint8_t)(ev_addr >> 8));
+        seed_bits8(sim, dbus,    ev_data8);
+        break;
+
+    case EVT_ALU:
+        /* flags_after packed in ev_flags: (Z<<3)|(N<<2)|(H<<1)|C */
+        seed_net(sim, flag_nets[0], (ev_flags >> 3) & 1); /* Z */
+        seed_net(sim, flag_nets[1], (ev_flags >> 2) & 1); /* N */
+        seed_net(sim, flag_nets[2], (ev_flags >> 1) & 1); /* H */
+        seed_net(sim, flag_nets[3], (ev_flags >> 0) & 1); /* C */
+        /* ev_data8 = ALU result → accumulator A */
+        seed_bits8(sim, reg_a, ev_data8);
+        break;
+
+    case EVT_WRITEBACK:
+        /* ev_extra = GB_VIZ_REG_* destination; ev_data8 = 8-bit value; ev_addr = 16-bit */
+        switch (ev_extra) {
+        case VIZ_A:  seed_bits8(sim, reg_a,   ev_data8); break;
+        case VIZ_B:  seed_bits8(sim, reg_b,   ev_data8); break;
+        case VIZ_C:  seed_bits8(sim, reg_c,   ev_data8); break;
+        case VIZ_D:  seed_bits8(sim, reg_d,   ev_data8); break;
+        case VIZ_E:  seed_bits8(sim, reg_e,   ev_data8); break;
+        case VIZ_H:  seed_bits8(sim, reg_h,   ev_data8); break;
+        case VIZ_L:  seed_bits8(sim, reg_l,   ev_data8); break;
+        case VIZ_SP:
+            seed_bits8(sim, reg_spl, (uint8_t)(ev_addr & 0xFF));
+            seed_bits8(sim, reg_sph, (uint8_t)(ev_addr >> 8));
+            break;
+        case VIZ_BC:
+            seed_bits8(sim, reg_b, (uint8_t)(ev_addr >> 8));
+            seed_bits8(sim, reg_c, (uint8_t)(ev_addr & 0xFF));
+            break;
+        case VIZ_DE:
+            seed_bits8(sim, reg_d, (uint8_t)(ev_addr >> 8));
+            seed_bits8(sim, reg_e, (uint8_t)(ev_addr & 0xFF));
+            break;
+        case VIZ_HL:
+            seed_bits8(sim, reg_h, (uint8_t)(ev_addr >> 8));
+            seed_bits8(sim, reg_l, (uint8_t)(ev_addr & 0xFF));
+            break;
+        default: break;
+        }
+        break;
+
+    case EVT_FETCH:
+        /* Full snapshot seed — same as seed_from_snapshot */
+        if (snap)
+            sm83_sim_seed_from_snapshot(sim, snap);
+        break;
+
+    default:
+        break;
+    }
+}
+
 /* -----------------------------------------------------------------------
  * Propagation
  *

@@ -236,8 +236,12 @@ void gba_cpu_trigger_irq(struct gba *gba)
           /* PC of interrupted instruction */
           uint32_t intr_pc = cpu->r[15] - (thumb ? 4u : 8u);
 
-          /* Make handler returns land on the marker watched by the no-BIOS HLE. */
-          uint32_t hle_lr = intr_pc + (thumb ? 4u : 8u) - 8u;
+          /*
+           * libgba's copied IntrMain returns with BX lr after restoring SPSR_irq.
+           * Encode the interrupted state in LR bit 0 so BX lands back in the
+           * correct ARM/THUMB pipeline invariant.
+           */
+          uint32_t hle_lr = thumb ? (intr_pc | 1u) : (intr_pc & ~3u);
 
           /* Save full context for HLE restore */
           gba->bios_irq_hle_active = true;

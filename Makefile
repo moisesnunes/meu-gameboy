@@ -176,7 +176,7 @@ $(BUILD_GBA_DIR)/%.o: gba/%.c
 	mkdir -p $(dir $@)
 	$(CC_C) -c $(CFLAGS) -I gba -o $@ $<
 
-.PHONY : clean compat-run mooneye-run game-smoke shootout-run shootout-list gba-compat-run sm83-validate
+.PHONY : clean compat-run mooneye-run game-smoke gba-game-smoke shootout-run shootout-list gba-compat-run sm83-validate
 clean:
 	$(info CLEAN $(NAME))
 	rm -rf $(BUILD_DIR)
@@ -191,6 +191,9 @@ mooneye-run: $(COMPAT_NAME)
 
 game-smoke: $(TESTER_NAME)
 	./tests/games/run_game_smoke.py --no-build $(GAME_SMOKE_ARGS)
+
+gba-game-smoke: $(GBA_COMPAT_NAME)
+	./tests/games/run_gba_game_smoke.py --no-build $(GBA_GAME_SMOKE_ARGS)
 
 shootout-run: $(COMPAT_NAME)
 	./tests/shootout/run_shootout.py --no-build $(SHOOTOUT_ARGS)

@@ -535,6 +535,23 @@ void gb_debug_hw_trace_cpu_fetch(struct gb *gb, uint16_t pc, uint8_t opcode)
     ev.addr      = pc;
     ev.data      = opcode;
     ev.write     = false;
+    /* CPU register snapshot for die viewer seed */
+    const struct gb_cpu_viz *cv = &gb->debug.cpu_viz;
+    ev.snap_a       = gb->cpu.a;
+    ev.snap_b       = gb->cpu.b;
+    ev.snap_c       = gb->cpu.c;
+    ev.snap_d       = gb->cpu.d;
+    ev.snap_e       = gb->cpu.e;
+    ev.snap_h       = gb->cpu.h;
+    ev.snap_l       = gb->cpu.l;
+    ev.snap_sp      = gb->cpu.sp;
+    ev.snap_flags   = (uint8_t)((gb->cpu.f_z ? 8u : 0u) | (gb->cpu.f_n ? 4u : 0u) |
+                                (gb->cpu.f_h ? 2u : 0u) | (gb->cpu.f_c ? 1u : 0u));
+    ev.snap_ir      = opcode;
+    ev.snap_dbus    = cv->data_bus;
+    ev.snap_alu_op  = cv->alu_op;
+    ev.snap_src     = cv->src;
+    ev.snap_dst     = cv->dst;
     hw_trace_push(gb, &ev);
 }
 
@@ -576,6 +593,35 @@ void gb_debug_hw_trace_irq(struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_r
     ev.pc        = gb->cpu.pc;
     ev.data      = if_reg & ie_reg;
     ev.extra     = ie_reg;
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_alu(struct gb *gb, uint8_t alu_op, uint8_t result,
+                           uint8_t flags_before, uint8_t flags_after)
+{
+    if (!gb->debug.hw_trace.enabled)
+        return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_CPU_ALU;
+    ev.pc        = gb->cpu.pc;
+    ev.data      = result;
+    ev.extra     = alu_op;
+    ev.addr      = (uint16_t)(((uint16_t)flags_after << 8) | flags_before);
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_writeback(struct gb *gb, uint8_t dst_reg, uint8_t val8, uint16_t val16)
+{
+    if (!gb->debug.hw_trace.enabled)
+        return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_CPU_WRITEBACK;
+    ev.pc        = gb->cpu.pc;
+    ev.data      = val8;
+    ev.extra     = dst_reg;
+    ev.addr      = val16;
     hw_trace_push(gb, &ev);
 }
 
@@ -642,5 +688,49 @@ void gb_debug_hw_trace_joypad(struct gb *gb, uint8_t state, bool pressed)
     ev.type      = GB_HW_EVT_JOYPAD;
     ev.data      = state;
     ev.write     = pressed;
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_serial_start(struct gb *gb, uint8_t sc)
+{
+    if (!gb->debug.hw_trace.enabled) return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_SERIAL_START;
+    ev.extra     = sc;
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_serial_done(struct gb *gb, uint8_t sb_received)
+{
+    if (!gb->debug.hw_trace.enabled) return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_SERIAL_DONE;
+    ev.data      = sb_received;
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_mbc_switch(struct gb *gb, uint16_t write_addr,
+                                   uint16_t new_rom_bank, uint8_t new_ram_bank)
+{
+    if (!gb->debug.hw_trace.enabled) return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_MBC_SWITCH;
+    ev.addr      = write_addr;
+    ev.data      = (uint8_t)(new_rom_bank & 0xff);
+    ev.extra     = (uint8_t)((new_rom_bank >> 8) & 0x01) | (uint8_t)(new_ram_bank << 1);
+    hw_trace_push(gb, &ev);
+}
+
+void gb_debug_hw_trace_ppu_mode(struct gb *gb, uint8_t new_mode, uint8_t ly)
+{
+    if (!gb->debug.hw_trace.enabled) return;
+    gb_hw_trace_event ev = {0};
+    ev.timestamp = gb->timestamp;
+    ev.type      = GB_HW_EVT_PPU_MODE;
+    ev.data      = new_mode;
+    ev.extra     = ly;
     hw_trace_push(gb, &ev);
 }

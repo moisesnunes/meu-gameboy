@@ -1355,6 +1355,8 @@ uint8_t gb_cart_rom_readb(struct gb *gb, uint16_t addr)
 void gb_cart_rom_writeb(struct gb *gb, uint16_t addr, uint8_t v)
 {
      struct gb_cart *cart = &gb->cart;
+     uint16_t old_rom_bank = (uint16_t)cart->cur_rom_bank;
+     uint8_t  old_ram_bank = (uint8_t)cart->cur_ram_bank;
 
      switch (cart->model)
      {
@@ -1538,6 +1540,14 @@ void gb_cart_rom_writeb(struct gb *gb, uint16_t addr, uint8_t v)
      default:
           /* Não deve ser atingido */
           die();
+     }
+
+     if ((uint16_t)cart->cur_rom_bank != old_rom_bank ||
+         (uint8_t)cart->cur_ram_bank  != old_ram_bank)
+     {
+          gb_debug_hw_trace_mbc_switch(gb, addr,
+                                       (uint16_t)cart->cur_rom_bank,
+                                       (uint8_t)cart->cur_ram_bank);
      }
 }
 

@@ -945,11 +945,14 @@ void gba_gpu_sync(struct gba *gba)
                     gba->gpu.bg[b].ref_y_latch = gba->gpu.bg[b].ref_y;
                }
           }
+          else if (gpu->vcount == GBA_LCD_TOTAL_LINES - 1)
+          {
+               gpu->vblank = false;
+          }
 
           if (gpu->vcount >= GBA_LCD_TOTAL_LINES)
           {
                gpu->vcount = 0;
-               gpu->vblank = false;
           }
 
           if (gpu->vcount < GBA_LCD_H)

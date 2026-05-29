@@ -138,9 +138,9 @@ bool sm83_hit_test(const Sm83ViewTransform *t, float sx, float sy,
      float baked_ox = origin_x - t->pan_x * scale_x;
      float baked_oy = origin_y - t->pan_y * scale_y;
 
-     /* mouse in normalized die coords */
+     /* mouse in normalized die coords (Y inverted: screen top = die ny=1) */
      float mnx = (sx - baked_ox) / scale_x;
-     float mny = (sy - baked_oy) / scale_y;
+     float mny = 1.0f - (sy - baked_oy) / scale_y;
 
      /* search radius in die-norm coords (each axis may differ) */
      float r_nx = radius_px / scale_x;

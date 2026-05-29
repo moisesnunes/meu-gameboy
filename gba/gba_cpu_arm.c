@@ -183,7 +183,8 @@ static int exec_data_proc(struct gba *gba, uint32_t instr)
      uint8_t rn = (instr >> 16) & 0xF;
      uint8_t rd = (instr >> 12) & 0xF;
 
-     if ((instr & 0x0FBF0FFFU) == 0x010F0000U) {
+     uint32_t mrs_pattern = instr & 0x0FBF0FFFU;
+     if (mrs_pattern == 0x010F0000U || mrs_pattern == 0x014F0000U) {
           bool use_spsr = (instr >> 22) & 1;
           cpu->r[rd] = use_spsr ? cpu->spsr : cpu->cpsr;
           return 1;
@@ -191,7 +192,8 @@ static int exec_data_proc(struct gba *gba, uint32_t instr)
 
      shift_result_t op2 = decode_op2(gba, instr, is_imm);
 
-     if ((instr & 0x0DB0F000U) == 0x0120F000U) {
+     uint32_t msr_pattern = instr & 0x0DB0F000U;
+     if (msr_pattern == 0x0120F000U || msr_pattern == 0x0160F000U) {
           bool use_spsr = (instr >> 22) & 1;
           uint32_t field = (instr >> 16) & 0xF;
           uint32_t mask = 0;

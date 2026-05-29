@@ -49,7 +49,7 @@ void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val)
      }
 
      ch->prescaler = val & 0x3;
-     ch->cascade = (val >> 2) & 1;
+     ch->cascade = n != 0 && ((val >> 2) & 1);
      ch->irq_en = (val >> 6) & 1;
      ch->enable = new_enable;
 

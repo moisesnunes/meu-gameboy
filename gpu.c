@@ -1824,7 +1824,9 @@ void gb_gpu_sync(struct gb *gb)
 
           if (prev_mode != gb_gpu_get_mode(gb))
           {
-               if (gb_gpu_get_mode(gb) == 0)
+               uint8_t new_mode = gb_gpu_get_mode(gb);
+
+               if (new_mode == 0)
                {
                     gb_gpu_emit_cur_line(gb);
 
@@ -1834,6 +1836,7 @@ void gb_gpu_sync(struct gb *gb)
                     }
                }
 
+               gb_debug_hw_trace_ppu_mode(gb, new_mode, (uint8_t)gpu->ly);
                gb_gpu_update_stat_irq(gb);
           }
 

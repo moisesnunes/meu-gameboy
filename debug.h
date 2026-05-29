@@ -123,6 +123,8 @@ typedef enum {
     GB_HW_EVT_CPU_WRITE,
     GB_HW_EVT_IRQ_REQUEST,
     GB_HW_EVT_IRQ_ACK,
+    GB_HW_EVT_CPU_ALU,       /* ALU op: data=result, extra=alu_op, addr=flags_after<<8|flags_before */
+    GB_HW_EVT_CPU_WRITEBACK, /* register writeback: extra=dst reg, data=value8, addr=value16 */
     GB_HW_EVT_DMA_READ,
     GB_HW_EVT_DMA_WRITE,
     GB_HW_EVT_PPU_MODE,
@@ -134,6 +136,9 @@ typedef enum {
     GB_HW_EVT_TIMER_OVF,    /* TIMA overflow → IRQ timer           */
     GB_HW_EVT_APU_WRITE,    /* write em registrador APU (0xFF10-3F)*/
     GB_HW_EVT_JOYPAD,       /* botão pressionado/solto             */
+    GB_HW_EVT_SERIAL_START, /* SC bit7=1: inicia transferência; extra=SC byte */
+    GB_HW_EVT_SERIAL_DONE,  /* transferência serial concluída; data=SB recebido */
+    GB_HW_EVT_MBC_SWITCH,   /* troca de banco ROM/RAM; addr=write addr, data=bank low, extra=bank high */
 } gb_hw_trace_event_type;
 
 typedef struct {
@@ -146,6 +151,16 @@ typedef struct {
     uint8_t                data;
     bool                   write;
     uint8_t                extra;
+    /* CPU snapshot — filled only for GB_HW_EVT_CPU_FETCH */
+    uint8_t                snap_a, snap_b, snap_c, snap_d;
+    uint8_t                snap_e, snap_h, snap_l;
+    uint16_t               snap_sp;
+    uint8_t                snap_flags;   /* (Z<<3)|(N<<2)|(H<<1)|C */
+    uint8_t                snap_ir;      /* instruction register (opcode) */
+    uint8_t                snap_dbus;    /* data bus at fetch time */
+    uint8_t                snap_alu_op;  /* GB_VIZ_ALU_* */
+    uint8_t                snap_src;     /* GB_VIZ_REG_* */
+    uint8_t                snap_dst;     /* GB_VIZ_REG_* */
 } gb_hw_trace_event;
 
 #define GB_HW_TRACE_CAP 4096
@@ -215,10 +230,13 @@ void     gb_debug_step_out        (struct gb *gb);
 uint16_t gb_debug_get_next_instr_addr(struct gb *gb);  /* próximo endereço após a instrução atual */
 
 /* Hardware trace helpers — no-ops when hw_trace.enabled == false */
-void gb_debug_hw_trace_cpu_fetch (struct gb *gb, uint16_t pc, uint8_t opcode);
-void gb_debug_hw_trace_cpu_read  (struct gb *gb, uint16_t addr, uint8_t data);
-void gb_debug_hw_trace_cpu_write (struct gb *gb, uint16_t addr, uint8_t data);
-void gb_debug_hw_trace_irq       (struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_reg);
+void gb_debug_hw_trace_cpu_fetch    (struct gb *gb, uint16_t pc, uint8_t opcode);
+void gb_debug_hw_trace_cpu_read     (struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_cpu_write    (struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_irq          (struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_reg);
+void gb_debug_hw_trace_alu          (struct gb *gb, uint8_t alu_op, uint8_t result,
+                                     uint8_t flags_before, uint8_t flags_after);
+void gb_debug_hw_trace_writeback    (struct gb *gb, uint8_t dst_reg, uint8_t val8, uint16_t val16);
 /* Fase E helpers */
 void gb_debug_hw_trace_ppu_vblank(struct gb *gb, uint8_t ly);
 void gb_debug_hw_trace_ppu_hblank(struct gb *gb, uint8_t ly);
@@ -226,5 +244,9 @@ void gb_debug_hw_trace_oam_dma   (struct gb *gb, uint8_t pos, uint8_t data);
 void gb_debug_hw_trace_timer_ovf (struct gb *gb, uint8_t tma);
 void gb_debug_hw_trace_apu_write (struct gb *gb, uint16_t addr, uint8_t data);
 void gb_debug_hw_trace_joypad    (struct gb *gb, uint8_t state, bool pressed);
+void gb_debug_hw_trace_serial_start(struct gb *gb, uint8_t sc);
+void gb_debug_hw_trace_serial_done (struct gb *gb, uint8_t sb_received);
+void gb_debug_hw_trace_mbc_switch  (struct gb *gb, uint16_t write_addr, uint16_t new_rom_bank, uint8_t new_ram_bank);
+void gb_debug_hw_trace_ppu_mode    (struct gb *gb, uint8_t new_mode, uint8_t ly);
 
 #endif /* _GB_DEBUG_H_ */

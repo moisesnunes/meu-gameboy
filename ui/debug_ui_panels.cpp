@@ -3487,6 +3487,11 @@ static const char *s_layer_names[] = {
     "P-Trans",
 };
 
+/* Forward declarations for cross-link helpers (defined near draw_panel_hw_schematic) */
+static int   die_net_to_sch_net_id(int sm83_net_id);
+static void  sch_jump_to_net(int hw_net_id, ImVec2 canvas_size);
+extern ImVec2 s_sch_last_canvas_size;
+
 /* Persistent panel state */
 static Sm83ViewTransform s_die_view;
 static Sm83ViewCache s_die_cache; /* updated once per frame before draw loops */
@@ -3504,42 +3509,59 @@ static Sm83NetlistSim s_netlist_sim;
 static bool s_sim_view_init = false;
 
 /* ── Transistor panel UI toggles ── */
-static bool s_show_func_regions  = true;  /* functional region overlays */
-static bool s_show_rails         = false; /* highlight VCC/GND power rail arcs */
+static bool s_show_func_regions = true;   /* functional region overlays */
+static bool s_show_rails = false;         /* highlight VCC/GND power rail arcs */
 static bool s_show_trans_inspect = false; /* persistent transistor inspector window */
-static bool s_show_ntrans        = true;  /* show NMOS transistors */
-static bool s_show_ptrans        = true;  /* show PMOS transistors */
+static bool s_show_ntrans = true;         /* show NMOS transistors */
+static bool s_show_ptrans = true;         /* show PMOS transistors */
 
 /* ── Transistor inspector neighbour cache ── */
-struct TransNeighbour { int index; const char *via; /* "gate"/"s1"/"s2" */ };
-struct TransNeighGroup { int net_id; const char *role; TransNeighbour nb[6]; int count; };
+struct TransNeighbour
+{
+     int index;
+     const char *via; /* "gate"/"s1"/"s2" */
+};
+struct TransNeighGroup
+{
+     int net_id;
+     const char *role;
+     TransNeighbour nb[6];
+     int count;
+};
 static TransNeighGroup s_inspect_neigh[3]; /* one group per gate/s1/s2 */
 static int s_inspect_cached_sel = -1;      /* transistor index whose neighbours are cached */
 
 static void rebuild_inspect_neighbours(int tr_idx)
 {
-     if (tr_idx == s_inspect_cached_sel) return;
+     if (tr_idx == s_inspect_cached_sel)
+          return;
      s_inspect_cached_sel = tr_idx;
      const Sm83Transistor *tr = &sm83_transistors[tr_idx];
-     int target_nets[3] = { tr->gate_net, tr->s1_net, tr->s2_net };
-     const char *role_names[3] = { "gate", "s1", "s2" };
+     int target_nets[3] = {tr->gate_net, tr->s1_net, tr->s2_net};
+     const char *role_names[3] = {"gate", "s1", "s2"};
      for (int ri = 0; ri < 3; ri++)
      {
           s_inspect_neigh[ri].net_id = target_nets[ri];
-          s_inspect_neigh[ri].role   = role_names[ri];
-          s_inspect_neigh[ri].count  = 0;
-          if (target_nets[ri] < 0) continue;
+          s_inspect_neigh[ri].role = role_names[ri];
+          s_inspect_neigh[ri].count = 0;
+          if (target_nets[ri] < 0)
+               continue;
           for (int ti = 0; ti < SM83_TRANSISTOR_COUNT && s_inspect_neigh[ri].count < 6; ti++)
           {
-               if (ti == tr_idx) continue;
+               if (ti == tr_idx)
+                    continue;
                const Sm83Transistor *nb = &sm83_transistors[ti];
                const char *which = nullptr;
-               if      (nb->gate_net == target_nets[ri]) which = "gate";
-               else if (nb->s1_net   == target_nets[ri]) which = "s1";
-               else if (nb->s2_net   == target_nets[ri]) which = "s2";
-               if (!which) continue;
+               if (nb->gate_net == target_nets[ri])
+                    which = "gate";
+               else if (nb->s1_net == target_nets[ri])
+                    which = "s1";
+               else if (nb->s2_net == target_nets[ri])
+                    which = "s2";
+               if (!which)
+                    continue;
                int idx = s_inspect_neigh[ri].count++;
-               s_inspect_neigh[ri].nb[idx] = { ti, which };
+               s_inspect_neigh[ri].nb[idx] = {ti, which};
           }
      }
 }
@@ -3711,7 +3733,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      {
           auto type_btn = [&](const char *label, bool &flag, ImU32 on_col, ImU32 hov_col, const char *tip)
           {
-               ImGui::PushStyleColor(ImGuiCol_Button,        flag ? on_col : IM_COL32(50, 50, 60, 200));
+               ImGui::PushStyleColor(ImGuiCol_Button, flag ? on_col : IM_COL32(50, 50, 60, 200));
                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, flag ? hov_col : IM_COL32(70, 70, 80, 200));
                if (ImGui::Button(label))
                     flag = !flag;
@@ -3846,58 +3868,55 @@ void draw_panel_transistor_viz(struct gb *gb)
                static const FuncRegion regions[] = {
                    /* ── Register file columns (left→right by nx) ───────────────── */
                    /* IR:  reg_ir nx=0.138 */
-                   {"IR",   0.118f, 0.035f, 0.150f, 0.456f, IM_COL32(200, 140, 255, 35), IM_COL32(200, 140, 255, 150)},
+                   {"IR", 0.118f, 0.035f, 0.150f, 0.456f, IM_COL32(200, 140, 255, 35), IM_COL32(200, 140, 255, 150)},
                    /* A:   reg_a 0.163..0.196, reg_a_out 0.160 */
-                   {"A",    0.150f, 0.035f, 0.208f, 0.456f, IM_COL32(60,  200, 255, 35), IM_COL32(60,  200, 255, 150)},
+                   {"A", 0.150f, 0.035f, 0.208f, 0.456f, IM_COL32(60, 200, 255, 35), IM_COL32(60, 200, 255, 150)},
                    /* L:   reg_l 0.218 */
-                   {"L",    0.208f, 0.060f, 0.232f, 0.456f, IM_COL32(80,  160, 255, 28), IM_COL32(80,  160, 255, 110)},
+                   {"L", 0.208f, 0.060f, 0.232f, 0.456f, IM_COL32(80, 160, 255, 28), IM_COL32(80, 160, 255, 110)},
                    /* H:   reg_h 0.242..0.264, reg_hl 0.236 */
-                   {"H",    0.232f, 0.035f, 0.278f, 0.456f, IM_COL32(80,  160, 255, 28), IM_COL32(80,  160, 255, 110)},
+                   {"H", 0.232f, 0.035f, 0.278f, 0.456f, IM_COL32(80, 160, 255, 28), IM_COL32(80, 160, 255, 110)},
                    /* E:   reg_e 0.287, reg_de_out 0.293 */
-                   {"E",    0.278f, 0.060f, 0.300f, 0.456f, IM_COL32(80,  200, 180, 28), IM_COL32(80,  200, 180, 110)},
+                   {"E", 0.278f, 0.060f, 0.300f, 0.456f, IM_COL32(80, 200, 180, 28), IM_COL32(80, 200, 180, 110)},
                    /* D:   reg_d 0.309..0.331, reg_d_c 0.331 */
-                   {"D",    0.300f, 0.035f, 0.343f, 0.456f, IM_COL32(80,  200, 180, 28), IM_COL32(80,  200, 180, 110)},
+                   {"D", 0.300f, 0.035f, 0.343f, 0.456f, IM_COL32(80, 200, 180, 28), IM_COL32(80, 200, 180, 110)},
                    /* C:   reg_c 0.353, reg_bc_out 0.364 */
-                   {"C",    0.343f, 0.060f, 0.368f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
+                   {"C", 0.343f, 0.060f, 0.368f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
                    /* B:   reg_b 0.371, reg_bus_pch_b 0.393 */
-                   {"B",    0.368f, 0.060f, 0.403f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
+                   {"B", 0.368f, 0.060f, 0.403f, 0.456f, IM_COL32(100, 220, 140, 28), IM_COL32(100, 220, 140, 110)},
                    /* W/Z: reg_z 0.415, reg_wz 0.431, reg_w 0.509 */
-                   {"W/Z",  0.403f, 0.060f, 0.522f, 0.456f, IM_COL32(160, 220, 100, 28), IM_COL32(160, 220, 100, 110)},
+                   {"W/Z", 0.403f, 0.060f, 0.522f, 0.456f, IM_COL32(160, 220, 100, 28), IM_COL32(160, 220, 100, 110)},
                    /* SP:  reg_spl 0.556, reg_sp 0.589, reg_sph 0.608..0.633 */
-                   {"SP",   0.533f, 0.035f, 0.645f, 0.456f, IM_COL32(180, 140, 255, 30), IM_COL32(180, 140, 255, 120)},
+                   {"SP", 0.533f, 0.035f, 0.645f, 0.456f, IM_COL32(180, 140, 255, 30), IM_COL32(180, 140, 255, 120)},
                    /* PC:  reg_pcl 0.662, reg_pc 0.697, reg_pch 0.710 */
-                   {"PC",   0.645f, 0.060f, 0.722f, 0.456f, IM_COL32(255, 220, 60,  30), IM_COL32(255, 220, 60,  130)},
+                   {"PC", 0.645f, 0.060f, 0.722f, 0.456f, IM_COL32(255, 220, 60, 30), IM_COL32(255, 220, 60, 130)},
                    /* IDU: 0.739..0.848 */
-                   {"IDU",  0.722f, 0.035f, 0.860f, 0.476f, IM_COL32(255, 140, 60,  28), IM_COL32(255, 140, 60,  130)},
+                   {"IDU", 0.722f, 0.035f, 0.860f, 0.476f, IM_COL32(255, 140, 60, 28), IM_COL32(255, 140, 60, 130)},
                    /* IE:  reg_ie 0.833 (nested inside IDU) */
-                   {"IE",   0.820f, 0.058f, 0.845f, 0.448f, IM_COL32(200, 80,  80,  35), IM_COL32(220, 100, 100, 140)},
+                   {"IE", 0.820f, 0.058f, 0.845f, 0.448f, IM_COL32(200, 80, 80, 35), IM_COL32(220, 100, 100, 140)},
                    /* IRQ: irq_latch/prio 0.804..0.890 (overlaps IDU) */
-                   {"IRQ",  0.790f, 0.030f, 0.912f, 0.476f, IM_COL32(200, 60,  60,  22), IM_COL32(200, 80,  80,  100)},
+                   {"IRQ", 0.790f, 0.030f, 0.912f, 0.476f, IM_COL32(200, 60, 60, 22), IM_COL32(200, 80, 80, 100)},
 
                    /* ── Middle band: Flags + ALU ────────────────────────────── */
                    /* Flags: flag_z/n/h/c at ny=0.579, nx=0.111..0.344 — thin strip */
-                   {"Flags", 0.100f, 0.568f, 0.356f, 0.592f, IM_COL32(80,  220, 200, 45), IM_COL32(80,  220, 200, 170)},
+                   {"Flags", 0.100f, 0.568f, 0.356f, 0.592f, IM_COL32(80, 220, 200, 45), IM_COL32(80, 220, 200, 170)},
                    /* ALU:   alu_* nx=0.103..0.352, ny=0.579..0.908 */
-                   {"ALU",   0.090f, 0.558f, 0.363f, 0.920f, IM_COL32(220, 80,  80,  28), IM_COL32(255, 100, 100, 130)},
+                   {"ALU", 0.090f, 0.558f, 0.363f, 0.920f, IM_COL32(220, 80, 80, 28), IM_COL32(255, 100, 100, 130)},
 
                    /* ── Bottom band: Data bus + 3-stage Decoder ─────────────── */
                    /* DBUS:  dbus_bridge/nand/not nx=0.020..0.316, ny=0.608..0.924 */
-                   {"DBUS",  0.007f, 0.595f, 0.329f, 0.937f, IM_COL32(255, 160, 40,  32), IM_COL32(255, 160, 40,  140)},
+                   {"DBUS", 0.007f, 0.595f, 0.329f, 0.937f, IM_COL32(255, 160, 40, 32), IM_COL32(255, 160, 40, 140)},
                    /* Dec 1: 107 dynamic columns, ny=0.895..0.971 */
-                   {"Dec 1", 0.415f, 0.883f, 0.888f, 0.982f, IM_COL32(220, 220, 60,  22), IM_COL32(240, 240, 80,  110)},
+                   {"Dec 1", 0.415f, 0.883f, 0.888f, 0.982f, IM_COL32(220, 220, 60, 22), IM_COL32(240, 240, 80, 110)},
                    /* Dec 2: 38 static outputs, ny=0.794..0.797 (thin) */
-                   {"Dec 2", 0.408f, 0.782f, 0.845f, 0.810f, IM_COL32(200, 220, 60,  22), IM_COL32(220, 240, 80,  100)},
+                   {"Dec 2", 0.408f, 0.782f, 0.845f, 0.810f, IM_COL32(200, 220, 60, 22), IM_COL32(220, 240, 80, 100)},
                    /* Dec 3: 57 control outputs, ny=0.579..0.714 */
-                   {"Dec 3", 0.432f, 0.567f, 0.938f, 0.726f, IM_COL32(180, 210, 60,  22), IM_COL32(200, 230, 80,  100)},
+                   {"Dec 3", 0.432f, 0.567f, 0.938f, 0.726f, IM_COL32(180, 210, 60, 22), IM_COL32(200, 230, 80, 100)},
                };
 
-               /* die coords: ny=0 is top of die in screen space (screen y increases down,
-                * die ny=1 maps to screen top, ny=0 to screen bottom) so we flip. */
                for (int ri = 0; ri < (int)(sizeof(regions) / sizeof(regions[0])); ri++)
                {
                     const FuncRegion *r = &regions[ri];
                     float sx0, sy0, sx1, sy1;
-                    /* ny in [0,1] where 0=die bottom = high screen y */
                     sm83_die_to_screen_fast(vc, r->nx0, 1.0f - r->ny0, &sx0, &sy0);
                     sm83_die_to_screen_fast(vc, r->nx1, 1.0f - r->ny1, &sx1, &sy1);
                     /* ensure sx0<sx1, sy0<sy1 */
@@ -3953,16 +3972,18 @@ void draw_panel_transistor_viz(struct gb *gb)
                const Sm83Arc *a = &sm83_arcs[i];
                if (a->net_id != vcc_id && a->net_id != gnd_id)
                     continue;
-               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+               if (!sm83_arc_in_viewport_fast(vc, a->ntx, 1.0f - a->nty, a->nhx, 1.0f - a->nhy))
                     continue;
 
                float sx0, sy0, sx1, sy1;
-               sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
-               sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+               sm83_die_to_screen_fast(vc, a->ntx, 1.0f - a->nty, &sx0, &sy0);
+               sm83_die_to_screen_fast(vc, a->nhx, 1.0f - a->nhy, &sx1, &sy1);
 
                float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
-               if (thickness < 1.0f)  thickness = 1.0f;
-               if (thickness > 10.0f) thickness = 10.0f;
+               if (thickness < 1.0f)
+                    thickness = 1.0f;
+               if (thickness > 10.0f)
+                    thickness = 10.0f;
 
                ImU32 col = (a->net_id == vcc_id) ? vcc_col : gnd_col;
                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, thickness + 1.5f);
@@ -3978,12 +3999,12 @@ void draw_panel_transistor_viz(struct gb *gb)
                continue;
           if (s_arc_highlight_flags && s_arc_highlight_flags[i])
                continue; /* drawn in highlight pass below */
-          if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+          if (!sm83_arc_in_viewport_fast(vc, a->ntx, 1.0f - a->nty, a->nhx, 1.0f - a->nhy))
                continue;
 
           float sx0, sy0, sx1, sy1;
-          sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
-          sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+          sm83_die_to_screen_fast(vc, a->ntx, 1.0f - a->nty, &sx0, &sy0);
+          sm83_die_to_screen_fast(vc, a->nhx, 1.0f - a->nhy, &sx1, &sy1);
 
           float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
           if (thickness < 0.5f)
@@ -4003,12 +4024,12 @@ void draw_panel_transistor_viz(struct gb *gb)
                if (!s_arc_highlight_flags[i])
                     continue;
                const Sm83Arc *a = &sm83_arcs[i];
-               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+               if (!sm83_arc_in_viewport_fast(vc, a->ntx, 1.0f - a->nty, a->nhx, 1.0f - a->nhy))
                     continue;
 
                float sx0, sy0, sx1, sy1;
-               sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
-               sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+               sm83_die_to_screen_fast(vc, a->ntx, 1.0f - a->nty, &sx0, &sy0);
+               sm83_die_to_screen_fast(vc, a->nhx, 1.0f - a->nhy, &sx1, &sy1);
 
                float thickness = a->width > 0.0f ? a->width * arc_width_norm * die_scale_x : 1.0f;
                if (thickness < 1.0f)
@@ -4039,14 +4060,16 @@ void draw_panel_transistor_viz(struct gb *gb)
                     continue;
 
                bool is_nmos = (tr->layer == SM83_LAYER_NTRANS);
-               if (is_nmos  && !s_show_ntrans) continue;
-               if (!is_nmos && !s_show_ptrans) continue;
+               if (is_nmos && !s_show_ntrans)
+                    continue;
+               if (!is_nmos && !s_show_ptrans)
+                    continue;
 
-               if (!sm83_in_viewport_fast(vc, tr->nx, tr->ny, 0.0f))
+               if (!sm83_in_viewport_fast(vc, tr->nx, 1.0f - tr->ny, 0.0f))
                     continue;
 
                float sx, sy;
-               sm83_die_to_screen_fast(vc, tr->nx, tr->ny, &sx, &sy);
+               sm83_die_to_screen_fast(vc, tr->nx, 1.0f - tr->ny, &sx, &sy);
 
                bool is_sel = (s_die_sel.type == SM83_SEL_TRANSISTOR && s_die_sel.index == i);
 
@@ -4060,7 +4083,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                {
                     Sm83SimState gate_st = sm83_sim_net_state(&s_netlist_sim, tr->gate_net);
                     bool conducts = is_nmos ? SM83_SIM_IS_HIGH(gate_st) : SM83_SIM_IS_LOW(gate_st);
-                    bool known    = SM83_SIM_IS_HIGH(gate_st) || SM83_SIM_IS_LOW(gate_st);
+                    bool known = SM83_SIM_IS_HIGH(gate_st) || SM83_SIM_IS_LOW(gate_st);
                     if (!known)
                     {
                          /* sim has no opinion — dim */
@@ -4070,7 +4093,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                     {
                          /* conducting: bright */
                          col = is_nmos ? IM_COL32(60, 220, 100, 230) : IM_COL32(255, 130, 60, 230);
-                         r  *= 1.25f; /* slightly larger to pop */
+                         r *= 1.25f; /* slightly larger to pop */
                     }
                     else
                     {
@@ -4095,7 +4118,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      {
           const Sm83Node *n = &sm83_nodes[s_die_sel.index];
           float sx, sy;
-          sm83_die_to_screen_fast(vc, n->nx, n->ny, &sx, &sy);
+          sm83_die_to_screen_fast(vc, n->nx, 1.0f - n->ny, &sx, &sy);
           dl->AddCircle(ImVec2(sx, sy), 6.0f, IM_COL32(255, 255, 80, 255), 0, 2.0f);
      }
 
@@ -4107,10 +4130,10 @@ void draw_panel_transistor_viz(struct gb *gb)
                if (!s_node_highlight_flags[i])
                     continue;
                const Sm83Node *n = &sm83_nodes[i];
-               if (!sm83_in_viewport_fast(vc, n->nx, n->ny, 0.005f))
+               if (!sm83_in_viewport_fast(vc, n->nx, 1.0f - n->ny, 0.005f))
                     continue;
                float sx, sy;
-               sm83_die_to_screen_fast(vc, n->nx, n->ny, &sx, &sy);
+               sm83_die_to_screen_fast(vc, n->nx, 1.0f - n->ny, &sx, &sy);
                dl->AddCircleFilled(ImVec2(sx, sy), 2.5f, IM_COL32(255, 255, 80, 120));
           }
      }
@@ -4173,11 +4196,11 @@ void draw_panel_transistor_viz(struct gb *gb)
                const Sm83OverlaySignal *sig = &s_die_overlay.signals[i];
                if (!sig->valid)
                     continue;
-               if (!sm83_in_viewport_fast(vc, sig->nx, sig->ny, 0.002f))
+               if (!sm83_in_viewport_fast(vc, sig->nx, 1.0f - sig->ny, 0.002f))
                     continue;
 
                float sx, sy;
-               sm83_die_to_screen_fast(vc, sig->nx, sig->ny, &sx, &sy);
+               sm83_die_to_screen_fast(vc, sig->nx, 1.0f - sig->ny, &sx, &sy);
 
                int group_idx = sig->group < (int)(sizeof(s_group_colors) / sizeof(s_group_colors[0])) ? sig->group : 0;
                ImU32 base_col = s_group_colors[group_idx];
@@ -4226,7 +4249,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                unsigned int lbit = 1u << a->layer;
                if (!(s_layer_mask & lbit))
                     continue;
-               if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+               if (!sm83_arc_in_viewport_fast(vc, a->ntx, 1.0f - a->nty, a->nhx, 1.0f - a->nhy))
                     continue;
 
                Sm83SimState st = sm83_sim_net_state(&s_netlist_sim, a->net_id);
@@ -4234,8 +4257,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                     continue;
 
                float sx0, sy0, sx1, sy1;
-               sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
-               sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+               sm83_die_to_screen_fast(vc, a->ntx, 1.0f - a->nty, &sx0, &sy0);
+               sm83_die_to_screen_fast(vc, a->nhx, 1.0f - a->nhy, &sx1, &sy1);
 
                int si = (int)st < SM83_SIM_STATE_COUNT ? (int)st : 0;
                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), sim_colors[si], sim_widths[si]);
@@ -4259,11 +4282,11 @@ void draw_panel_transistor_viz(struct gb *gb)
                     const Sm83Arc *a = &sm83_arcs[i];
                     if (a->net_id != rail_id)
                          continue;
-                    if (!sm83_arc_in_viewport_fast(vc, a->ntx, a->nty, a->nhx, a->nhy))
+                    if (!sm83_arc_in_viewport_fast(vc, a->ntx, 1.0f - a->nty, a->nhx, 1.0f - a->nhy))
                          continue;
                     float sx0, sy0, sx1, sy1;
-                    sm83_die_to_screen_fast(vc, a->ntx, a->nty, &sx0, &sy0);
-                    sm83_die_to_screen_fast(vc, a->nhx, a->nhy, &sx1, &sy1);
+                    sm83_die_to_screen_fast(vc, a->ntx, 1.0f - a->nty, &sx0, &sy0);
+                    sm83_die_to_screen_fast(vc, a->nhx, 1.0f - a->nhy, &sx1, &sy1);
                     dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), rail_cols[r], 2.5f);
                }
           }
@@ -4410,9 +4433,8 @@ void draw_panel_transistor_viz(struct gb *gb)
 
                     /* Signal name abbreviations matching Sm83SemanticSignal enum */
                     static const char *sig_names[] = {
-                        "PCL","PCH","A","B","C","D","E","H","L",
-                        "SPL","SPH","IR","FZ","FN","FH","FC","DBUS","IDU","VCC","GND"
-                    };
+                        "PCL", "PCH", "A", "B", "C", "D", "E", "H", "L",
+                        "SPL", "SPH", "IR", "FZ", "FN", "FH", "FC", "DBUS", "IDU", "VCC", "GND"};
                     /* Show up to 8 mismatches from the ring (most recent) */
                     int show = sm83_mismatch_count < 8 ? sm83_mismatch_count : 8;
                     int base = sm83_mismatch_head - sm83_mismatch_count;
@@ -4516,7 +4538,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           rebuild_inspect_neighbours(s_die_sel.index);
           ImGui::SetNextWindowSize(ImVec2(340.0f, 420.0f), ImGuiCond_FirstUseEver);
           ImGui::SetNextWindowPos(ImVec2(canvas_pos.x + canvas_size.x - 350.0f,
-                                        canvas_pos.y + 10.0f),
+                                         canvas_pos.y + 10.0f),
                                   ImGuiCond_FirstUseEver);
           bool open = true;
           if (ImGui::Begin("Transistor Inspector", &open,
@@ -4544,14 +4566,13 @@ void draw_panel_transistor_viz(struct gb *gb)
                    ImVec4(0.3f, 1.0f, 0.5f, 1.0f), /* CONFIRMED */
                };
                static const char *sig_names[] = {
-                   "PCL","PCH","A","B","C","D","E","H","L",
-                   "SPL","SPH","IR","FZ","FN","FH","FC","DBUS","IDU","VCC","GND"
-               };
+                   "PCL", "PCH", "A", "B", "C", "D", "E", "H", "L",
+                   "SPL", "SPH", "IR", "FZ", "FN", "FH", "FC", "DBUS", "IDU", "VCC", "GND"};
 
                /* ── Header ── */
                Sm83SimState gate_st = sim_ready
-                   ? sm83_sim_net_state(&s_netlist_sim, tr->gate_net)
-                   : SM83_SIM_UNKNOWN;
+                                          ? sm83_sim_net_state(&s_netlist_sim, tr->gate_net)
+                                          : SM83_SIM_UNKNOWN;
                bool conducts = (tr->layer == SM83_LAYER_NTRANS)
                                    ? SM83_SIM_IS_HIGH(gate_st)
                                    : SM83_SIM_IS_LOW(gate_st);
@@ -4564,52 +4585,63 @@ void draw_panel_transistor_viz(struct gb *gb)
 
                /* Functional region from normalized position */
                {
-                    struct { const char *label; float nx0,ny0,nx1,ny1; } region_defs[] = {
-                        {"IR",    0.118f,0.035f,0.150f,0.456f},
-                        {"A",     0.150f,0.035f,0.208f,0.456f},
-                        {"L",     0.208f,0.060f,0.232f,0.456f},
-                        {"H",     0.232f,0.035f,0.278f,0.456f},
-                        {"E",     0.278f,0.060f,0.300f,0.456f},
-                        {"D",     0.300f,0.035f,0.343f,0.456f},
-                        {"C",     0.343f,0.060f,0.368f,0.456f},
-                        {"B",     0.368f,0.060f,0.403f,0.456f},
-                        {"W/Z",   0.403f,0.060f,0.522f,0.456f},
-                        {"SP",    0.533f,0.035f,0.645f,0.456f},
-                        {"PC",    0.645f,0.060f,0.722f,0.456f},
-                        {"IDU",   0.722f,0.035f,0.860f,0.476f},
-                        {"IE",    0.820f,0.058f,0.845f,0.448f},
-                        {"IRQ",   0.790f,0.030f,0.912f,0.476f},
-                        {"Flags", 0.100f,0.568f,0.356f,0.592f},
-                        {"ALU",   0.090f,0.558f,0.363f,0.920f},
-                        {"DBUS",  0.007f,0.595f,0.329f,0.937f},
-                        {"Dec 1", 0.415f,0.883f,0.888f,0.982f},
-                        {"Dec 2", 0.408f,0.782f,0.845f,0.810f},
-                        {"Dec 3", 0.432f,0.567f,0.938f,0.726f},
+                    struct
+                    {
+                         const char *label;
+                         float nx0, ny0, nx1, ny1;
+                    } region_defs[] = {
+                        {"IR", 0.118f, 0.035f, 0.150f, 0.456f},
+                        {"A", 0.150f, 0.035f, 0.208f, 0.456f},
+                        {"L", 0.208f, 0.060f, 0.232f, 0.456f},
+                        {"H", 0.232f, 0.035f, 0.278f, 0.456f},
+                        {"E", 0.278f, 0.060f, 0.300f, 0.456f},
+                        {"D", 0.300f, 0.035f, 0.343f, 0.456f},
+                        {"C", 0.343f, 0.060f, 0.368f, 0.456f},
+                        {"B", 0.368f, 0.060f, 0.403f, 0.456f},
+                        {"W/Z", 0.403f, 0.060f, 0.522f, 0.456f},
+                        {"SP", 0.533f, 0.035f, 0.645f, 0.456f},
+                        {"PC", 0.645f, 0.060f, 0.722f, 0.456f},
+                        {"IDU", 0.722f, 0.035f, 0.860f, 0.476f},
+                        {"IE", 0.820f, 0.058f, 0.845f, 0.448f},
+                        {"IRQ", 0.790f, 0.030f, 0.912f, 0.476f},
+                        {"Flags", 0.100f, 0.568f, 0.356f, 0.592f},
+                        {"ALU", 0.090f, 0.558f, 0.363f, 0.920f},
+                        {"DBUS", 0.007f, 0.595f, 0.329f, 0.937f},
+                        {"Dec 1", 0.415f, 0.883f, 0.888f, 0.982f},
+                        {"Dec 2", 0.408f, 0.782f, 0.845f, 0.810f},
+                        {"Dec 3", 0.432f, 0.567f, 0.938f, 0.726f},
                     };
                     const char *region = NULL;
-                    for (int ri = 0; ri < (int)(sizeof(region_defs)/sizeof(region_defs[0])); ri++) {
-                        auto &rd = region_defs[ri];
-                        if (tr->nx >= rd.nx0 && tr->nx <= rd.nx1 &&
-                            tr->ny >= rd.ny0 && tr->ny <= rd.ny1) {
-                            region = rd.label;
-                            break;
-                        }
+                    for (int ri = 0; ri < (int)(sizeof(region_defs) / sizeof(region_defs[0])); ri++)
+                    {
+                         auto &rd = region_defs[ri];
+                         if (tr->nx >= rd.nx0 && tr->nx <= rd.nx1 &&
+                             tr->ny >= rd.ny0 && tr->ny <= rd.ny1)
+                         {
+                              region = rd.label;
+                              break;
+                         }
                     }
                     /* Nearest instance */
                     float best_dist = 1e9f;
                     const char *nearest_inst = NULL;
-                    for (int ii = 0; ii < SM83_INSTANCE_COUNT; ii++) {
-                        float dx = sm83_instances[ii].x - tr->x;
-                        float dy = sm83_instances[ii].y - tr->y;
-                        float d  = dx*dx + dy*dy;
-                        if (d < best_dist) { best_dist = d; nearest_inst = sm83_instances[ii].name; }
+                    for (int ii = 0; ii < SM83_INSTANCE_COUNT; ii++)
+                    {
+                         float dx = sm83_instances[ii].x - tr->x;
+                         float dy = sm83_instances[ii].y - tr->y;
+                         float d = dx * dx + dy * dy;
+                         if (d < best_dist)
+                         {
+                              best_dist = d;
+                              nearest_inst = sm83_instances[ii].name;
+                         }
                     }
                     if (region)
-                        ImGui::TextDisabled("region: %s", region);
+                         ImGui::TextDisabled("region: %s", region);
                     else
-                        ImGui::TextDisabled("region: (decoder interior)");
+                         ImGui::TextDisabled("region: (decoder interior)");
                     if (nearest_inst)
-                        ImGui::TextDisabled("nearest: %s  (%.0f u)", nearest_inst, sqrtf(best_dist));
+                         ImGui::TextDisabled("nearest: %s  (%.0f u)", nearest_inst, sqrtf(best_dist));
                }
                ImGui::Separator();
 
@@ -4622,8 +4654,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                          return;
                     }
                     Sm83SimState st = sim_ready
-                        ? sm83_sim_net_state(&s_netlist_sim, net_id)
-                        : SM83_SIM_UNKNOWN;
+                                          ? sm83_sim_net_state(&s_netlist_sim, net_id)
+                                          : SM83_SIM_UNKNOWN;
                     int si = (int)st < SM83_SIM_STATE_COUNT ? (int)st : 0;
 
                     /* role + net name */
@@ -4651,6 +4683,36 @@ void draw_panel_transistor_viz(struct gb *gb)
                net_row("gate:", tr->gate_net);
                net_row("s1:  ", tr->s1_net);
                net_row("s2:  ", tr->s2_net);
+
+               /* ── Cross-link to schematic ── */
+               ImGui::Spacing();
+               ImGui::TextDisabled("Jump to schematic net:");
+               ImGui::SameLine();
+
+               /* Helper: one button per net that has a schematic mapping */
+               auto cross_btn = [&](const char *label, int sm83_net_id)
+               {
+                    int sch_id = die_net_to_sch_net_id(sm83_net_id);
+                    if (sch_id < 0)
+                         return; /* no mapping */
+                    const HwNetSemantic *sem = hw_map_find_net(sch_id);
+                    char btn_lbl[32];
+                    snprintf(btn_lbl, sizeof(btn_lbl), "%s: %s##xlink_%s",
+                             label,
+                             sem && sem->canonical_name ? sem->canonical_name : "?",
+                             label);
+                    ImGui::PushStyleColor(ImGuiCol_Button,        IM_COL32(40,  80, 160, 220));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(60, 120, 220, 240));
+                    if (ImGui::Button(btn_lbl))
+                         sch_jump_to_net(sch_id, s_sch_last_canvas_size);
+                    ImGui::PopStyleColor(2);
+                    ImGui::SameLine();
+               };
+
+               cross_btn("gate", tr->gate_net);
+               cross_btn("s1",   tr->s1_net);
+               cross_btn("s2",   tr->s2_net);
+               ImGui::NewLine();
                ImGui::Separator();
 
                /* ── Neighbours: transistors sharing any of gate/s1/s2 ── */
@@ -4660,7 +4722,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                for (int ri = 0; ri < 3; ri++)
                {
                     const TransNeighGroup *g = &s_inspect_neigh[ri];
-                    if (g->net_id < 0) continue;
+                    if (g->net_id < 0)
+                         continue;
                     ImGui::TextDisabled("  via %s (net #%d):", g->role, g->net_id);
                     if (g->count == 0)
                     {
@@ -4680,8 +4743,208 @@ void draw_panel_transistor_viz(struct gb *gb)
           if (!open)
           {
                s_show_trans_inspect = false;
-               s_die_sel.type  = SM83_SEL_NONE;
+               s_die_sel.type = SM83_SEL_NONE;
                s_die_sel.index = -1;
+          }
+     }
+
+     /* ── Trace Timeline: all CPU events with phase-aware sim seeding ── */
+     if (gb && gb->debug.hw_trace.enabled)
+     {
+          static int s_trace_selected = -1; /* seq of selected event, -1 = live */
+          static bool s_trace_open = true;
+          static bool s_trace_all_ev = false; /* false = FETCH only, true = all */
+
+          ImGui::Separator();
+          ImGui::SetNextItemOpen(s_trace_open, ImGuiCond_Once);
+          if ((s_trace_open = ImGui::CollapsingHeader("Trace Timeline")))
+          {
+               const struct gb_hw_trace *tr = &gb->debug.hw_trace;
+               int total = (int)tr->count;
+
+               /* "Live" button */
+               bool is_live = (s_trace_selected < 0);
+               if (is_live)
+                    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 200, 80, 200));
+               else
+                    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 50, 60, 200));
+               ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(100, 220, 100, 200));
+               if (ImGui::Button("Live##trace"))
+               {
+                    s_trace_selected = -1;
+                    if (s_netlist_sim.enabled && s_netlist_sim.initialized && gb_paused)
+                    {
+                         sm83_sim_seed_from_gb(&s_netlist_sim, gb);
+                         sm83_sim_step(&s_netlist_sim, 64);
+                    }
+               }
+               ImGui::PopStyleColor(2);
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Seed sim from current emulator state (live)");
+
+               ImGui::SameLine();
+               ImGui::Checkbox("All events##trace_filter", &s_trace_all_ev);
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Show all trace events (not just FETCH).\n"
+                                      "Non-FETCH events trigger phase-aware partial seed.");
+
+               /* Collect events (most recent first, up to 96) */
+               const int MAX_SHOW = 96;
+               int ev_indices[MAX_SHOW];
+               int ev_count = 0;
+               for (int i = total - 1; i >= 0 && ev_count < MAX_SHOW; i--)
+               {
+                    int idx = (int)((tr->head - 1 - i + GB_HW_TRACE_CAP) & (GB_HW_TRACE_CAP - 1));
+                    gb_hw_trace_event_type t = tr->events[idx].type;
+                    bool want = s_trace_all_ev
+                                    ? (t == GB_HW_EVT_CPU_FETCH || t == GB_HW_EVT_CPU_READ ||
+                                       t == GB_HW_EVT_CPU_WRITE || t == GB_HW_EVT_CPU_ALU ||
+                                       t == GB_HW_EVT_CPU_WRITEBACK)
+                                    : (t == GB_HW_EVT_CPU_FETCH);
+                    if (want)
+                         ev_indices[ev_count++] = idx;
+               }
+
+               /* Color legend for event types */
+               static const ImVec4 col_fetch = {0.47f, 0.70f, 1.00f, 1.0f};
+               static const ImVec4 col_read = {0.40f, 0.85f, 0.60f, 1.0f};
+               static const ImVec4 col_write = {1.00f, 0.55f, 0.35f, 1.0f};
+               static const ImVec4 col_alu = {1.00f, 0.85f, 0.30f, 1.0f};
+               static const ImVec4 col_writeback = {0.80f, 0.50f, 1.00f, 1.0f};
+
+               float list_h = ImGui::GetTextLineHeightWithSpacing() * 7.0f;
+               ImGui::BeginChild("##die_trace_list", ImVec2(0, list_h), true);
+               for (int fi = 0; fi < ev_count; fi++)
+               {
+                    int idx = ev_indices[fi];
+                    const gb_hw_trace_event *ev = &tr->events[idx];
+                    bool selected = ((int)ev->seq == s_trace_selected);
+
+                    /* Choose color and label by event type */
+                    char label[96];
+                    ImVec4 col = col_fetch;
+                    switch (ev->type)
+                    {
+                    case GB_HW_EVT_CPU_FETCH:
+                         col = col_fetch;
+                         snprintf(label, sizeof(label),
+                                  "#%-5llu FETCH  PC=%04X %02X  A=%02X F=%c%c%c%c",
+                                  (unsigned long long)ev->seq,
+                                  ev->pc, ev->opcode, ev->snap_a,
+                                  (ev->snap_flags & 8) ? 'Z' : '-',
+                                  (ev->snap_flags & 4) ? 'N' : '-',
+                                  (ev->snap_flags & 2) ? 'H' : '-',
+                                  (ev->snap_flags & 1) ? 'C' : '-');
+                         break;
+                    case GB_HW_EVT_CPU_READ:
+                         col = col_read;
+                         snprintf(label, sizeof(label),
+                                  "#%-5llu READ   [%04X]=%02X",
+                                  (unsigned long long)ev->seq, ev->addr, ev->data);
+                         break;
+                    case GB_HW_EVT_CPU_WRITE:
+                         col = col_write;
+                         snprintf(label, sizeof(label),
+                                  "#%-5llu WRITE  [%04X]=%02X",
+                                  (unsigned long long)ev->seq, ev->addr, ev->data);
+                         break;
+                    case GB_HW_EVT_CPU_ALU:
+                         col = col_alu;
+                         snprintf(label, sizeof(label),
+                                  "#%-5llu ALU    op=%d res=%02X F:%02X->%02X",
+                                  (unsigned long long)ev->seq,
+                                  ev->extra, ev->data,
+                                  (uint8_t)(ev->addr & 0xFF),
+                                  (uint8_t)(ev->addr >> 8));
+                         break;
+                    case GB_HW_EVT_CPU_WRITEBACK:
+                         col = col_writeback;
+                         snprintf(label, sizeof(label),
+                                  "#%-5llu WBACK  dst=%d val=%02X/%04X",
+                                  (unsigned long long)ev->seq,
+                                  ev->extra, ev->data, ev->addr);
+                         break;
+                    default:
+                         snprintf(label, sizeof(label), "#%-5llu type=%d",
+                                  (unsigned long long)ev->seq, (int)ev->type);
+                         break;
+                    }
+
+                    ImGui::PushStyleColor(ImGuiCol_Text, col);
+                    if (ImGui::Selectable(label, selected))
+                    {
+                         s_trace_selected = (int)ev->seq;
+                         if (s_netlist_sim.enabled && s_netlist_sim.initialized)
+                         {
+                              if (ev->type == GB_HW_EVT_CPU_FETCH)
+                              {
+                                   /* Full register snapshot seed */
+                                   Sm83CpuSnapshot snap = {0};
+                                   snap.pc = ev->pc;
+                                   snap.a = ev->snap_a;
+                                   snap.b = ev->snap_b;
+                                   snap.c = ev->snap_c;
+                                   snap.d = ev->snap_d;
+                                   snap.e = ev->snap_e;
+                                   snap.h = ev->snap_h;
+                                   snap.l = ev->snap_l;
+                                   snap.sp = ev->snap_sp;
+                                   snap.flags = ev->snap_flags;
+                                   snap.ir = ev->snap_ir;
+                                   snap.dbus = ev->snap_dbus;
+                                   snap.alu_op = ev->snap_alu_op;
+                                   snap.src = ev->snap_src;
+                                   snap.dst = ev->snap_dst;
+                                   sm83_sim_seed_from_snapshot(&s_netlist_sim, &snap);
+                              }
+                              else
+                              {
+                                   /* Phase-aware partial seed: only update changed nets */
+                                   uint8_t ev_flags = 0;
+                                   if (ev->type == GB_HW_EVT_CPU_ALU)
+                                        ev_flags = (uint8_t)(ev->addr >> 8); /* flags_after */
+                                   sm83_sim_phase_seed(&s_netlist_sim,
+                                                       (int)ev->type,
+                                                       ev->addr,
+                                                       ev->data,
+                                                       ev->extra,
+                                                       ev_flags,
+                                                       nullptr);
+                              }
+                              sm83_sim_step(&s_netlist_sim, 64);
+                         }
+                    }
+                    ImGui::PopStyleColor();
+                    if (ImGui::IsItemHovered())
+                    {
+                         if (ev->type == GB_HW_EVT_CPU_FETCH)
+                              ImGui::SetTooltip(
+                                  "FETCH  seq=%llu  PC=%04X  SP=%04X\n"
+                                  "A=%02X B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X\n"
+                                  "flags: Z=%d N=%d H=%d C=%d\n"
+                                  "IR=%02X  DBUS=%02X  alu=%d src=%d dst=%d",
+                                  (unsigned long long)ev->seq,
+                                  ev->pc, ev->snap_sp,
+                                  ev->snap_a, ev->snap_b, ev->snap_c,
+                                  ev->snap_d, ev->snap_e, ev->snap_h, ev->snap_l,
+                                  (ev->snap_flags >> 3) & 1,
+                                  (ev->snap_flags >> 2) & 1,
+                                  (ev->snap_flags >> 1) & 1,
+                                  (ev->snap_flags >> 0) & 1,
+                                  ev->snap_ir, ev->snap_dbus,
+                                  ev->snap_alu_op, ev->snap_src, ev->snap_dst);
+                         else
+                              ImGui::SetTooltip(
+                                  "seq=%llu  type=%d  PC=%04X\n"
+                                  "addr=%04X  data=%02X  extra=%02X\n"
+                                  "Phase seed: only nets relevant to this event are updated.",
+                                  (unsigned long long)ev->seq, (int)ev->type,
+                                  ev->pc, ev->addr, ev->data, ev->extra);
+                    }
+               }
+               if (ev_count == 0)
+                    ImGui::TextDisabled("(no events — enable trace)");
+               ImGui::EndChild();
           }
      }
 
@@ -4787,25 +5050,30 @@ static const ImU32 SCH_ACTIVE_COLOR[HW_ANIM_GROUP_COUNT] = {
 
 /* Colors indexed by HwSignalKind (16 entries) */
 static const ImU32 SCH_KIND_COLOR[16] = {
-    IM_COL32( 80, 140, 255, 200), /* 0  ADDR       — blue */
-    IM_COL32( 80, 220, 110, 200), /* 1  DATA       — green */
-    IM_COL32(255,  90,  90, 220), /* 2  CTRL_RD    — red */
-    IM_COL32(255, 130,  50, 220), /* 3  CTRL_WR    — orange */
-    IM_COL32(220, 200,  60, 220), /* 4  CTRL_CS    — gold */
+    IM_COL32(80, 140, 255, 200),  /* 0  ADDR       — blue */
+    IM_COL32(80, 220, 110, 200),  /* 1  DATA       — green */
+    IM_COL32(255, 90, 90, 220),   /* 2  CTRL_RD    — red */
+    IM_COL32(255, 130, 50, 220),  /* 3  CTRL_WR    — orange */
+    IM_COL32(220, 200, 60, 220),  /* 4  CTRL_CS    — gold */
     IM_COL32(200, 140, 255, 200), /* 5  CLOCK      — violet */
-    IM_COL32(255,  50,  50, 240), /* 6  RESET      — bright red */
+    IM_COL32(255, 50, 50, 240),   /* 6  RESET      — bright red */
     IM_COL32(220, 100, 255, 220), /* 7  IRQ        — purple */
-    IM_COL32( 60, 210, 180, 200), /* 8  LCD        — teal */
-    IM_COL32(255, 160,  60, 200), /* 9  AUDIO      — amber */
-    IM_COL32( 60, 200, 230, 200), /* 10 SERIAL     — cyan */
-    IM_COL32(200, 230,  80, 200), /* 11 JOYPAD     — lime */
-    IM_COL32(255,  80,  80, 160), /* 12 POWER      — red-dim */
+    IM_COL32(60, 210, 180, 200),  /* 8  LCD        — teal */
+    IM_COL32(255, 160, 60, 200),  /* 9  AUDIO      — amber */
+    IM_COL32(60, 200, 230, 200),  /* 10 SERIAL     — cyan */
+    IM_COL32(200, 230, 80, 200),  /* 11 JOYPAD     — lime */
+    IM_COL32(255, 80, 80, 160),   /* 12 POWER      — red-dim */
     IM_COL32(120, 190, 255, 190), /* 13 WRAM_ADDR  — light blue */
     IM_COL32(100, 240, 140, 190), /* 14 WRAM_DATA  — light green */
-    IM_COL32( 70,  75,  95, 100), /* 15 UNKNOWN    — very dim */
+    IM_COL32(70, 75, 95, 100),    /* 15 UNKNOWN    — very dim */
 };
 
 static bool s_sch_show_kinds = true;
+static bool s_sch_show_levels = true; /* net 0/1 labels on wires */
+
+/* ── Frozen frame ── */
+static bool s_sch_frozen = false;
+static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
 
 static ImU32 sch_wire_color(int anim_group)
 {
@@ -4844,7 +5112,7 @@ static void sch_component_reference_body(const HwComponent *comp,
 
      if (strcmp(comp->ref, "U1") == 0)
      {
-          *nx = 0.266488f;
+          *nx = 0.285000f;
           *ny = 0.508991f;
           *nw = 0.090080f;
           *nh = 0.612979f;
@@ -4879,9 +5147,112 @@ static void sch_component_reference_body(const HwComponent *comp,
      }
 }
 
+/* ── Cross-link: die transistor net → schematic net ──────────────────────────
+ * Converts a sm83 netlist net_id to a hw_schematic net_id by:
+ *   1. Looking up the semantic entry (signal + bit)
+ *   2. Building the canonical name  (e.g. "A0", "D3", "MA5")
+ *   3. Linear-scanning hw_net_map[] for a matching canonical_name
+ * Returns -1 if no mapping found.
+ * --------------------------------------------------------------------------- */
+static int die_net_to_sch_net_id(int sm83_net_id)
+{
+     if (sm83_net_id < 0 || sm83_net_id >= SM83_NET_COUNT)
+          return -1;
+
+     const Sm83NetSemanticEntry *se =
+         sm83_semantic_map_find(sm83_net_id, SM83_CONF_UNKNOWN);
+     if (!se || se->signal >= SM83_SEM_COUNT)
+          return -1;
+
+     /* Build canonical name for the signal bit */
+     static const char *const sig_prefix[] = {
+         "PC", "PC", "A", "B", "C", "D", "E", "H", "L",
+         "SP", "SP", "IR",
+         "FZ", "FN", "FH", "FC",
+         "D", "IDU", "VCC", "GND",
+     };
+     /* Address bus and data bus use different prefix conventions */
+     char canon[16];
+     int sni = (int)se->signal;
+     if (sni == 0)       /* PCL → PC low byte, not in schematic directly */
+          return -1;
+     else if (sni == 16) /* DBUS → D0..D7 */
+          snprintf(canon, sizeof(canon), "D%d", se->bit);
+     else if (sni == 17) /* IDU → no direct schematic net */
+          return -1;
+     else
+          snprintf(canon, sizeof(canon), "%s%d", sig_prefix[sni], se->bit);
+
+     /* Search hw_net_map for matching canonical_name */
+     for (int i = 0; i < hw_net_map_count; i++)
+     {
+          if (hw_net_map[i].canonical_name &&
+              strcmp(hw_net_map[i].canonical_name, canon) == 0)
+               return hw_net_map[i].net_id;
+     }
+     return -1;
+}
+
+/* Schematic selection & cross-link state (file-scope so die panel can access) */
+int    s_sch_sel_net          = -1;            /* selected net_id, -1 = none */
+int    s_sch_cross_net        = -1;            /* net_id to flash, -1 = none */
+float  s_sch_cross_timer      = 0.0f;          /* seconds remaining */
+ImVec2 s_sch_last_canvas_size = {800.0f, 500.0f}; /* updated each schematic frame */
+
+/* Navigate schematic view to centre on a net and start flash */
+static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
+{
+     if (hw_net_id < 0)
+          return;
+     s_sch_sel_net    = hw_net_id;
+     s_sch_cross_net  = hw_net_id;
+     s_sch_cross_timer = 2.0f;
+
+     /* Compute bounding box of all wires on this net */
+     float nx0 = 1e9f, ny0 = 1e9f, nx1 = -1e9f, ny1 = -1e9f;
+     for (int i = 0; i < HW_WIRE_COUNT; i++)
+     {
+          if (hw_wires[i].net_id != hw_net_id)
+               continue;
+          const HwWire *w = &hw_wires[i];
+          if (w->nx1 < nx0) nx0 = w->nx1;
+          if (w->nx2 < nx0) nx0 = w->nx2;
+          if (w->ny1 < ny0) ny0 = w->ny1;
+          if (w->ny2 < ny0) ny0 = w->ny2;
+          if (w->nx1 > nx1) nx1 = w->nx1;
+          if (w->nx2 > nx1) nx1 = w->nx2;
+          if (w->ny1 > ny1) ny1 = w->ny1;
+          if (w->ny2 > ny1) ny1 = w->ny2;
+     }
+     if (nx1 <= nx0 || ny1 <= ny0)
+          return;
+
+     float pad = 0.04f;
+     nx0 -= pad; ny0 -= pad; nx1 += pad; ny1 += pad;
+     float zx = canvas_size.x / (nx1 - nx0);
+     float zy = canvas_size.y / ((ny1 - ny0) * HW_SCHEMATIC_ASPECT);
+     s_sch_view.zoom = zx < zy ? zx : zy;
+     if (s_sch_view.zoom > 8000.0f) s_sch_view.zoom = 8000.0f;
+     s_sch_view.pan_x = (nx0 + nx1) * 0.5f
+                        - canvas_size.x * 0.5f / s_sch_view.zoom;
+     s_sch_view.pan_y = (ny0 + ny1) * 0.5f
+                        - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+}
+
 void draw_panel_hw_schematic(struct gb *gb)
 {
      float dt = ImGui::GetIO().DeltaTime;
+
+     /* ── Cross-link flash timer decay ── */
+     if (s_sch_cross_timer > 0.0f)
+     {
+          s_sch_cross_timer -= dt;
+          if (s_sch_cross_timer <= 0.0f)
+          {
+               s_sch_cross_timer = 0.0f;
+               s_sch_cross_net   = -1;
+          }
+     }
 
      /* ── Decay + map emulator fades to anim groups ── */
      struct gb_sys_viz *sv = gb ? &gb->debug.sys_viz : nullptr;
@@ -4930,32 +5301,56 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (gb && gb->debug.hw_trace.enabled)
           hw_activity_consume_trace(&s_hw_activity, &gb->debug.hw_trace, &s_hw_last_seq);
 
-     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+     /* When frozen, all rendering reads from the snapshot instead of live state */
+     const HwSchematicActivityState *act = s_sch_frozen ? &s_hw_frozen : &s_hw_activity;
+
+     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
      if (ImGui::Button("Fit"))
           hw_schematic_view_fit(&s_sch_view);
-     ImGui::SameLine();
+     ImGui::SameLine(0, 6);
      if (ImGui::Button("Reset"))
      {
           s_sch_view.pan_x = 0.0f;
           s_sch_view.pan_y = 0.0f;
           hw_schematic_view_fit(&s_sch_view);
      }
-     ImGui::SameLine();
+     ImGui::SameLine(0, 16);
      ImGui::Checkbox("Paper", &s_sch_paper_mode);
-     ImGui::SameLine();
+     ImGui::SameLine(0, 14);
      ImGui::Checkbox("Wires", &s_sch_show_wires);
-     ImGui::SameLine();
+     ImGui::SameLine(0, 14);
      ImGui::Checkbox("Labels", &s_sch_show_labels);
-     ImGui::SameLine();
+     ImGui::SameLine(0, 14);
      ImGui::Checkbox("Junctions", &s_sch_show_junctions);
-     ImGui::SameLine();
+     ImGui::SameLine(0, 14);
      ImGui::Checkbox("Components", &s_sch_show_components);
-     ImGui::SameLine();
-     if (!s_sch_paper_mode) {
+     ImGui::SameLine(0, 16);
+     if (!s_sch_paper_mode)
+     {
           ImGui::Checkbox("Activity", &s_sch_show_activity);
-          ImGui::SameLine();
+          ImGui::SameLine(0, 14);
           ImGui::Checkbox("Kinds", &s_sch_show_kinds);
-          ImGui::SameLine();
+          ImGui::SameLine(0, 14);
+          ImGui::Checkbox("0/1", &s_sch_show_levels);
+          ImGui::SameLine(0, 16);
+          /* Freeze button: captures current activity state */
+          if (s_sch_frozen)
+          {
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 40, 10, 220));
+               ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(120, 60, 15, 240));
+               if (ImGui::Button("Unfreeze"))
+                    s_sch_frozen = false;
+               ImGui::PopStyleColor(2);
+          }
+          else
+          {
+               if (ImGui::Button("Freeze"))
+               {
+                    s_hw_frozen = s_hw_activity;
+                    s_sch_frozen = true;
+               }
+          }
+          ImGui::SameLine(0, 16);
      }
      ImGui::TextDisabled("zoom:%.0f", s_sch_view.zoom);
      ImGui::PopStyleVar();
@@ -4977,12 +5372,14 @@ void draw_panel_hw_schematic(struct gb *gb)
      s_canvas_child_h = ImGui::GetContentRegionAvail().y;
 
      /* ── Canvas ── */
-     ImVec2 canvas_pos  = ImGui::GetCursorScreenPos();
+     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
      ImVec2 canvas_size = ImGui::GetContentRegionAvail();
      if (canvas_size.x < 400)
           canvas_size.x = 400;
      if (canvas_size.y < 120)
           canvas_size.y = 120;
+     /* Persist canvas size so cross-link from die panel can use it */
+     s_sch_last_canvas_size = canvas_size;
 
      if (!s_sch_view_init)
      {
@@ -5064,34 +5461,151 @@ void draw_panel_hw_schematic(struct gb *gb)
                             IM_COL32(14, 16, 22, 255));
      }
 
-     /* ── Grid lines (very subtle, only visible when zoomed in) ── */
-     if (zoom > 600.0f)
+     /* ── Grid lines — two-level adaptive (ref 50mm + fine 10mm) ── */
+     if (zoom > 300.0f)
      {
-          float grid_step_n = 10.0f / 297.0f; /* 10mm grid */
-          ImU32 grid_col = IM_COL32(30, 35, 45, 255);
-          float x0 = cache.vp_nx0 - fmodf(cache.vp_nx0, grid_step_n);
-          for (float nx = x0; nx < cache.vp_nx1; nx += grid_step_n)
+          float ref_step_n = 50.0f / 297.0f;
+          float fine_step_n = 10.0f / 297.0f;
+
+          float ref_alpha = (zoom - 300.0f) / 400.0f;
+          float fine_alpha = (zoom - 600.0f) / 600.0f;
+          if (ref_alpha > 1.0f)
+               ref_alpha = 1.0f;
+          if (fine_alpha > 1.0f)
+               fine_alpha = 1.0f;
+          if (fine_alpha < 0.0f)
+               fine_alpha = 0.0f;
+
+          ImU32 ref_col = IM_COL32(40, 45, 60, (uint8_t)(ref_alpha * 120));
+          ImU32 fine_col = IM_COL32(30, 35, 45, (uint8_t)(fine_alpha * 80));
+
+          /* Reference grid (50mm) */
+          float x0 = cache.vp_nx0 - fmodf(cache.vp_nx0, ref_step_n);
+          for (float nx = x0; nx < cache.vp_nx1; nx += ref_step_n)
           {
                float sx = SX(nx);
-               dl->AddLine(ImVec2(sx, canvas_pos.y), ImVec2(sx, canvas_pos.y + canvas_size.y), grid_col);
+               dl->AddLine(ImVec2(sx, canvas_pos.y), ImVec2(sx, canvas_pos.y + canvas_size.y), ref_col, 0.8f);
           }
-          float y0 = cache.vp_ny0 - fmodf(cache.vp_ny0, grid_step_n);
-          for (float ny = y0; ny < cache.vp_ny1; ny += grid_step_n)
+          float y0 = cache.vp_ny0 - fmodf(cache.vp_ny0, ref_step_n);
+          for (float ny = y0; ny < cache.vp_ny1; ny += ref_step_n)
           {
                float sy = SY(ny);
-               dl->AddLine(ImVec2(canvas_pos.x, sy), ImVec2(canvas_pos.x + canvas_size.x, sy), grid_col);
+               dl->AddLine(ImVec2(canvas_pos.x, sy), ImVec2(canvas_pos.x + canvas_size.x, sy), ref_col, 0.8f);
+          }
+
+          /* Fine grid (10mm) */
+          if (fine_alpha > 0.0f)
+          {
+               x0 = cache.vp_nx0 - fmodf(cache.vp_nx0, fine_step_n);
+               for (float nx = x0; nx < cache.vp_nx1; nx += fine_step_n)
+               {
+                    float sx = SX(nx);
+                    dl->AddLine(ImVec2(sx, canvas_pos.y), ImVec2(sx, canvas_pos.y + canvas_size.y), fine_col, 0.5f);
+               }
+               y0 = cache.vp_ny0 - fmodf(cache.vp_ny0, fine_step_n);
+               for (float ny = y0; ny < cache.vp_ny1; ny += fine_step_n)
+               {
+                    float sy = SY(ny);
+                    dl->AddLine(ImVec2(canvas_pos.x, sy), ImVec2(canvas_pos.x + canvas_size.x, sy), fine_col, 0.5f);
+               }
           }
      }
 
-     /* ── Wire thickness ── */
+     /* ── Wire thickness — three-level hierarchy ── */
      float wire_px = zoom * (0.4f / 297.0f); /* 0.4mm wire */
      if (wire_px < 0.8f)
           wire_px = 0.8f;
-     if (wire_px > 6.0f)
-          wire_px = 6.0f;
+     if (wire_px > 3.0f)
+          wire_px = 3.0f;
+     float power_px = wire_px * 1.6f; /* power nets thicker */
+     if (power_px > 5.0f)
+          power_px = 5.0f;
      float bus_px = wire_px * 2.5f;
-     if (bus_px > 12.0f)
-          bus_px = 12.0f;
+     if (bus_px > 7.0f)
+          bus_px = 7.0f;
+
+     /* ── Selection / hover state ── */
+     static int s_sch_sel_comp = -1;
+     static int s_sch_hover_wire = -1; /* wire index hovered this frame */
+     int hover_comp = -1;
+     ImVec2 mouse = ImGui::GetIO().MousePos;
+
+     /* Hit-test wires for hover (pick closest within 5px, skip if canvas being dragged) */
+     s_sch_hover_wire = -1;
+     if (ImGui::IsItemHovered() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+     {
+          float best_dist2 = 25.0f; /* 5px^2 */
+          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          {
+               const HwWire *w = &hw_wires[i];
+               if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
+                    continue;
+               /* segment-to-point distance^2 in screen space */
+               float ax = SX(w->nx1), ay = SY(w->ny1);
+               float bx = SX(w->nx2), by = SY(w->ny2);
+               float px = mouse.x, py = mouse.y;
+               float dx = bx - ax, dy = by - ay;
+               float len2 = dx * dx + dy * dy;
+               float t2 = 0.0f;
+               if (len2 > 0.0f)
+               {
+                    t2 = ((px - ax) * dx + (py - ay) * dy) / len2;
+                    if (t2 < 0.0f)
+                         t2 = 0.0f;
+                    if (t2 > 1.0f)
+                         t2 = 1.0f;
+               }
+               float cx2 = ax + t2 * dx - px, cy2 = ay + t2 * dy - py;
+               float d2 = cx2 * cx2 + cy2 * cy2;
+               if (d2 < best_dist2)
+               {
+                    best_dist2 = d2;
+                    s_sch_hover_wire = i;
+               }
+          }
+     }
+
+     /* Left-click on wire selects its net; clicking same net again deselects */
+     if (s_sch_hover_wire >= 0 && ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+     {
+          int nid = hw_wires[s_sch_hover_wire].net_id;
+          s_sch_sel_net = (s_sch_sel_net == nid) ? -1 : nid;
+          s_sch_sel_comp = -1; /* clear component selection */
+     }
+
+     /* Zoom-to-selected net (F key) */
+     if (s_sch_sel_net >= 0 && ImGui::IsItemHovered() && ImGui::IsKeyPressed(ImGuiKey_F))
+     {
+          float nx_min = 1e9f, ny_min = 1e9f, nx_max = -1e9f, ny_max = -1e9f;
+          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          {
+               if (hw_wires[i].net_id != s_sch_sel_net)
+                    continue;
+               nx_min = hw_wires[i].nx1 < nx_min ? hw_wires[i].nx1 : nx_min;
+               nx_max = hw_wires[i].nx1 > nx_max ? hw_wires[i].nx1 : nx_max;
+               ny_min = hw_wires[i].ny1 < ny_min ? hw_wires[i].ny1 : ny_min;
+               ny_max = hw_wires[i].ny1 > ny_max ? hw_wires[i].ny1 : ny_max;
+               nx_min = hw_wires[i].nx2 < nx_min ? hw_wires[i].nx2 : nx_min;
+               nx_max = hw_wires[i].nx2 > nx_max ? hw_wires[i].nx2 : nx_max;
+               ny_min = hw_wires[i].ny2 < ny_min ? hw_wires[i].ny2 : ny_min;
+               ny_max = hw_wires[i].ny2 > ny_max ? hw_wires[i].ny2 : ny_max;
+          }
+          if (nx_max > nx_min || ny_max > ny_min)
+          {
+               float pad = 0.05f;
+               nx_min -= pad;
+               ny_min -= pad;
+               nx_max += pad;
+               ny_max += pad;
+               float zx = canvas_size.x / ((nx_max - nx_min) * 1.0f);
+               float zy = canvas_size.y / ((ny_max - ny_min) * HW_SCHEMATIC_ASPECT);
+               s_sch_view.zoom = zx < zy ? zx : zy;
+               if (s_sch_view.zoom > 20000.0f)
+                    s_sch_view.zoom = 20000.0f;
+               s_sch_view.pan_x = (nx_min + nx_max) * 0.5f - canvas_size.x * 0.5f / s_sch_view.zoom;
+               s_sch_view.pan_y = (ny_min + ny_max) * 0.5f - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+          }
+     }
 
      /* ── Wires & buses ── */
      for (int i = 0; i < HW_WIRE_COUNT; i++)
@@ -5099,6 +5613,9 @@ void draw_panel_hw_schematic(struct gb *gb)
           const HwWire *w = &hw_wires[i];
           if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
                continue;
+
+          bool net_selected = (s_sch_sel_net >= 0 && w->net_id == s_sch_sel_net);
+          bool net_hover = (s_sch_hover_wire == i);
 
           ImU32 col;
           if (s_sch_paper_mode)
@@ -5109,39 +5626,44 @@ void draw_panel_hw_schematic(struct gb *gb)
           else
           {
                /* Trace-driven projection: use per-net fade when trace is active */
-               bool trace_active = gb && gb->debug.hw_trace.enabled
-                                   && w->net_id >= 0 && w->net_id < HW_NET_COUNT
-                                   && s_hw_activity.net_fade[w->net_id] > 0.01f;
+               bool trace_active = gb && gb->debug.hw_trace.enabled && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.01f;
                if (trace_active)
                {
                     /* Colour by event type of last touch */
-                    float fade = s_hw_activity.net_fade[w->net_id];
-                    gb_hw_trace_event_type lt = s_hw_activity.net_last_type[w->net_id];
+                    float fade = act->net_fade[w->net_id];
+                    gb_hw_trace_event_type lt = act->net_last_type[w->net_id];
                     ImU32 active_col;
-                    switch (lt) {
-                        case GB_HW_EVT_CPU_FETCH:
-                             active_col = IM_COL32(255, 220, 60, 255); break; /* yellow */
-                        case GB_HW_EVT_CPU_READ:
-                             active_col = IM_COL32(60, 200, 255, 255); break; /* cyan   */
-                        case GB_HW_EVT_CPU_WRITE:
-                             active_col = IM_COL32(255, 120, 60, 255); break; /* orange */
-                        case GB_HW_EVT_DMA_READ:
-                        case GB_HW_EVT_DMA_WRITE:
-                             active_col = IM_COL32(200, 80, 255, 255); break; /* purple */
-                        case GB_HW_EVT_IRQ_REQUEST:
-                        case GB_HW_EVT_IRQ_ACK:
-                             active_col = IM_COL32(255, 60, 60, 255);  break; /* red    */
-                        default:
-                             active_col = IM_COL32(180, 180, 220, 255);break; /* grey   */
+                    switch (lt)
+                    {
+                    case GB_HW_EVT_CPU_FETCH:
+                         active_col = IM_COL32(255, 220, 60, 255);
+                         break; /* yellow */
+                    case GB_HW_EVT_CPU_READ:
+                         active_col = IM_COL32(60, 200, 255, 255);
+                         break; /* cyan   */
+                    case GB_HW_EVT_CPU_WRITE:
+                         active_col = IM_COL32(255, 120, 60, 255);
+                         break; /* orange */
+                    case GB_HW_EVT_DMA_READ:
+                    case GB_HW_EVT_DMA_WRITE:
+                         active_col = IM_COL32(200, 80, 255, 255);
+                         break; /* purple */
+                    case GB_HW_EVT_IRQ_REQUEST:
+                    case GB_HW_EVT_IRQ_ACK:
+                         active_col = IM_COL32(255, 60, 60, 255);
+                         break; /* red    */
+                    default:
+                         active_col = IM_COL32(180, 180, 220, 255);
+                         break; /* grey   */
                     }
                     /* Dim idle colour for this kind, blend with active */
                     ImU32 base_col = s_sch_show_kinds
-                                     ? sch_wire_color_kind(w->net_id)
-                                     : IM_COL32(70, 80, 100, 120);
+                                         ? sch_wire_color_kind(w->net_id)
+                                         : IM_COL32(70, 80, 100, 120);
                     float t = fade > 1.0f ? 1.0f : fade;
-                    uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
-                    uint8_t g = (uint8_t)(((base_col >> IM_COL32_G_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
-                    uint8_t b = (uint8_t)(((base_col >> IM_COL32_B_SHIFT) & 0xFF) * (1-t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
+                    uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
+                    uint8_t g = (uint8_t)(((base_col >> IM_COL32_G_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
+                    uint8_t b = (uint8_t)(((base_col >> IM_COL32_B_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
                     uint8_t a = (uint8_t)(120 + (uint8_t)(fade * 135));
                     col = IM_COL32(r, g, b, a);
                }
@@ -5156,33 +5678,229 @@ void draw_panel_hw_schematic(struct gb *gb)
                }
                else
                     col = IM_COL32(90, 96, 120, 150);
+
+               /* Net selection: brighten wires of the selected net */
+               if (net_selected)
+               {
+                    col = IM_COL32(255, 230, 80, 255); /* bright yellow highlight */
+               }
+               else if (s_sch_sel_net >= 0 && w->net_id != s_sch_sel_net)
+               {
+                    /* dim other nets when one is selected */
+                    uint8_t a = (col >> IM_COL32_A_SHIFT) & 0xFF;
+                    col = (col & ~(0xFFu << IM_COL32_A_SHIFT)) | ((uint32_t)(a / 4) << IM_COL32_A_SHIFT);
+               }
+
+               /* Cross-link flash: pulse orange→yellow on the jumped-to net */
+               if (s_sch_cross_net >= 0 && w->net_id == s_sch_cross_net
+                   && s_sch_cross_timer > 0.0f)
+               {
+                    float phase = s_sch_cross_timer * 6.0f; /* ~3 pulses over 2s */
+                    float pulse = (sinf(phase * 3.14159f) + 1.0f) * 0.5f;
+                    uint8_t r = (uint8_t)(200 + pulse * 55);
+                    uint8_t g = (uint8_t)(100 + pulse * 130);
+                    col = IM_COL32(r, g, 0, 255);
+               }
           }
-          float thick = w->is_bus ? bus_px : wire_px;
+          /* Power/reset nets get thicker strokes */
+          bool is_power_wire = false;
+          if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
+          {
+               const HwNetSemantic *ws = hw_map_find_net(w->net_id);
+               is_power_wire = ws && (ws->kind == HW_SIG_POWER || ws->kind == HW_SIG_RESET);
+          }
+          float thick = w->is_bus ? bus_px : (is_power_wire ? power_px : wire_px);
+          if (net_selected)
+               thick = thick * 2.0f > wire_px * 3.0f ? thick : wire_px * 2.5f;
+          if (net_hover && s_sch_sel_net < 0)
+               thick = thick * 1.6f;
           if (s_sch_show_wires)
+          {
+               if (net_selected)
+                    dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2),
+                                IM_COL32(255, 230, 80, 50), thick * 3.0f); /* halo */
                dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2), col, thick);
+          }
+
+          /* Net 0/1 label at wire midpoint — only when zoomed in and trace active */
+          if (s_sch_show_levels && !s_sch_paper_mode && zoom > 900.0f && !w->is_bus && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.05f)
+          {
+               int8_t lvl = act->net_level[w->net_id];
+               if (lvl >= 0)
+               {
+                    float mx = SX((w->nx1 + w->nx2) * 0.5f);
+                    float my = SY((w->ny1 + w->ny2) * 0.5f);
+                    const char *lv_str = lvl ? "1" : "0";
+                    ImU32 lv_col = lvl ? IM_COL32(120, 255, 120, 255) /* green=high */
+                                       : IM_COL32(255, 100, 80, 255); /* red=low    */
+                    float sz = ImGui::GetFontSize() * 1.4f;
+                    /* background pill for readability */
+                    ImVec2 tp = ImVec2(mx - sz * 0.35f, my - sz * 0.55f);
+                    dl->AddRectFilled(ImVec2(tp.x - 2, tp.y - 1),
+                                      ImVec2(tp.x + sz * 0.7f + 2, tp.y + sz + 1),
+                                      IM_COL32(0, 0, 0, 160), 3.0f);
+                    dl->AddText(nullptr, sz, tp, lv_col, lv_str);
+               }
+          }
      }
 
-     /* ── Junctions ── */
+     /* ── Unconnected markers (× on wires with net_id == -1) ── */
+     if (s_sch_show_wires && zoom > 400.0f)
+     {
+          ImU32 unc_col = IM_COL32(200, 50, 50, 200);
+          float r = wire_px * 2.5f;
+          if (r < 3.0f)
+               r = 3.0f;
+          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          {
+               const HwWire *w = &hw_wires[i];
+               if (w->net_id >= 0)
+                    continue;
+               if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
+                    continue;
+               /* mark both endpoints */
+               for (int ep = 0; ep < 2; ep++)
+               {
+                    float ex = SX(ep == 0 ? w->nx1 : w->nx2);
+                    float ey = SY(ep == 0 ? w->ny1 : w->ny2);
+                    dl->AddLine(ImVec2(ex - r, ey - r), ImVec2(ex + r, ey + r), unc_col, wire_px);
+                    dl->AddLine(ImVec2(ex + r, ey - r), ImVec2(ex - r, ey + r), unc_col, wire_px);
+               }
+          }
+     }
+
+     /* ── Wire hover tooltip ── */
+     if (s_sch_hover_wire >= 0 && !s_sch_paper_mode)
+     {
+          const HwWire *hw = &hw_wires[s_sch_hover_wire];
+          ImGui::BeginTooltip();
+          if (hw->net_id >= 0 && hw->net_id < HW_NET_COUNT)
+          {
+               const HwNet *net = &hw_nets[hw->net_id];
+               ImGui::Text("Net: %s  (#%d)", net->name, hw->net_id);
+               const HwNetSemantic *sem = hw_map_find_net(hw->net_id);
+               if (sem)
+               {
+                    ImGui::TextDisabled("kind: %s  [%s]",
+                                        hw_signal_kind_name(sem->kind),
+                                        hw_confidence_name(sem->confidence));
+                    if (sem->canonical_name && sem->canonical_name[0])
+                         ImGui::TextDisabled("canonical: %s", sem->canonical_name);
+               }
+               if (gb && gb->debug.hw_trace.enabled && act->net_fade[hw->net_id] > 0.01f)
+               {
+                    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.5f, 1.0f),
+                                       "active  fade=%.2f", act->net_fade[hw->net_id]);
+               }
+          }
+          else
+          {
+               ImGui::TextDisabled("wire (no net)");
+          }
+          ImGui::TextDisabled(hw->is_bus ? "bus" : "wire");
+          ImGui::EndTooltip();
+     }
+
+     /* ── Junctions (colored by net kind) ── */
      float jr = wire_px * 1.8f;
      if (jr < 2.5f)
           jr = 2.5f;
      if (s_sch_show_junctions)
      {
-          ImU32 jcol = s_sch_paper_mode ? IM_COL32(0, 150, 0, 240) : IM_COL32(200, 210, 230, 200);
           for (int i = 0; i < HW_JUNCTION_COUNT; i++)
           {
                const HwJunction *j = &hw_junctions[i];
                if (!hw_sch_in_viewport(&cache, j->nx, j->ny))
                     continue;
+
+               ImU32 jcol;
+               if (s_sch_paper_mode)
+               {
+                    jcol = IM_COL32(0, 150, 0, 240);
+               }
+               else
+               {
+                    /* Find nearest wire to determine net kind for this junction */
+                    int jnet = -1;
+                    float best_j2 = 1e-6f; /* within ~1mm normalized */
+                    for (int wi = 0; wi < HW_WIRE_COUNT; wi++)
+                    {
+                         const HwWire *wj = &hw_wires[wi];
+                         if (wj->net_id < 0)
+                              continue;
+                         auto near_end = [&](float ex, float ey)
+                         {
+                              float dx = ex - j->nx, dy = ey - j->ny;
+                              return dx * dx + dy * dy;
+                         };
+                         float d1 = near_end(wj->nx1, wj->ny1);
+                         float d2 = near_end(wj->nx2, wj->ny2);
+                         float d = d1 < d2 ? d1 : d2;
+                         if (d < best_j2)
+                         {
+                              best_j2 = d;
+                              jnet = wj->net_id;
+                         }
+                    }
+                    if (jnet >= 0)
+                    {
+                         bool jsel = (s_sch_sel_net == jnet);
+                         jcol = jsel ? IM_COL32(255, 230, 80, 255)
+                                     : sch_wire_color_kind(jnet);
+                         /* bump alpha for visibility */
+                         uint8_t a = (jcol >> IM_COL32_A_SHIFT) & 0xFF;
+                         if (a < 200)
+                              a = 200;
+                         jcol = (jcol & ~(0xFFu << IM_COL32_A_SHIFT)) | ((uint32_t)a << IM_COL32_A_SHIFT);
+                    }
+                    else
+                         jcol = IM_COL32(200, 210, 230, 200);
+               }
                dl->AddCircleFilled(SP(j->nx, j->ny), jr, jcol);
           }
      }
 
-     /* ── Labels (only when zoomed in enough) ── */
+     /* ── Labels with semantic shapes (KiCad / IEC 60617) ── */
      float lbl_zoom_thresh = s_sch_paper_mode ? 200.0f : 300.0f;
      if (s_sch_show_labels && zoom > lbl_zoom_thresh)
      {
           ImU32 lbl_col = s_sch_paper_mode ? IM_COL32(0, 110, 110, 230) : IM_COL32(180, 210, 160, 210);
+          ImU32 lbl_fill = s_sch_paper_mode ? IM_COL32(230, 250, 240, 80) : IM_COL32(30, 50, 40, 60);
+          ImU32 pwr_col = s_sch_paper_mode ? IM_COL32(180, 10, 10, 230) : IM_COL32(255, 80, 80, 200);
+          float fsz = ImGui::GetFontSize();
+          float th = fsz + 4.0f;                     /* label body height */
+          float tip = (zoom > 600.0f) ? 8.0f : 5.0f; /* arrowhead length */
+          float lw = wire_px > 1.0f ? wire_px : 1.0f;
+
+          /* GND/VCC power symbol helper — called for power-rail labels */
+          auto draw_power_sym = [&](float px, float py, const char *name)
+          {
+               float sc = (zoom / 1000.0f) > 1.0f ? 1.0f : zoom / 1000.0f;
+               if (sc < 0.4f)
+                    sc = 0.4f;
+               bool is_gnd = (strncmp(name, "GND", 3) == 0 || strncmp(name, "VSS", 3) == 0 || strncmp(name, "VEE", 3) == 0);
+               if (is_gnd)
+               {
+                    float w0 = 12.0f * sc, w1 = 8.0f * sc, w2 = 4.0f * sc;
+                    float st = 4.0f * sc;
+                    dl->AddLine(ImVec2(px - w0, py), ImVec2(px + w0, py), pwr_col, lw * 1.5f);
+                    dl->AddLine(ImVec2(px - w1, py + st), ImVec2(px + w1, py + st), pwr_col, lw * 1.2f);
+                    dl->AddLine(ImVec2(px - w2, py + st * 2), ImVec2(px + w2, py + st * 2), pwr_col, lw);
+               }
+               else /* VCC / VDD / VIN */
+               {
+                    float ht = 10.0f * sc;
+                    dl->AddLine(ImVec2(px, py), ImVec2(px, py - ht), pwr_col, lw * 1.5f);
+                    ImVec2 tri[3] = {{px, py - ht - 6.0f * sc},
+                                     {px - 5.0f * sc, py - ht},
+                                     {px + 5.0f * sc, py - ht}};
+                    dl->AddTriangleFilled(tri[0], tri[1], tri[2], pwr_col);
+                    float nw = ImGui::CalcTextSize(name).x;
+                    dl->AddText(ImVec2(px - nw * 0.5f, py - ht - 6.0f * sc - fsz - 2),
+                                pwr_col, name);
+               }
+          };
+
           for (int i = 0; i < HW_LABEL_COUNT; i++)
           {
                const HwLabel *lbl = &hw_labels[i];
@@ -5190,20 +5908,106 @@ void draw_panel_hw_schematic(struct gb *gb)
                     continue;
                float sx = SX(lbl->nx);
                float sy = SY(lbl->ny);
-               float offset = s_sch_paper_mode ? -6.0f : -2.0f;
-               if (lbl->angle == 0.0f)
-                    dl->AddText(ImVec2(sx + 2, sy + offset), lbl_col, lbl->text);
+               float cy = sy; /* vertical center of label */
+               float tw = ImGui::CalcTextSize(lbl->text).x;
+
+               /* Classify label type from text content:
+                * - starts with '{' and length > 20 chars → global label (hexagon)
+                * - GND/VSS/VCC/VDD/VIN → power symbol
+                * - everything else       → local label (rect + triangle) */
+               const char *t = lbl->text;
+               bool is_global = (t[0] == '{' && (int)strlen(t) > 10);
+               bool is_power = (strncmp(t, "GND", 3) == 0 || strncmp(t, "VCC", 3) == 0 || strncmp(t, "VDD", 3) == 0 || strncmp(t, "VIN", 3) == 0 || strncmp(t, "VSS", 3) == 0 || strncmp(t, "VEE", 3) == 0);
+
+               /* angle==0: connection point LEFT, text opens rightward
+                * angle!=0: connection point RIGHT, text opens leftward  */
+               bool left_conn = (lbl->angle == 0.0f);
+
+               if (is_power && zoom > 300.0f)
+               {
+                    draw_power_sym(sx, sy, t);
+                    continue;
+               }
+
+               if (is_global)
+               {
+                    /* Hexagon: ponta esquerda ─ rect ─ ponta direita */
+                    float body_w = tw + 8.0f;
+                    float hh = th * 0.5f;
+                    float lx, rx;
+                    if (left_conn)
+                    {
+                         lx = sx;
+                         rx = sx + tip + body_w;
+                    }
+                    else
+                    {
+                         lx = sx - tip - body_w;
+                         rx = sx;
+                    }
+                    ImVec2 pts[6] = {
+                        ImVec2(lx, cy),
+                        ImVec2(lx + tip, cy - hh),
+                        ImVec2(rx - tip, cy - hh),
+                        ImVec2(rx, cy),
+                        ImVec2(rx - tip, cy + hh),
+                        ImVec2(lx + tip, cy + hh),
+                    };
+                    dl->AddConvexPolyFilled(pts, 6, lbl_fill);
+                    dl->AddPolyline(pts, 6, lbl_col, ImDrawFlags_Closed, lw);
+                    float tx = left_conn ? lx + tip + 4 : lx + tip + 4;
+                    dl->AddText(ImVec2(tx, cy - fsz * 0.5f), lbl_col, lbl->text);
+               }
                else
-                    dl->AddText(ImVec2(sx - ImGui::CalcTextSize(lbl->text).x - 2, sy + offset),
-                                lbl_col, lbl->text);
+               {
+                    /* Local label: rectangle body + directional triangle at connection point */
+                    float body_w = tw + 8.0f;
+                    float hh = th * 0.5f;
+                    float lx, rx;
+                    if (left_conn)
+                    {
+                         lx = sx;
+                         rx = sx + body_w;
+                    }
+                    else
+                    {
+                         lx = sx - body_w;
+                         rx = sx;
+                    }
+
+                    if (left_conn)
+                    {
+                         /* connection on left: triangle tip at sx pointing left, rect to the right */
+                         ImVec2 pts[5] = {
+                             ImVec2(sx + tip, cy - hh),
+                             ImVec2(rx, cy - hh),
+                             ImVec2(rx, cy + hh),
+                             ImVec2(sx + tip, cy + hh),
+                             ImVec2(sx, cy),
+                         };
+                         dl->AddConvexPolyFilled(pts, 5, lbl_fill);
+                         dl->AddPolyline(pts, 5, lbl_col, ImDrawFlags_Closed, lw);
+                         dl->AddText(ImVec2(sx + tip + 4, cy - fsz * 0.5f), lbl_col, lbl->text);
+                    }
+                    else
+                    {
+                         /* connection on right: rect to the left, triangle tip at sx pointing right */
+                         ImVec2 pts[5] = {
+                             ImVec2(lx, cy - hh),
+                             ImVec2(sx - tip, cy - hh),
+                             ImVec2(sx, cy),
+                             ImVec2(sx - tip, cy + hh),
+                             ImVec2(lx, cy + hh),
+                         };
+                         dl->AddConvexPolyFilled(pts, 5, lbl_fill);
+                         dl->AddPolyline(pts, 5, lbl_col, ImDrawFlags_Closed, lw);
+                         dl->AddText(ImVec2(lx + 4, cy - fsz * 0.5f), lbl_col, lbl->text);
+                    }
+               }
           }
      }
 
      /* ── Component boxes ── */
-     static int s_sch_sel_comp = -1;
-     int hover_comp = -1;
-     ImVec2 mouse = ImGui::GetIO().MousePos;
-
      if (s_sch_show_components)
      {
           for (int i = 0; i < HW_COMPONENT_COUNT; i++)
@@ -5240,96 +6044,208 @@ void draw_panel_hw_schematic(struct gb *gb)
                {
                     /* ── Paper mode: IC-style schematic component ── */
                     bool is_large = (comp_nh >= 0.10f); /* U1/U2/U3/P1/J2 */
+                    bool is_resistor = (comp->ref[0] == 'R');
+                    bool is_capacitor = (comp->ref[0] == 'C');
 
-                    /* Fill: yellow for ICs, white for passives */
-                    ImU32 fill = is_large ? IM_COL32(255, 255, 180, 240)
-                                         : IM_COL32(255, 253, 245, 230);
-                    ImU32 outline = selected ? IM_COL32(200,  40,  40, 255)
-                                   : hovered ? IM_COL32(180,  80,   0, 255)
-                                             : IM_COL32(180,  20,  20, 220);
-                    float bthick = selected ? 2.5f : hovered ? 2.0f : 1.5f;
+                    ImU32 outline = selected  ? IM_COL32(200, 40, 40, 255)
+                                    : hovered ? IM_COL32(180, 80, 0, 255)
+                                              : IM_COL32(180, 20, 20, 220);
+                    float bthick = selected ? 2.5f : hovered ? 2.0f
+                                                             : 1.5f;
 
-                    dl->AddRectFilled(tl, br, fill);
-                    dl->AddRect(tl, br, outline, 0.0f, 0, bthick);
-
-                    /* Pin stubs: short horizontal lines from each side */
-                    if (is_large && zoom > 150.0f)
+                    if (is_resistor && zoom > 120.0f)
                     {
-                         float pin_len = 4.0f + zoom * 0.004f;
-                         if (pin_len > 10.0f) pin_len = 10.0f;
-                         int n_pins = (int)((br.y - tl.y) / 6.0f);
-                         if (n_pins > 40) n_pins = 40;
-                         float pin_step = (br.y - tl.y) / (float)(n_pins + 1);
-                         for (int p = 1; p <= n_pins; p++)
+                         /* Zigzag resistor symbol — horizontal body */
+                         float cx2 = (tl.x + br.x) * 0.5f;
+                         float cy2 = (tl.y + br.y) * 0.5f;
+                         float bw = (br.x - tl.x) * 0.5f + 3.0f; /* half body width */
+                         float bh = (br.y - tl.y) * 0.5f;        /* half height = amplitude */
+                         /* lead lines */
+                         dl->AddLine(ImVec2(cx2 - bw - 4, cy2), ImVec2(cx2 - bw, cy2), outline, bthick);
+                         dl->AddLine(ImVec2(cx2 + bw, cy2), ImVec2(cx2 + bw + 4, cy2), outline, bthick);
+                         /* zigzag: 6 segments */
+                         const int ZN = 6;
+                         float zstep = (2.0f * bw) / ZN;
+                         for (int z = 0; z < ZN; z++)
                          {
-                              float py = tl.y + p * pin_step;
-                              /* left pins */
-                              dl->AddLine(ImVec2(tl.x - pin_len, py),
-                                          ImVec2(tl.x, py),
-                                          IM_COL32(180, 20, 20, 190), 1.0f);
-                              /* right pins */
-                              dl->AddLine(ImVec2(br.x, py),
-                                          ImVec2(br.x + pin_len, py),
-                                          IM_COL32(180, 20, 20, 190), 1.0f);
+                              float x0 = cx2 - bw + z * zstep;
+                              float x1 = x0 + zstep;
+                              float y0 = cy2 + ((z % 2 == 0) ? bh : -bh);
+                              float y1 = cy2 + ((z % 2 == 0) ? -bh : bh);
+                              dl->AddLine(ImVec2(x0, y0), ImVec2(x1, y1), outline, bthick);
                          }
+                         if (zoom > 200.0f)
+                              dl->AddText(ImVec2(cx2 - ImGui::CalcTextSize(comp->ref).x * 0.5f, cy2 - bh - 12),
+                                          IM_COL32(10, 10, 80, 220), comp->ref);
                     }
-
-                    /* Labels: ref above box, value inside */
-                    if (zoom > 60.0f)
+                    else if (is_capacitor && zoom > 120.0f)
                     {
-                         /* ref above top-left */
-                         dl->AddText(ImVec2(tl.x, tl.y - 14),
-                                     IM_COL32(10, 10, 80, 230), comp->ref);
-                         if (zoom > 120.0f && is_large)
-                              dl->AddText(ImVec2(tl.x + 4, tl.y + 4),
-                                          IM_COL32(60, 40, 10, 200), comp->value);
+                         /* Two parallel bars capacitor symbol — horizontal */
+                         float cx2 = (tl.x + br.x) * 0.5f;
+                         float cy2 = (tl.y + br.y) * 0.5f;
+                         float bh = (br.y - tl.y) * 0.5f + 2.0f; /* half bar height */
+                         float gap = 2.5f;
+                         /* lead lines */
+                         dl->AddLine(ImVec2(tl.x - 4, cy2), ImVec2(cx2 - gap, cy2), outline, bthick);
+                         dl->AddLine(ImVec2(cx2 + gap, cy2), ImVec2(br.x + 4, cy2), outline, bthick);
+                         /* plates */
+                         dl->AddLine(ImVec2(cx2 - gap, cy2 - bh), ImVec2(cx2 - gap, cy2 + bh), outline, bthick + 0.5f);
+                         dl->AddLine(ImVec2(cx2 + gap, cy2 - bh), ImVec2(cx2 + gap, cy2 + bh), outline, bthick + 0.5f);
+                         if (zoom > 200.0f)
+                              dl->AddText(ImVec2(cx2 - ImGui::CalcTextSize(comp->ref).x * 0.5f, cy2 - bh - 12),
+                                          IM_COL32(10, 10, 80, 220), comp->ref);
+                    }
+                    else
+                    {
+                         /* IC / connector: filled rectangle */
+                         ImU32 fill = is_large ? IM_COL32(255, 255, 180, 240)
+                                               : IM_COL32(255, 253, 245, 230);
+                         dl->AddRectFilled(tl, br, fill);
+                         dl->AddRect(tl, br, outline, 0.0f, 0, bthick);
+
+                         /* ── Real pin labels from net map (IC only, zoomed in) ── */
+                         if (is_large && zoom > 400.0f)
+                         {
+                              float pin_len = 7.0f;
+                              ImU32 pin_col = IM_COL32(180, 20, 20, 190);
+                              float fsz = ImGui::GetFontSize() * 0.65f;
+                              /* Walk all nets in hw_net_map; for nets whose wires
+                               * connect to this component box, draw the pin stub
+                               * and label at the wire endpoint closest to the box. */
+                              for (int ni = 0; ni < hw_net_map_count; ni++)
+                              {
+                                   const HwNetSemantic *ns = &hw_net_map[ni];
+                                   if (ns->net_id < 0 || ns->net_id >= HW_NET_COUNT)
+                                        continue;
+                                   /* Find wire endpoint closest to this IC box edge */
+                                   float best_d2 = 1e9f;
+                                   float best_ex = 0, best_ey = 0;
+                                   bool best_left = false;
+                                   for (int wi = 0; wi < HW_WIRE_COUNT; wi++)
+                                   {
+                                        if (hw_wires[wi].net_id != ns->net_id)
+                                             continue;
+                                        auto check_ep = [&](float enx, float eny)
+                                        {
+                                             float esx = SX(enx), esy = SY(eny);
+                                             /* must be just outside the box edge */
+                                             bool near_left = (esx >= tl.x - pin_len - 2) && (esx <= tl.x + 2) && (esy >= tl.y - 4) && (esy <= br.y + 4);
+                                             bool near_right = (esx >= br.x - 2) && (esx <= br.x + pin_len + 2) && (esy >= tl.y - 4) && (esy <= br.y + 4);
+                                             if (!near_left && !near_right)
+                                                  return;
+                                             float dx = esx - (near_left ? tl.x : br.x);
+                                             float dy = esy - (tl.y + br.y) * 0.5f;
+                                             float d2 = dx * dx + dy * dy;
+                                             if (d2 < best_d2)
+                                             {
+                                                  best_d2 = d2;
+                                                  best_ex = esx;
+                                                  best_ey = esy;
+                                                  best_left = near_left;
+                                             }
+                                        };
+                                        check_ep(hw_wires[wi].nx1, hw_wires[wi].ny1);
+                                        check_ep(hw_wires[wi].nx2, hw_wires[wi].ny2);
+                                   }
+                                   if (best_d2 >= 1e8f)
+                                        continue;
+                                   /* draw stub */
+                                   float edge_x = best_left ? tl.x : br.x;
+                                   dl->AddLine(ImVec2(edge_x, best_ey),
+                                               ImVec2(best_left ? edge_x - pin_len : edge_x + pin_len, best_ey),
+                                               pin_col, 1.0f);
+                                   /* label: inside the box near pin */
+                                   const char *pname = ns->canonical_name && ns->canonical_name[0]
+                                                           ? ns->canonical_name
+                                                           : ns->schematic_name;
+                                   float tw = ImGui::CalcTextSize(pname).x * (fsz / ImGui::GetFontSize());
+                                   float tx = best_left ? edge_x + 2 : edge_x - tw - 2;
+                                   dl->AddText(nullptr, fsz, ImVec2(tx, best_ey - fsz * 0.5f),
+                                               IM_COL32(20, 20, 100, 210), pname);
+                              }
+                         }
+                         else if (is_large && zoom > 150.0f)
+                         {
+                              /* Fallback: generic evenly-spaced pin stubs */
+                              float pin_len = 4.0f + zoom * 0.003f;
+                              if (pin_len > 8.0f)
+                                   pin_len = 8.0f;
+                              int n_pins = (int)((br.y - tl.y) / 6.0f);
+                              if (n_pins > 40)
+                                   n_pins = 40;
+                              float pin_step = (br.y - tl.y) / (float)(n_pins + 1);
+                              for (int p = 1; p <= n_pins; p++)
+                              {
+                                   float py = tl.y + p * pin_step;
+                                   dl->AddLine(ImVec2(tl.x - pin_len, py), ImVec2(tl.x, py),
+                                               IM_COL32(180, 20, 20, 190), 1.0f);
+                                   dl->AddLine(ImVec2(br.x, py), ImVec2(br.x + pin_len, py),
+                                               IM_COL32(180, 20, 20, 190), 1.0f);
+                              }
+                         }
+
+                         /* Labels: ref above box, value inside */
+                         if (zoom > 60.0f)
+                         {
+                              dl->AddText(ImVec2(tl.x, tl.y - 14),
+                                          IM_COL32(10, 10, 80, 230), comp->ref);
+                              if (zoom > 120.0f && is_large)
+                                   dl->AddText(ImVec2(tl.x + 4, tl.y + 4),
+                                               IM_COL32(60, 40, 10, 200), comp->value);
+                         }
                     }
                }
                else
                {
                     /* ── Dark mode component ── */
                     static const ImU32 kind_comp_col[] = {
-                         IM_COL32( 80, 140, 255, 220), /* CPU         — blue */
-                         IM_COL32(220, 200,  60, 220), /* CART        — gold */
-                         IM_COL32( 80, 220, 110, 220), /* WRAM        — green */
-                         IM_COL32( 60, 210, 180, 220), /* VRAM        — teal */
-                         IM_COL32( 60, 210, 180, 220), /* PPU_LCD     — teal */
-                         IM_COL32(255, 160,  60, 220), /* APU_AUDIO   — amber */
-                         IM_COL32(200, 140, 255, 220), /* TIMER_CLOCK — violet */
-                         IM_COL32(200, 230,  80, 220), /* JOYPAD      — lime */
-                         IM_COL32( 60, 200, 230, 220), /* SERIAL      — cyan */
-                         IM_COL32(255,  80,  80, 180), /* POWER       — red */
-                         IM_COL32(120, 120, 130, 160), /* MISC        — grey */
-                         IM_COL32( 70,  75,  95, 130), /* UNKNOWN     — dim */
+                        IM_COL32(80, 140, 255, 220),  /* CPU         — blue */
+                        IM_COL32(220, 200, 60, 220),  /* CART        — gold */
+                        IM_COL32(80, 220, 110, 220),  /* WRAM        — green */
+                        IM_COL32(60, 210, 180, 220),  /* VRAM        — teal */
+                        IM_COL32(60, 210, 180, 220),  /* PPU_LCD     — teal */
+                        IM_COL32(255, 160, 60, 220),  /* APU_AUDIO   — amber */
+                        IM_COL32(200, 140, 255, 220), /* TIMER_CLOCK — violet */
+                        IM_COL32(200, 230, 80, 220),  /* JOYPAD      — lime */
+                        IM_COL32(60, 200, 230, 220),  /* SERIAL      — cyan */
+                        IM_COL32(255, 80, 80, 180),   /* POWER       — red */
+                        IM_COL32(120, 120, 130, 160), /* MISC        — grey */
+                        IM_COL32(70, 75, 95, 130),    /* UNKNOWN     — dim */
                     };
                     ImU32 border;
-                    bool comp_trace_active = gb && gb->debug.hw_trace.enabled
-                                            && s_hw_activity.comp_fade[i] > 0.01f;
+                    bool comp_trace_active = gb && gb->debug.hw_trace.enabled && act->comp_fade[i] > 0.01f;
                     if (comp_trace_active)
                     {
-                         float fade = s_hw_activity.comp_fade[i];
-                         gb_hw_trace_event_type lt = s_hw_activity.comp_last_type[i];
+                         float fade = act->comp_fade[i];
+                         gb_hw_trace_event_type lt = act->comp_last_type[i];
                          ImU32 active_col;
-                         switch (lt) {
-                             case GB_HW_EVT_CPU_FETCH:
-                                  active_col = IM_COL32(255, 220, 60, 255); break;
-                             case GB_HW_EVT_CPU_READ:
-                                  active_col = IM_COL32(60, 200, 255, 255); break;
-                             case GB_HW_EVT_CPU_WRITE:
-                                  active_col = IM_COL32(255, 120, 60, 255); break;
-                             case GB_HW_EVT_DMA_READ:
-                             case GB_HW_EVT_DMA_WRITE:
-                                  active_col = IM_COL32(200, 80, 255, 255); break;
-                             case GB_HW_EVT_IRQ_REQUEST:
-                             case GB_HW_EVT_IRQ_ACK:
-                                  active_col = IM_COL32(255, 60, 60, 255);  break;
-                             default:
-                                  active_col = IM_COL32(180, 180, 220, 255);break;
+                         switch (lt)
+                         {
+                         case GB_HW_EVT_CPU_FETCH:
+                              active_col = IM_COL32(255, 220, 60, 255);
+                              break;
+                         case GB_HW_EVT_CPU_READ:
+                              active_col = IM_COL32(60, 200, 255, 255);
+                              break;
+                         case GB_HW_EVT_CPU_WRITE:
+                              active_col = IM_COL32(255, 120, 60, 255);
+                              break;
+                         case GB_HW_EVT_DMA_READ:
+                         case GB_HW_EVT_DMA_WRITE:
+                              active_col = IM_COL32(200, 80, 255, 255);
+                              break;
+                         case GB_HW_EVT_IRQ_REQUEST:
+                         case GB_HW_EVT_IRQ_ACK:
+                              active_col = IM_COL32(255, 60, 60, 255);
+                              break;
+                         default:
+                              active_col = IM_COL32(180, 180, 220, 255);
+                              break;
                          }
                          float t = fade > 1.0f ? 1.0f : fade;
-                         uint8_t r = (uint8_t)(80  * (1-t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
-                         uint8_t g = (uint8_t)(90  * (1-t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
-                         uint8_t b = (uint8_t)(120 * (1-t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
+                         uint8_t r = (uint8_t)(80 * (1 - t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
+                         uint8_t g = (uint8_t)(90 * (1 - t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
+                         uint8_t b = (uint8_t)(120 * (1 - t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
                          uint8_t a = (uint8_t)(160 + (uint8_t)(t * 95));
                          border = IM_COL32(r, g, b, a);
                     }
@@ -5357,15 +6273,81 @@ void draw_panel_hw_schematic(struct gb *gb)
                          border = IM_COL32(80, 90, 100, 160);
 
                     /* Fill brightens when trace-active */
-                    ImU32 fill = selected      ? IM_COL32(40, 55, 80, 230)
-                                 : hovered     ? IM_COL32(30, 38, 55, 220)
+                    ImU32 fill = selected  ? IM_COL32(40, 55, 80, 230)
+                                 : hovered ? IM_COL32(30, 38, 55, 220)
                                  : comp_trace_active
-                                               ? IM_COL32(28, 35, 55, 230)
-                                               : IM_COL32(20, 24, 34, 200);
-                    float bthick = selected ? 2.5f : hovered ? 1.8f : 1.2f;
+                                     ? IM_COL32(28, 35, 55, 230)
+                                     : IM_COL32(20, 24, 34, 200);
+                    float bthick = selected ? 2.5f : hovered ? 1.8f
+                                                             : 1.2f;
 
                     dl->AddRectFilled(tl, br, fill, 3.0f);
                     dl->AddRect(tl, br, border, 3.0f, 0, bthick);
+
+                    /* ── Pin grouping stripes for U1/U2/U3 (zoom > 300) ── */
+                    if (zoom > 300.0f && comp_nh >= 0.10f)
+                    {
+                         struct PinGroup
+                         {
+                              const char *name;
+                              int side; /* 0=left 1=right */
+                              ImU32 color;
+                              float frac0, frac1; /* fraction of box height */
+                         };
+                         /* Layouts for the three ICs; indexed by ref first char + digit */
+                         static const PinGroup u1_groups[] = {
+                             {"ADDR", 0, IM_COL32(80, 140, 255, 200), 0.05f, 0.44f},
+                             {"DATA", 0, IM_COL32(80, 220, 110, 200), 0.46f, 0.70f},
+                             {"PWR", 0, IM_COL32(255, 80, 80, 180), 0.72f, 0.95f},
+                             {"CTRL", 1, IM_COL32(255, 130, 50, 200), 0.05f, 0.38f},
+                             {"LCD", 1, IM_COL32(60, 210, 180, 200), 0.40f, 0.65f},
+                             {"APU", 1, IM_COL32(255, 160, 60, 200), 0.67f, 0.82f},
+                             {"CLK", 1, IM_COL32(200, 140, 255, 200), 0.84f, 0.95f},
+                         };
+                         static const PinGroup u2_groups[] = {
+                             {"DATA", 0, IM_COL32(80, 220, 110, 200), 0.05f, 0.50f},
+                             {"ADDR", 0, IM_COL32(80, 140, 255, 200), 0.52f, 0.95f},
+                             {"DATA", 1, IM_COL32(80, 220, 110, 200), 0.05f, 0.50f},
+                             {"ADDR", 1, IM_COL32(80, 140, 255, 200), 0.52f, 0.95f},
+                         };
+                         /* U3 same layout as U2 */
+                         const PinGroup *groups = nullptr;
+                         int group_count = 0;
+                         if (strcmp(comp->ref, "U1") == 0)
+                         {
+                              groups = u1_groups;
+                              group_count = 7;
+                         }
+                         else if (strcmp(comp->ref, "U2") == 0 || strcmp(comp->ref, "U3") == 0)
+                         {
+                              groups = u2_groups;
+                              group_count = 4;
+                         }
+
+                         if (groups)
+                         {
+                              float stripe_w = (zoom > 600.0f) ? 7.0f : 4.0f;
+                              float box_h = br.y - tl.y;
+                              for (int g = 0; g < group_count; g++)
+                              {
+                                   const PinGroup *pg = &groups[g];
+                                   float gx0 = pg->side == 0 ? tl.x : br.x - stripe_w;
+                                   float gx1 = pg->side == 0 ? tl.x + stripe_w : br.x;
+                                   float gy0 = tl.y + box_h * pg->frac0;
+                                   float gy1 = tl.y + box_h * pg->frac1;
+                                   ImU32 sc = pg->color & IM_COL32(255, 255, 255, 80);
+                                   dl->AddRectFilled(ImVec2(gx0, gy0), ImVec2(gx1, gy1), sc);
+                                   dl->AddRect(ImVec2(gx0, gy0), ImVec2(gx1, gy1),
+                                               pg->color, 0.0f, 0, 0.5f);
+                                   if (zoom > 500.0f)
+                                   {
+                                        float tx = pg->side == 0 ? gx1 + 2 : gx0 - ImGui::CalcTextSize(pg->name).x - 2;
+                                        float ty = (gy0 + gy1) * 0.5f - ImGui::GetFontSize() * 0.5f;
+                                        dl->AddText(ImVec2(tx, ty), pg->color, pg->name);
+                                   }
+                              }
+                         }
+                    }
 
                     if (zoom > 80.0f)
                     {
@@ -5388,7 +6370,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           {
                float tb_w = 184.0f, tb_h = 38.0f;
                ImVec2 tb_tl = ImVec2(br_paper.x - tb_w, br_paper.y - tb_h);
-               ImVec2 tb_br = ImVec2(br_paper.x - 2,    br_paper.y - 2);
+               ImVec2 tb_br = ImVec2(br_paper.x - 2, br_paper.y - 2);
                dl->AddRectFilled(tb_tl, tb_br, IM_COL32(245, 240, 220, 240));
                dl->AddRect(tb_tl, tb_br, IM_COL32(180, 20, 20, 180), 0.0f, 0, 1.0f);
                dl->AddText(ImVec2(tb_tl.x + 4, tb_tl.y + 4),
@@ -5398,26 +6380,80 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
+     /* ── Minimap (bottom-left corner of canvas, dark mode only) ── */
+     if (!s_sch_paper_mode)
+     {
+          float mm_w = 90.0f, mm_h = mm_w * HW_SCHEMATIC_ASPECT / canvas_size.x * canvas_size.y;
+          /* clamp height to roughly A4 aspect */
+          mm_h = mm_w * (210.0f / 297.0f);
+          float mm_x = canvas_pos.x + 6.0f;
+          float mm_y = canvas_pos.y + canvas_size.y - mm_h - 6.0f;
+
+          ImVec2 mm_tl = ImVec2(mm_x, mm_y);
+          ImVec2 mm_br = ImVec2(mm_x + mm_w, mm_y + mm_h);
+          dl->AddRectFilled(mm_tl, mm_br, IM_COL32(10, 12, 18, 210));
+          dl->AddRect(mm_tl, mm_br, IM_COL32(60, 65, 85, 180), 0.0f, 0, 1.0f);
+
+          /* Viewport rectangle in minimap space */
+          float vx0 = mm_x + cache.vp_nx0 * mm_w;
+          float vy0 = mm_y + cache.vp_ny0 * mm_h;
+          float vx1 = mm_x + cache.vp_nx1 * mm_w;
+          float vy1 = mm_y + cache.vp_ny1 * mm_h;
+          if (vx0 < mm_x)
+               vx0 = mm_x;
+          if (vy0 < mm_y)
+               vy0 = mm_y;
+          if (vx1 > mm_br.x)
+               vx1 = mm_br.x;
+          if (vy1 > mm_br.y)
+               vy1 = mm_br.y;
+          dl->AddRectFilled(ImVec2(vx0, vy0), ImVec2(vx1, vy1), IM_COL32(80, 120, 200, 50));
+          dl->AddRect(ImVec2(vx0, vy0), ImVec2(vx1, vy1), IM_COL32(120, 170, 255, 200), 0.0f, 0, 1.0f);
+
+          /* Dot for selected net centroid */
+          if (s_sch_sel_net >= 0)
+          {
+               float cnx = 0.0f, cny = 0.0f;
+               int cn = 0;
+               for (int i = 0; i < HW_WIRE_COUNT; i++)
+               {
+                    if (hw_wires[i].net_id != s_sch_sel_net)
+                         continue;
+                    cnx += (hw_wires[i].nx1 + hw_wires[i].nx2) * 0.5f;
+                    cny += (hw_wires[i].ny1 + hw_wires[i].ny2) * 0.5f;
+                    cn++;
+               }
+               if (cn > 0)
+               {
+                    cnx /= cn;
+                    cny /= cn;
+                    dl->AddCircleFilled(ImVec2(mm_x + cnx * mm_w, mm_y + cny * mm_h),
+                                        3.0f, IM_COL32(255, 230, 80, 240));
+               }
+          }
+     }
+
      dl->PopClipRect();
 
      /* ── Live HW activity status strip (top-left corner of canvas) ── */
      if (gb && !s_sch_paper_mode)
      {
-          struct {
+          struct
+          {
                const char *label;
-               float       fade;   /* 0..1 activity level */
-               ImU32       color;
+               float fade; /* 0..1 activity level */
+               ImU32 color;
           } hw_status[] = {
-               { "CPU",   sv ? (sv->fade_cpu_rom > sv->fade_cpu_wram ? sv->fade_cpu_rom : sv->fade_cpu_wram) : 0.0f,
-                              IM_COL32( 80,160,255,255) },
-               { "PPU",   sv ? (sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram) : 0.0f,
-                              IM_COL32( 60,210,180,255) },
-               { "DMA",   sv ? sv->fade_dma_oam : 0.0f,
-                              IM_COL32(200, 80,255,255) },
-               { "APU",   sv ? sv->fade_apu     : 0.0f,
-                              IM_COL32(255,160, 60,255) },
-               { "IRQ",   sv ? sv->fade_irq_cpu : 0.0f,
-                              IM_COL32(255, 60, 60,255) },
+              {"CPU", sv ? (sv->fade_cpu_rom > sv->fade_cpu_wram ? sv->fade_cpu_rom : sv->fade_cpu_wram) : 0.0f,
+               IM_COL32(80, 160, 255, 255)},
+              {"PPU", sv ? (sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram) : 0.0f,
+               IM_COL32(60, 210, 180, 255)},
+              {"DMA", sv ? sv->fade_dma_oam : 0.0f,
+               IM_COL32(200, 80, 255, 255)},
+              {"APU", sv ? sv->fade_apu : 0.0f,
+               IM_COL32(255, 160, 60, 255)},
+              {"IRQ", sv ? sv->fade_irq_cpu : 0.0f,
+               IM_COL32(255, 60, 60, 255)},
           };
           const int hw_status_n = 5;
 
@@ -5435,15 +6471,15 @@ void draw_panel_hw_schematic(struct gb *gb)
 
                /* Background pill: dark when idle, colored when active */
                ImU32 bg = IM_COL32(
-                    (uint8_t)(20  + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 20)),
-                    (uint8_t)(22  + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 22)),
-                    (uint8_t)(30  + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 30)),
-                    (uint8_t)(160 + alpha_t * 80));
+                   (uint8_t)(20 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 20)),
+                   (uint8_t)(22 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 22)),
+                   (uint8_t)(30 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 30)),
+                   (uint8_t)(160 + alpha_t * 80));
                ImU32 txt_col = IM_COL32(
-                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 100)),
-                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 100)),
-                    (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 100)),
-                    220);
+                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 100)),
+                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 100)),
+                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 100)),
+                   220);
 
                dl->AddRectFilled(ImVec2(pill_x, pill_y),
                                  ImVec2(pill_x + fw, pill_y + pill_h),
@@ -5451,7 +6487,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (alpha_t > 0.05f)
                     dl->AddRect(ImVec2(pill_x, pill_y),
                                 ImVec2(pill_x + fw, pill_y + pill_h),
-                                hw_status[si].color & IM_COL32(255,255,255,(uint8_t)(alpha_t*180)),
+                                hw_status[si].color & IM_COL32(255, 255, 255, (uint8_t)(alpha_t * 180)),
                                 4.0f, 0, 1.0f);
                dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), txt_col, hw_status[si].label);
                pill_x += fw + 4.0f;
@@ -5461,10 +6497,10 @@ void draw_panel_hw_schematic(struct gb *gb)
           if (gb->debug.hw_trace.enabled)
           {
                float fw = ImGui::CalcTextSize("TRACE").x + pill_pad * 2;
-               ImU32 bg  = IM_COL32(20, 40, 20, 180);
-               ImU32 tc  = IM_COL32( 80,220, 80,230);
+               ImU32 bg = IM_COL32(20, 40, 20, 180);
+               ImU32 tc = IM_COL32(80, 220, 80, 230);
                dl->AddRectFilled(ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), bg, 4.0f);
-               dl->AddRect(      ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), tc, 4.0f, 0, 1.0f);
+               dl->AddRect(ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), tc, 4.0f, 0, 1.0f);
                dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), tc, "TRACE");
           }
      }
@@ -5489,29 +6525,51 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      /* ── Legend + info bar ── */
      ImGui::Separator();
-     if (s_sch_sel_comp >= 0 && s_sch_sel_comp < HW_COMPONENT_COUNT)
+     if (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+     {
+          const HwNet *net = &hw_nets[s_sch_sel_net];
+          const HwNetSemantic *sem = hw_map_find_net(s_sch_sel_net);
+          if (sem)
+               ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
+                                  "Net: %s  (%s)  [%s]  F=zoom",
+                                  net->name, hw_signal_kind_name(sem->kind),
+                                  hw_confidence_name(sem->confidence));
+          else
+               ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
+                                  "Net: %s  #%d  F=zoom", net->name, s_sch_sel_net);
+     }
+     else if (s_sch_sel_comp >= 0 && s_sch_sel_comp < HW_COMPONENT_COUNT)
      {
           const HwComponent *c = &hw_components[s_sch_sel_comp];
           ImGui::Text("Selecionado: %s  (%s)", c->ref, c->value);
      }
      else
      {
-          ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique=selecionar  |  DMG-CPU-06  (CC-BY 4.0, Gekkio)");
+          ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique wire/comp=selecionar  |  DMG-CPU-06  (CC-BY 4.0, Gekkio)");
      }
      ImGui::SameLine();
      ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 20);
      /* Mini legend */
      if (s_sch_show_kinds)
      {
-          ImGui::TextColored(ImVec4(0.31f, 0.55f, 1.0f, 1.0f),  "Addr");   ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.31f, 0.86f, 0.43f, 1.0f), "Data");   ImGui::SameLine();
-          ImGui::TextColored(ImVec4(1.0f,  0.35f, 0.35f, 1.0f), "RD");     ImGui::SameLine();
-          ImGui::TextColored(ImVec4(1.0f,  0.51f, 0.20f, 1.0f), "WR");     ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.86f, 0.78f, 0.24f, 1.0f), "CS");     ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.78f, 0.55f, 1.0f,  1.0f), "CLK");    ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.24f, 0.82f, 0.71f, 1.0f), "LCD");    ImGui::SameLine();
-          ImGui::TextColored(ImVec4(1.0f,  0.63f, 0.24f, 1.0f), "Audio");  ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.24f, 0.78f, 0.90f, 1.0f), "Serial"); ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.31f, 0.55f, 1.0f, 1.0f), "Addr");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.31f, 0.86f, 0.43f, 1.0f), "Data");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "RD");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f, 0.51f, 0.20f, 1.0f), "WR");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.86f, 0.78f, 0.24f, 1.0f), "CS");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.78f, 0.55f, 1.0f, 1.0f), "CLK");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.24f, 0.82f, 0.71f, 1.0f), "LCD");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(1.0f, 0.63f, 0.24f, 1.0f), "Audio");
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.24f, 0.78f, 0.90f, 1.0f), "Serial");
+          ImGui::SameLine();
           ImGui::TextColored(ImVec4(0.78f, 0.90f, 0.31f, 1.0f), "Joy");
      }
      else if (s_sch_show_activity)
@@ -5533,6 +6591,203 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      ImGui::EndChild(); /* ##sch_canvas_child */
 
+     /* ── Net timeline: last N events for the selected net ── */
+     if (gb && s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+     {
+          const HwNet *sel_net = &hw_nets[s_sch_sel_net];
+          struct gb_hw_trace *tl_tr = &gb->debug.hw_trace;
+
+          /* Collect up to 64 events that touched this net, newest first */
+          static const int TL_CAP = 64;
+          struct TlEntry
+          {
+               const gb_hw_trace_event *ev;
+               bool touched_net;
+          };
+          TlEntry tl_buf[TL_CAP];
+          int tl_n = 0;
+
+          /* Walk ring buffer newest→oldest */
+          uint32_t cap = GB_HW_TRACE_CAP;
+          uint32_t cnt = tl_tr->count < cap ? tl_tr->count : cap;
+          for (uint32_t k = 0; k < cnt && tl_n < TL_CAP; k++)
+          {
+               uint32_t idx = (tl_tr->head + cap - 1 - k) % cap;
+               const gb_hw_trace_event *ev = &tl_tr->events[idx];
+               /* Include event if it references this net via address bits */
+               bool relevant = false;
+               switch (ev->type)
+               {
+               case GB_HW_EVT_CPU_READ:
+               case GB_HW_EVT_CPU_WRITE:
+               case GB_HW_EVT_CPU_FETCH:
+               case GB_HW_EVT_DMA_READ:
+               case GB_HW_EVT_DMA_WRITE:
+                    relevant = true;
+                    break;
+               case GB_HW_EVT_PPU_MODE:
+               case GB_HW_EVT_PPU_VBLANK:
+               case GB_HW_EVT_PPU_HBLANK:
+               case GB_HW_EVT_TIMER_OVF:
+               case GB_HW_EVT_APU_WRITE:
+               case GB_HW_EVT_JOYPAD:
+               case GB_HW_EVT_SERIAL_START:
+               case GB_HW_EVT_SERIAL_DONE:
+               case GB_HW_EVT_MBC_SWITCH:
+               case GB_HW_EVT_IRQ_REQUEST:
+               case GB_HW_EVT_IRQ_ACK:
+                    relevant = true;
+                    break;
+               default:
+                    break;
+               }
+               if (relevant)
+                    tl_buf[tl_n++] = {ev, true};
+          }
+
+          /* Timeline header */
+          ImGui::Separator();
+          ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
+                             "Timeline: net %s  (últimos %d eventos do buffer)",
+                             sel_net->name, tl_n);
+
+          /* Horizontal mini-timeline strip */
+          float tl_h = 36.0f;
+          ImVec2 tl_pos = ImGui::GetCursorScreenPos();
+          ImVec2 tl_size = ImVec2(ImGui::GetContentRegionAvail().x, tl_h);
+          ImDrawList *tdl = ImGui::GetWindowDrawList();
+          tdl->AddRectFilled(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
+                             IM_COL32(14, 16, 22, 220));
+
+          static int s_tl_sel = -1; /* selected event index in tl_buf */
+
+          if (tl_n > 0)
+          {
+               /* Find timestamp range */
+               int32_t ts_min = tl_buf[tl_n - 1].ev->timestamp;
+               int32_t ts_max = tl_buf[0].ev->timestamp;
+               int32_t ts_span = ts_max - ts_min;
+               if (ts_span <= 0)
+                    ts_span = 1;
+
+               float bar_w = tl_size.x / (float)tl_n; /* equal-width bars when timestamps close */
+               bool use_time_x = ts_span > tl_n * 4;  /* spread by time when events are sparse */
+
+               for (int ei = 0; ei < tl_n; ei++)
+               {
+                    const gb_hw_trace_event *ev = tl_buf[ei].ev;
+                    float t = use_time_x
+                                  ? (float)(ev->timestamp - ts_min) / (float)ts_span
+                                  : (float)(tl_n - 1 - ei) / (float)(tl_n > 1 ? tl_n - 1 : 1);
+                    float bx = tl_pos.x + t * (tl_size.x - bar_w);
+                    float by = tl_pos.y + 2.0f;
+
+                    /* Colour by event type */
+                    ImU32 bcol;
+                    switch (ev->type)
+                    {
+                    case GB_HW_EVT_CPU_FETCH:
+                         bcol = IM_COL32(255, 220, 60, 220);
+                         break;
+                    case GB_HW_EVT_CPU_READ:
+                         bcol = IM_COL32(60, 200, 255, 220);
+                         break;
+                    case GB_HW_EVT_CPU_WRITE:
+                         bcol = IM_COL32(255, 120, 60, 220);
+                         break;
+                    case GB_HW_EVT_DMA_READ:
+                    case GB_HW_EVT_DMA_WRITE:
+                         bcol = IM_COL32(200, 80, 255, 220);
+                         break;
+                    case GB_HW_EVT_IRQ_REQUEST:
+                    case GB_HW_EVT_IRQ_ACK:
+                         bcol = IM_COL32(255, 60, 60, 220);
+                         break;
+                    case GB_HW_EVT_PPU_MODE:
+                    case GB_HW_EVT_PPU_VBLANK:
+                    case GB_HW_EVT_PPU_HBLANK:
+                         bcol = IM_COL32(60, 210, 180, 220);
+                         break;
+                    case GB_HW_EVT_APU_WRITE:
+                         bcol = IM_COL32(255, 160, 60, 220);
+                         break;
+                    case GB_HW_EVT_TIMER_OVF:
+                         bcol = IM_COL32(200, 140, 255, 220);
+                         break;
+                    case GB_HW_EVT_SERIAL_START:
+                    case GB_HW_EVT_SERIAL_DONE:
+                         bcol = IM_COL32(60, 200, 230, 220);
+                         break;
+                    case GB_HW_EVT_MBC_SWITCH:
+                         bcol = IM_COL32(220, 200, 60, 220);
+                         break;
+                    case GB_HW_EVT_JOYPAD:
+                         bcol = IM_COL32(200, 230, 80, 220);
+                         break;
+                    default:
+                         bcol = IM_COL32(120, 120, 130, 180);
+                         break;
+                    }
+
+                    bool sel = (s_tl_sel == ei);
+                    float bar_h = tl_h - 4.0f;
+                    ImVec2 b0 = ImVec2(bx, by);
+                    ImVec2 b1 = ImVec2(bx + (bar_w > 2.0f ? bar_w - 1.0f : 1.5f), by + bar_h);
+                    tdl->AddRectFilled(b0, b1, bcol, 1.5f);
+                    if (sel)
+                         tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 200), 1.5f, 0, 1.5f);
+
+                    /* Hit-test for click */
+                    ImVec2 mpos = ImGui::GetIO().MousePos;
+                    if (mpos.x >= b0.x && mpos.x <= b1.x &&
+                        mpos.y >= b0.y && mpos.y <= b1.y)
+                    {
+                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                              s_tl_sel = sel ? -1 : ei;
+                         /* Tooltip */
+                         ImGui::BeginTooltip();
+                         static const char *evt_names[] = {
+                             "NONE", "FETCH", "READ", "WRITE", "IRQ_REQ", "IRQ_ACK",
+                             "ALU", "WRITEBACK", "DMA_RD", "DMA_WR", "PPU_MODE",
+                             "APU_SMP", "VBLANK", "HBLANK", "OAM_DMA", "TIMER_OVF",
+                             "APU_WR", "JOYPAD", "SER_START", "SER_DONE", "MBC_SW"};
+                         int etype = (int)ev->type;
+                         const char *ename = (etype >= 0 && etype < 21) ? evt_names[etype] : "?";
+                         ImGui::Text("%s  ts=%d  seq=%llu",
+                                     ename, ev->timestamp, (unsigned long long)ev->seq);
+                         if (ev->addr)
+                              ImGui::TextDisabled("addr=0x%04X  data=0x%02X", ev->addr, ev->data);
+                         if (ev->pc)
+                              ImGui::TextDisabled("PC=0x%04X  op=0x%02X", ev->pc, ev->opcode);
+                         ImGui::EndTooltip();
+                    }
+               }
+          }
+          else
+          {
+               tdl->AddText(ImVec2(tl_pos.x + 8, tl_pos.y + 10),
+                            IM_COL32(100, 105, 120, 200),
+                            "Nenhum evento no buffer — habilite o hw trace");
+          }
+
+          ImGui::Dummy(tl_size); /* advance cursor past the manual-drawn strip */
+
+          /* Inspector for selected event */
+          if (s_tl_sel >= 0 && s_tl_sel < tl_n)
+          {
+               const gb_hw_trace_event *ev = tl_buf[s_tl_sel].ev;
+               ImGui::Indent(8.0f);
+               ImGui::TextColored(ImVec4(0.9f, 0.9f, 1.0f, 1.0f),
+                                  "seq=%llu  ts=%d  PC=0x%04X  op=0x%02X",
+                                  (unsigned long long)ev->seq,
+                                  ev->timestamp, ev->pc, ev->opcode);
+               ImGui::TextDisabled("addr=0x%04X  data=0x%02X  extra=0x%02X  write=%d",
+                                   ev->addr, ev->data, ev->extra, (int)ev->write);
+               ImGui::Unindent(8.0f);
+          }
+          ImGui::Separator();
+     }
+
      /* ── HW Trace + Audit panel (scrollable, fills remaining space) ── */
      if (!gb)
           return;
@@ -5543,27 +6798,32 @@ void draw_panel_hw_schematic(struct gb *gb)
      struct gb_hw_trace *tr = &gb->debug.hw_trace;
 
      /* ── Metadata per event type (must match gb_hw_trace_event_type order) ── */
-     struct EvtMeta { const char *name; ImU32 color; uint8_t subsystem; };
+     struct EvtMeta
+     {
+          const char *name;
+          ImU32 color;
+          uint8_t subsystem;
+     };
      /* subsystem bits: 0=CPU 1=PPU 2=DMA 3=Timer 4=APU 5=Input */
      static const EvtMeta s_evt_meta[] = {
-          { "NONE",      IM_COL32(100,100,100,200), 0x3F }, /* GB_HW_EVT_NONE       */
-          { "FETCH",     IM_COL32(120,180,255,220), 1<<0 }, /* GB_HW_EVT_CPU_FETCH  */
-          { "READ",      IM_COL32( 80,220,110,220), 1<<0 }, /* GB_HW_EVT_CPU_READ   */
-          { "WRITE",     IM_COL32(255,130, 60,220), 1<<0 }, /* GB_HW_EVT_CPU_WRITE  */
-          { "IRQ_REQ",   IM_COL32(220,100,255,220), 1<<0 }, /* GB_HW_EVT_IRQ_REQUEST*/
-          { "IRQ_ACK",   IM_COL32(255, 80, 80,220), 1<<0 }, /* GB_HW_EVT_IRQ_ACK    */
-          { "DMA_RD",    IM_COL32(160,200,255,200), 1<<2 }, /* GB_HW_EVT_DMA_READ   */
-          { "DMA_WR",    IM_COL32(255,200,100,200), 1<<2 }, /* GB_HW_EVT_DMA_WRITE  */
-          { "PPU_MODE",  IM_COL32( 60,210,180,200), 1<<1 }, /* GB_HW_EVT_PPU_MODE   */
-          { "APU_SMP",   IM_COL32(255,160, 60,200), 1<<4 }, /* GB_HW_EVT_APU_SAMPLE */
-          { "VBLANK",    IM_COL32( 50,255,180,230), 1<<1 }, /* GB_HW_EVT_PPU_VBLANK */
-          { "HBLANK",    IM_COL32( 30,190,130,200), 1<<1 }, /* GB_HW_EVT_PPU_HBLANK */
-          { "OAM_DMA",   IM_COL32(200,230,255,210), 1<<2 }, /* GB_HW_EVT_OAM_DMA    */
-          { "TMR_OVF",   IM_COL32(255,220, 50,230), 1<<3 }, /* GB_HW_EVT_TIMER_OVF  */
-          { "APU_WR",    IM_COL32(255,140,  0,210), 1<<4 }, /* GB_HW_EVT_APU_WRITE  */
-          { "JOYPAD",    IM_COL32( 80,255,100,220), 1<<5 }, /* GB_HW_EVT_JOYPAD     */
+         {"NONE", IM_COL32(100, 100, 100, 200), 0x3F},      /* GB_HW_EVT_NONE       */
+         {"FETCH", IM_COL32(120, 180, 255, 220), 1 << 0},   /* GB_HW_EVT_CPU_FETCH  */
+         {"READ", IM_COL32(80, 220, 110, 220), 1 << 0},     /* GB_HW_EVT_CPU_READ   */
+         {"WRITE", IM_COL32(255, 130, 60, 220), 1 << 0},    /* GB_HW_EVT_CPU_WRITE  */
+         {"IRQ_REQ", IM_COL32(220, 100, 255, 220), 1 << 0}, /* GB_HW_EVT_IRQ_REQUEST*/
+         {"IRQ_ACK", IM_COL32(255, 80, 80, 220), 1 << 0},   /* GB_HW_EVT_IRQ_ACK    */
+         {"DMA_RD", IM_COL32(160, 200, 255, 200), 1 << 2},  /* GB_HW_EVT_DMA_READ   */
+         {"DMA_WR", IM_COL32(255, 200, 100, 200), 1 << 2},  /* GB_HW_EVT_DMA_WRITE  */
+         {"PPU_MODE", IM_COL32(60, 210, 180, 200), 1 << 1}, /* GB_HW_EVT_PPU_MODE   */
+         {"APU_SMP", IM_COL32(255, 160, 60, 200), 1 << 4},  /* GB_HW_EVT_APU_SAMPLE */
+         {"VBLANK", IM_COL32(50, 255, 180, 230), 1 << 1},   /* GB_HW_EVT_PPU_VBLANK */
+         {"HBLANK", IM_COL32(30, 190, 130, 200), 1 << 1},   /* GB_HW_EVT_PPU_HBLANK */
+         {"OAM_DMA", IM_COL32(200, 230, 255, 210), 1 << 2}, /* GB_HW_EVT_OAM_DMA    */
+         {"TMR_OVF", IM_COL32(255, 220, 50, 230), 1 << 3},  /* GB_HW_EVT_TIMER_OVF  */
+         {"APU_WR", IM_COL32(255, 140, 0, 210), 1 << 4},    /* GB_HW_EVT_APU_WRITE  */
+         {"JOYPAD", IM_COL32(80, 255, 100, 220), 1 << 5},   /* GB_HW_EVT_JOYPAD     */
      };
-     static const int s_evt_meta_count = (int)(sizeof(s_evt_meta)/sizeof(s_evt_meta[0]));
+     static const int s_evt_meta_count = (int)(sizeof(s_evt_meta) / sizeof(s_evt_meta[0]));
 
      /* ── Controls row ── */
      ImGui::Separator();
@@ -5576,13 +6836,13 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::SameLine();
      if (ImGui::SmallButton("Clear"))
      {
-          tr->head  = 0;
+          tr->head = 0;
           tr->count = 0;
      }
 
      /* ── Subsystem filter toggles ── */
      static uint8_t s_filter_mask = 0x3F; /* all on */
-     static bool    s_filter_open = false;
+     static bool s_filter_open = false;
      ImGui::SameLine();
      if (ImGui::SmallButton(s_filter_open ? "Filter [-]" : "Filter [+]"))
           s_filter_open = !s_filter_open;
@@ -5590,13 +6850,18 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (s_filter_open)
      {
           ImGui::Indent(8.0f);
-          struct { const char *label; uint8_t bit; ImU32 col; } subsys[] = {
-               { "CPU",   1<<0, IM_COL32(120,180,255,255) },
-               { "PPU",   1<<1, IM_COL32( 50,230,180,255) },
-               { "DMA",   1<<2, IM_COL32(200,220,255,255) },
-               { "Timer", 1<<3, IM_COL32(255,220, 50,255) },
-               { "APU",   1<<4, IM_COL32(255,150, 40,255) },
-               { "Input", 1<<5, IM_COL32( 80,255,100,255) },
+          struct
+          {
+               const char *label;
+               uint8_t bit;
+               ImU32 col;
+          } subsys[] = {
+              {"CPU", 1 << 0, IM_COL32(120, 180, 255, 255)},
+              {"PPU", 1 << 1, IM_COL32(50, 230, 180, 255)},
+              {"DMA", 1 << 2, IM_COL32(200, 220, 255, 255)},
+              {"Timer", 1 << 3, IM_COL32(255, 220, 50, 255)},
+              {"APU", 1 << 4, IM_COL32(255, 150, 40, 255)},
+              {"Input", 1 << 5, IM_COL32(80, 255, 100, 255)},
           };
           for (int si = 0; si < 6; si++)
           {
@@ -5604,11 +6869,14 @@ void draw_panel_hw_schematic(struct gb *gb)
                ImGui::PushStyleColor(ImGuiCol_CheckMark, subsys[si].col);
                if (ImGui::Checkbox(subsys[si].label, &on))
                {
-                    if (on) s_filter_mask |= subsys[si].bit;
-                    else    s_filter_mask &= ~subsys[si].bit;
+                    if (on)
+                         s_filter_mask |= subsys[si].bit;
+                    else
+                         s_filter_mask &= ~subsys[si].bit;
                }
                ImGui::PopStyleColor();
-               if (si < 5) ImGui::SameLine();
+               if (si < 5)
+                    ImGui::SameLine();
           }
           ImGui::Unindent(8.0f);
      }
@@ -5623,7 +6891,8 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* ── Selected event index (ring-buffer position from newest=0) ── */
      static int s_selected_ev = -1;
      /* Reset selection if it goes out of range after Clear */
-     if (s_selected_ev >= (int)n_total) s_selected_ev = -1;
+     if (s_selected_ev >= (int)n_total)
+          s_selected_ev = -1;
 
      /* ── Event list (scrollable, newest first) ── */
      float list_h = s_selected_ev >= 0 ? 140.0f : 180.0f;
@@ -5636,18 +6905,20 @@ void draw_panel_hw_schematic(struct gb *gb)
           uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - i) & (GB_HW_TRACE_CAP - 1);
           const gb_hw_trace_event *ev = &tr->events[idx];
           int t = (int)ev->type;
-          if (t < 0 || t >= s_evt_meta_count) t = 0;
+          if (t < 0 || t >= s_evt_meta_count)
+               t = 0;
 
           /* Apply subsystem filter */
-          if (!(s_evt_meta[t].subsystem & s_filter_mask)) continue;
+          if (!(s_evt_meta[t].subsystem & s_filter_mask))
+               continue;
 
           ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
           bool selected = (s_selected_ev == (int)i);
 
           /* Selectable row */
-          ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(cv.x*0.35f, cv.y*0.35f, cv.z*0.35f, 0.6f));
-          ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(cv.x*0.5f,  cv.y*0.5f,  cv.z*0.5f,  0.7f));
-          ImGui::PushStyleColor(ImGuiCol_HeaderActive,  ImVec4(cv.x*0.7f,  cv.y*0.7f,  cv.z*0.7f,  0.8f));
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(cv.x * 0.35f, cv.y * 0.35f, cv.z * 0.35f, 0.6f));
+          ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(cv.x * 0.5f, cv.y * 0.5f, cv.z * 0.5f, 0.7f));
+          ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(cv.x * 0.7f, cv.y * 0.7f, cv.z * 0.7f, 0.8f));
 
           char row_id[32];
           snprintf(row_id, sizeof(row_id), "##ev%u", i);
@@ -5714,7 +6985,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           float row_w = ImGui::GetContentRegionAvail().x;
           if (ImGui::Selectable(row_id, selected,
                                 ImGuiSelectableFlags_SpanAllColumns |
-                                ImGuiSelectableFlags_AllowOverlap,
+                                    ImGuiSelectableFlags_AllowOverlap,
                                 ImVec2(row_w, 0)))
                s_selected_ev = selected ? -1 : (int)i;
 
@@ -5730,10 +7001,11 @@ void draw_panel_hw_schematic(struct gb *gb)
           uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - (uint32_t)s_selected_ev) & (GB_HW_TRACE_CAP - 1);
           const gb_hw_trace_event *ev = &tr->events[idx];
           int t = (int)ev->type;
-          if (t < 0 || t >= s_evt_meta_count) t = 0;
+          if (t < 0 || t >= s_evt_meta_count)
+               t = 0;
           ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
 
-          ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(cv.x*0.12f, cv.y*0.12f, cv.z*0.12f, 0.5f));
+          ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(cv.x * 0.12f, cv.y * 0.12f, cv.z * 0.12f, 0.5f));
           ImGui::BeginChild("##hw_trace_detail", ImVec2(0, 100), true);
 
           ImGui::TextColored(cv, "%s", s_evt_meta[t].name);
@@ -5746,46 +7018,58 @@ void draw_panel_hw_schematic(struct gb *gb)
           {
           case GB_HW_EVT_CPU_FETCH:
                ImGui::Text("PC   = %04X", ev->pc);
-               ImGui::SameLine(120); ImGui::Text("opcode = %02X", ev->opcode);
+               ImGui::SameLine(120);
+               ImGui::Text("opcode = %02X", ev->opcode);
                break;
           case GB_HW_EVT_CPU_READ:
                ImGui::Text("PC   = %04X", ev->pc);
-               ImGui::SameLine(120); ImGui::Text("addr = %04X", ev->addr);
+               ImGui::SameLine(120);
+               ImGui::Text("addr = %04X", ev->addr);
                ImGui::Text("data = %02X", ev->data);
                break;
           case GB_HW_EVT_CPU_WRITE:
                ImGui::Text("PC   = %04X", ev->pc);
-               ImGui::SameLine(120); ImGui::Text("addr = %04X", ev->addr);
+               ImGui::SameLine(120);
+               ImGui::Text("addr = %04X", ev->addr);
                ImGui::Text("data = %02X", ev->data);
                break;
           case GB_HW_EVT_IRQ_REQUEST:
                ImGui::Text("IF = %02X", ev->data);
-               ImGui::SameLine(120); ImGui::Text("IE = %02X", ev->extra);
+               ImGui::SameLine(120);
+               ImGui::Text("IE = %02X", ev->extra);
                {
-                    const char *bits[] = {"VBlank","STAT","Timer","Serial","Joypad"};
+                    const char *bits[] = {"VBlank", "STAT", "Timer", "Serial", "Joypad"};
                     ImGui::Text("Pending:");
                     for (int b = 0; b < 5; b++)
-                         if (ev->data & (1<<b)) { ImGui::SameLine(); ImGui::TextColored(cv, "%s", bits[b]); }
+                         if (ev->data & (1 << b))
+                         {
+                              ImGui::SameLine();
+                              ImGui::TextColored(cv, "%s", bits[b]);
+                         }
                }
                break;
           case GB_HW_EVT_IRQ_ACK:
                ImGui::Text("vector = %04X", ev->addr);
-               ImGui::SameLine(120); ImGui::Text("IF after = %02X", ev->data);
+               ImGui::SameLine(120);
+               ImGui::Text("IF after = %02X", ev->data);
                break;
           case GB_HW_EVT_DMA_READ:
                ImGui::Text("src    = %04X", ev->addr);
-               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               ImGui::SameLine(120);
+               ImGui::Text("data = %02X", ev->data);
                break;
           case GB_HW_EVT_DMA_WRITE:
                ImGui::Text("OAM[%02X] = %02X", ev->extra, ev->data);
                break;
           case GB_HW_EVT_PPU_MODE:
                ImGui::Text("LY   = %d", ev->addr & 0xFF);
-               ImGui::SameLine(120); ImGui::Text("mode = %d", ev->data & 3);
+               ImGui::SameLine(120);
+               ImGui::Text("mode = %d", ev->data & 3);
                break;
           case GB_HW_EVT_APU_SAMPLE:
                ImGui::Text("L = %d", (int8_t)ev->data);
-               ImGui::SameLine(120); ImGui::Text("R = %d", (int8_t)ev->extra);
+               ImGui::SameLine(120);
+               ImGui::Text("R = %d", (int8_t)ev->extra);
                break;
           case GB_HW_EVT_PPU_VBLANK:
                ImGui::Text("LY = %d  (VBlank start)", ev->data);
@@ -5795,7 +7079,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                break;
           case GB_HW_EVT_OAM_DMA:
                ImGui::Text("dst  = FE%02X", ev->extra);
-               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               ImGui::SameLine(120);
+               ImGui::Text("data = %02X", ev->data);
                ImGui::Text("pos  = %d / 159", (int)ev->extra);
                break;
           case GB_HW_EVT_TIMER_OVF:
@@ -5803,15 +7088,20 @@ void draw_panel_hw_schematic(struct gb *gb)
                break;
           case GB_HW_EVT_APU_WRITE:
                ImGui::Text("reg  = %04X", ev->addr);
-               ImGui::SameLine(120); ImGui::Text("data = %02X", ev->data);
+               ImGui::SameLine(120);
+               ImGui::Text("data = %02X", ev->data);
                break;
           case GB_HW_EVT_JOYPAD:
                ImGui::Text("state = %02X  (%s)", ev->data, ev->write ? "pressed" : "released");
                {
-                    const char *btns[] = {"Right","Left","Up","Down","A","B","Select","Start"};
+                    const char *btns[] = {"Right", "Left", "Up", "Down", "A", "B", "Select", "Start"};
                     ImGui::Text("Active (low=pressed):");
                     for (int b = 0; b < 8; b++)
-                         if (!(ev->data & (1<<b))) { ImGui::SameLine(); ImGui::TextColored(cv, "%s", btns[b]); }
+                         if (!(ev->data & (1 << b)))
+                         {
+                              ImGui::SameLine();
+                              ImGui::TextColored(cv, "%s", btns[b]);
+                         }
                }
                break;
           default:
@@ -5826,11 +7116,11 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* ── Fase G: Audit panel ── */
      ImGui::Separator();
 
-     static bool         s_audit_open      = false;
-     static HwAuditResult s_audit_result   = {};
-     static uint64_t     s_audit_last_seq  = 0;
-     static bool         s_audit_dirty     = true;  /* rerun on next open */
-     static int          s_audit_selected  = -1;
+     static bool s_audit_open = false;
+     static HwAuditResult s_audit_result = {};
+     static uint64_t s_audit_last_seq = 0;
+     static bool s_audit_dirty = true; /* rerun on next open */
+     static int s_audit_selected = -1;
 
      /* Invalidate whenever new trace events arrive */
      if (tr->next_seq > s_audit_last_seq + 1)
@@ -5838,30 +7128,36 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      /* Colors per category */
      static const ImVec4 s_audit_cat_colors[] = {
-          { 1.0f, 0.4f, 0.4f, 1.0f }, /* UNMAPPED_NET  — red        */
-          { 1.0f, 0.8f, 0.2f, 1.0f }, /* NO_BUS_PROJ   — yellow     */
-          { 1.0f, 0.5f, 0.1f, 1.0f }, /* BAD_ADDR      — orange     */
-          { 0.9f, 0.2f, 0.9f, 1.0f }, /* BUS_CONFLICT  — magenta    */
-          { 0.4f, 0.8f, 1.0f, 1.0f }, /* SEQ_GAP       — cyan       */
+         {1.0f, 0.4f, 0.4f, 1.0f}, /* UNMAPPED_NET  — red        */
+         {1.0f, 0.8f, 0.2f, 1.0f}, /* NO_BUS_PROJ   — yellow     */
+         {1.0f, 0.5f, 0.1f, 1.0f}, /* BAD_ADDR      — orange     */
+         {0.9f, 0.2f, 0.9f, 1.0f}, /* BUS_CONFLICT  — magenta    */
+         {0.4f, 0.8f, 1.0f, 1.0f}, /* SEQ_GAP       — cyan       */
      };
 
      /* Header row: category badge counts + toggle */
      int total_findings = s_audit_open ? s_audit_result.count : 0;
      ImGui::TextDisabled("Audit:");
      ImGui::SameLine();
-     for (int c = 0; c < 5; c++) {
-          if (s_audit_open) {
+     for (int c = 0; c < 5; c++)
+     {
+          if (s_audit_open)
+          {
                ImGui::TextColored(s_audit_cat_colors[c], "%s:%d",
                                   HW_AUDIT_CAT_NAMES[c],
                                   s_audit_result.cat_count[c]);
-          } else {
+          }
+          else
+          {
                ImGui::TextDisabled("%s", HW_AUDIT_CAT_NAMES[c]);
           }
-          if (c < 4) ImGui::SameLine();
+          if (c < 4)
+               ImGui::SameLine();
      }
      ImGui::SameLine();
-     if (ImGui::SmallButton(s_audit_open ? "[-]" : "[Run]")) {
-          s_audit_open  = !s_audit_open;
+     if (ImGui::SmallButton(s_audit_open ? "[-]" : "[Run]"))
+     {
+          s_audit_open = !s_audit_open;
           s_audit_dirty = true;
      }
 
@@ -5872,20 +7168,22 @@ void draw_panel_hw_schematic(struct gb *gb)
      }
 
      /* Run audit when dirty */
-     if (s_audit_dirty) {
+     if (s_audit_dirty)
+     {
           uint64_t scan_from = 0; /* always full scan for correctness */
           hw_audit_trace(tr, &s_audit_result, &scan_from);
           s_audit_last_seq = tr->next_seq;
-          s_audit_dirty    = false;
+          s_audit_dirty = false;
           s_audit_selected = -1;
-          total_findings   = s_audit_result.count;
+          total_findings = s_audit_result.count;
      }
 
      ImGui::TextDisabled("Scanned %d events — %d finding(s)",
                          s_audit_result.total_events_scanned, total_findings);
 
-     if (total_findings == 0) {
-          ImGui::TextColored({0.3f,1.0f,0.4f,1.0f}, "No anomalies found.");
+     if (total_findings == 0)
+     {
+          ImGui::TextColored({0.3f, 1.0f, 0.4f, 1.0f}, "No anomalies found.");
           ImGui::EndChild();
           return;
      }
@@ -5896,9 +7194,10 @@ void draw_panel_hw_schematic(struct gb *gb)
                        ImGuiWindowFlags_HorizontalScrollbar);
      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
 
-     for (int fi = 0; fi < total_findings; fi++) {
+     for (int fi = 0; fi < total_findings; fi++)
+     {
           const HwAuditFinding *f = &s_audit_result.findings[fi];
-          int  cat = (int)f->category;
+          int cat = (int)f->category;
           ImVec4 cv = s_audit_cat_colors[cat];
 
           ImGui::TextColored(cv, "%-14s", HW_AUDIT_CAT_NAMES[cat]);
@@ -5914,7 +7213,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           bool sel = (s_audit_selected == fi);
           if (ImGui::Selectable(sel_id, sel,
                                 ImGuiSelectableFlags_SpanAllColumns |
-                                ImGuiSelectableFlags_AllowOverlap,
+                                    ImGuiSelectableFlags_AllowOverlap,
                                 ImVec2(rw, 0)))
                s_audit_selected = sel ? -1 : fi;
      }
@@ -5923,19 +7222,21 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::EndChild();
 
      /* Detail panel for selected finding */
-     if (s_audit_selected >= 0 && s_audit_selected < total_findings) {
+     if (s_audit_selected >= 0 && s_audit_selected < total_findings)
+     {
           const HwAuditFinding *f = &s_audit_result.findings[s_audit_selected];
-          int   cat = (int)f->category;
+          int cat = (int)f->category;
           ImVec4 cv = s_audit_cat_colors[cat];
 
           ImGui::PushStyleColor(ImGuiCol_ChildBg,
-                                ImVec4(cv.x*0.12f, cv.y*0.12f, cv.z*0.12f, 0.5f));
+                                ImVec4(cv.x * 0.12f, cv.y * 0.12f, cv.z * 0.12f, 0.5f));
           ImGui::BeginChild("##audit_detail", ImVec2(0, 90), true);
 
           ImGui::TextColored(cv, "%s", HW_AUDIT_CAT_NAMES[cat]);
-          ImGui::SameLine(); ImGui::TextDisabled("seq:#%llu  T:%d",
-                                                 (unsigned long long)f->seq,
-                                                 f->timestamp);
+          ImGui::SameLine();
+          ImGui::TextDisabled("seq:#%llu  T:%d",
+                              (unsigned long long)f->seq,
+                              f->timestamp);
           ImGui::Separator();
           ImGui::Text("Event type : %d", (int)f->type);
           ImGui::Text("Addr       : %04X", f->addr);

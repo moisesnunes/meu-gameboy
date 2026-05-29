@@ -79,7 +79,6 @@ static uint8_t io_read8(struct gba *gba, uint32_t addr)
           return gba_timer_read_counter(gba, 3) >> 8;
      case REG_TM0CNT_H:
           return (uint8_t)(gba->timer.ch[0].prescaler |
-                           (gba->timer.ch[0].cascade << 2) |
                            (gba->timer.ch[0].irq_en << 6) |
                            (gba->timer.ch[0].enable << 7));
      case REG_TM1CNT_H:
@@ -167,7 +166,6 @@ static uint16_t io_read16(struct gba *gba, uint32_t addr)
           return gba_timer_read_counter(gba, 3);
      case REG_TM0CNT_H:
           return (uint16_t)(gba->timer.ch[0].prescaler |
-                            (gba->timer.ch[0].cascade << 2) |
                             (gba->timer.ch[0].irq_en << 6) |
                             (gba->timer.ch[0].enable << 7));
      case REG_TM1CNT_H:

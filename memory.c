@@ -438,6 +438,7 @@ void gb_serial_sync(struct gb *gb)
      gb->serial_data = 0xff;
      gb->serial_control &= ~0x80;
      gb_irq_trigger(gb, GB_IRQ_SERIAL);
+     gb_debug_hw_trace_serial_done(gb, gb->serial_data);
      gb_sync_next(gb, GB_SYNC_SERIAL, GB_SYNC_NEVER);
 }
 
@@ -792,7 +793,7 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           else if (addr < 0xfe00u)                            sv->fade_cpu_wram = 1.0f;
           else if (addr < 0xff00u)                            sv->fade_cpu_oam  = 1.0f;
           else                                                sv->fade_cpu_io   = 1.0f;
-          gb_debug_hw_trace_cpu_read(gb, addr, 0);
+          /* trace emitido em gb_cpu_readb com o valor real após leitura */
      }
 
      gb_memory_sync_dma_before_cpu_access(gb);
@@ -1374,6 +1375,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           {
                gb_timer_sync(gb);
                gb_sync_next(gb, GB_SYNC_SERIAL, gb_serial_transfer_cycles(gb));
+               gb_debug_hw_trace_serial_start(gb, gb->serial_control);
           }
           return;
      }
@@ -1420,6 +1422,10 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           gb->irq.irq_enable = val;
           return;
      }
+
+     /* Trace APU register writes (0xFF10-0xFF26 NR regs, 0xFF30-0xFF3F wave RAM) */
+     if ((addr >= REG_NR10 && addr <= REG_NR52) || (addr >= NR3_RAM_BASE && addr < NR3_RAM_END))
+          gb_debug_hw_trace_apu_write(gb, addr, val);
 
      if (addr == REG_NR10)
      {

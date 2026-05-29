@@ -7,8 +7,9 @@
  *
  * Uso:
  *   gba_compat_test [--bios <path>] [--max-cycles N] [--ppm <path>] [--dump-state]
- *                   [--trace <path>] [--trace-limit N] [--break-pc ADDR]
- *                   [--break-after-cycles N]
+ *                   [--trace <path>] [--trace-limit N] [--trace-after-cycles N]
+ *                   [--break-pc ADDR]
+ *                   [--break-after-cycles N] [--dump-mem ADDR:LEN]
  *                   [--input KEY:DOWN_FRAME:UP_FRAME]
  *                   [--expect auto|endrift|visual] <rom.gba>
  *
@@ -357,11 +358,29 @@ static void usage(const char *argv0)
 {
     fprintf(stderr,
             "Uso: %s [--bios <path>] [--max-cycles N] [--ppm <path>]\n"
-            "        [--trace <path>] [--trace-limit N] [--break-pc ADDR]\n"
-            "        [--break-after-cycles N]\n"
+            "        [--trace <path>] [--trace-limit N] [--trace-after-cycles N]\n"
+            "        [--break-pc ADDR]\n"
+            "        [--break-after-cycles N] [--dump-state] [--dump-mem ADDR:LEN]\n"
             "        [--input KEY:DOWN_FRAME:UP_FRAME]\n"
             "        [--expect auto|endrift|visual] <rom.gba>\n",
             argv0);
+}
+
+static bool parse_dump_mem(const char *s, uint32_t *addr, uint32_t *len)
+{
+    char *end = NULL;
+    unsigned long a = strtoul(s, &end, 0);
+    if (end == s || *end != ':')
+        return false;
+
+    char *len_start = end + 1;
+    unsigned long n = strtoul(len_start, &end, 0);
+    if (end == len_start || *end != '\0' || n > 0x10000UL)
+        return false;
+
+    *addr = (uint32_t)a;
+    *len = (uint32_t)n;
+    return true;
 }
 
 static bool parse_key_name(const char *name, unsigned *key)
@@ -441,11 +460,15 @@ int main(int argc, char **argv)
     FILE        *trace_fp = NULL;
     uint64_t     max_cycles = DEFAULT_MAX_CYCLES;
     uint64_t     trace_limit = 0;
+    uint64_t     trace_after_cycles = 0;
     enum gba_expect expect  = EXPECT_AUTO;
     bool         dump_state = false;
     bool         debug_enabled = false;
     bool         breakpoints_armed = false;
     uint64_t     break_after_cycles = 0;
+    bool         dump_mem = false;
+    uint32_t     dump_mem_addr = 0;
+    uint32_t     dump_mem_len = 0;
     uint32_t     breakpoints[GBA_DEBUG_MAX_BREAKPOINTS];
     unsigned     breakpoint_count = 0;
     struct input_event input_events[MAX_INPUT_EVENTS];
@@ -466,6 +489,10 @@ int main(int argc, char **argv)
             trace_limit = strtoull(argv[++i], NULL, 10);
             debug_enabled = true;
         }
+        else if (strcmp(argv[i], "--trace-after-cycles") == 0 && i + 1 < argc) {
+            trace_after_cycles = strtoull(argv[++i], NULL, 10);
+            debug_enabled = true;
+        }
         else if (strcmp(argv[i], "--break-pc") == 0 && i + 1 < argc) {
             if (breakpoint_count >= GBA_DEBUG_MAX_BREAKPOINTS) {
                 usage(argv[0]);
@@ -480,6 +507,14 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--dump-state") == 0)
             dump_state = true;
+        else if (strcmp(argv[i], "--dump-mem") == 0 && i + 1 < argc) {
+            if (!parse_dump_mem(argv[++i], &dump_mem_addr, &dump_mem_len)) {
+                usage(argv[0]);
+                return 2;
+            }
+            dump_state = true;
+            dump_mem = true;
+        }
         else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) {
             if (input_event_count >= MAX_INPUT_EVENTS ||
                 !parse_input_event(argv[++i], &input_events[input_event_count++])) {
@@ -557,7 +592,8 @@ int main(int argc, char **argv)
     if (debug_enabled) {
         gba->debug.enabled = true;
         gba->debug.state = GBA_DEBUG_RUNNING;
-        gba->debug.trace_enabled = trace_path != NULL || trace_limit != 0;
+        gba->debug.trace_enabled =
+            trace_after_cycles == 0 && (trace_path != NULL || trace_limit != 0);
         gba->debug.trace_limit = trace_limit;
         gba->debug.trace_fp = trace_fp;
         if (break_after_cycles == 0) {
@@ -576,6 +612,9 @@ int main(int argc, char **argv)
     while (cycles < max_cycles && !gba->quit) {
         int32_t before = gba->timestamp;
         apply_input_events(gba, input_events, input_event_count, ctx->frames);
+        if (debug_enabled && !gba->debug.trace_enabled && trace_after_cycles != 0 &&
+            (uint64_t)gba->timestamp >= trace_after_cycles)
+            gba->debug.trace_enabled = trace_path != NULL || trace_limit != 0;
         if (debug_enabled && !breakpoints_armed &&
             (uint64_t)gba->timestamp >= break_after_cycles) {
             for (unsigned i = 0; i < breakpoint_count; i++)
@@ -713,6 +752,19 @@ int main(int argc, char **argv)
                     unsigned len = gba_disasm_len(gba, pc, 0);
                     pc += len ? len : 4;
                 }
+            }
+        }
+        if (dump_mem) {
+            fprintf(stderr, "MEMDUMP addr=%08x len=%u\n", dump_mem_addr, dump_mem_len);
+            for (uint32_t off = 0; off < dump_mem_len; off += 16) {
+                uint32_t chunk = dump_mem_len - off;
+                if (chunk > 16)
+                    chunk = 16;
+
+                fprintf(stderr, "  %08x:", dump_mem_addr + off);
+                for (uint32_t i = 0; i < chunk; i++)
+                    fprintf(stderr, " %02x", gba_memory_peek8(gba, dump_mem_addr + off + i));
+                fputc('\n', stderr);
             }
         }
     }
