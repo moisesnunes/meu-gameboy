@@ -186,6 +186,8 @@ static void gb_cpu_writeb(struct gb *gb, uint16_t addr, uint8_t val)
      gb->debug.cpu_viz.bus_write     = true;
      gb->debug.cpu_viz.activity_fade = 1.0f;
 
+     gb_debug_hw_trace_cpu_write(gb, addr, val);
+
      gb_cpu_clock_tick(gb, 4);
 }
 

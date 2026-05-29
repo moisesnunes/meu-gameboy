@@ -149,13 +149,17 @@ static void dma_run(struct gba *gba, int n)
                              ch->timing == GBA_DMA_NOW &&
                              (ch->src & ~1U) == REG_IF &&
                              original_count > 32;
+    bool timed_timer_sampling = !ch->word_32 &&
+                                ch->src_mode == GBA_DMA_ADDR_FIXED &&
+                                (ch->src & ~1U) == REG_TM0CNT_L &&
+                                original_count > 32;
     bool timed_affine_sampling = !ch->word_32 &&
                                  ch->timing == GBA_DMA_HBLANK &&
                                  ch->dst_mode == GBA_DMA_ADDR_FIXED &&
                                  dma_dst_is_affine_ppu_reg(ch->dst) &&
                                  original_count > 32;
     bool timed_sampling = timed_io_sampling || timed_if_sampling ||
-                          timed_affine_sampling;
+                          timed_timer_sampling || timed_affine_sampling;
 
     gba->timestamp += ch->word_32 ? 4 : 8;
 

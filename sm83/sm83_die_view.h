@@ -145,4 +145,12 @@ int sm83_node_arcs(int node_idx, int *out_arcs, int max);
  * Returns the number of arcs marked. */
 int sm83_net_flood(int start_node, uint8_t *arc_flags, uint8_t *node_flags);
 
+/* Electrical net highlight: mark all arcs whose net_id == net_id into arc_flags[],
+ * and all transistors with gate/s1/s2 == net_id into trans_flags[] (may be NULL).
+ * arc_flags must have SM83_ARC_COUNT bytes; trans_flags SM83_TRANSISTOR_COUNT bytes.
+ * Both must be zeroed by caller. Returns number of arcs marked. */
+int sm83_net_highlight_by_netid(int net_id,
+                                uint8_t *arc_flags,
+                                uint8_t *trans_flags);
+
 #endif /* SM83_DIE_VIEW_H */

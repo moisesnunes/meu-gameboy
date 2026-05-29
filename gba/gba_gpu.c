@@ -908,12 +908,12 @@ void gba_gpu_sync(struct gba *gba)
 
                if (gba->frontend.draw_line)
                     gba->frontend.draw_line(gba->frontend.data, gpu->vcount, gpu->line_buf);
-
-               if (gpu->hblank_irq_en)
-                    gba_irq_trigger(gba, GBA_IRQ_HBLANK);
-
-               gba_dma_notify_hblank(gba);
           }
+
+          gba_dma_notify_hblank(gba);
+
+          if (gpu->hblank_irq_en)
+               gba_irq_trigger(gba, GBA_IRQ_HBLANK);
 
           /* 68 dots until end-of-line */
           gba_sync_next(gba, GBA_SYNC_GPU, 68 * GBA_CYCLES_PER_DOT);

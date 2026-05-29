@@ -301,3 +301,31 @@ int sm83_net_flood(int start_node, uint8_t *arc_flags, uint8_t *node_flags)
      free(queue);
      return arc_count;
 }
+
+int sm83_net_highlight_by_netid(int net_id,
+                                uint8_t *arc_flags,
+                                uint8_t *trans_flags)
+{
+     if (net_id < 0 || net_id >= SM83_NET_COUNT)
+          return 0;
+
+     int count = 0;
+     for (int i = 0; i < SM83_ARC_COUNT; i++)
+     {
+          if (sm83_arcs[i].net_id == net_id)
+          {
+               arc_flags[i] = 1;
+               count++;
+          }
+     }
+     if (trans_flags)
+     {
+          for (int i = 0; i < SM83_TRANSISTOR_COUNT; i++)
+          {
+               const Sm83Transistor *tr = &sm83_transistors[i];
+               if (tr->gate_net == net_id || tr->s1_net == net_id || tr->s2_net == net_id)
+                    trans_flags[i] = 1;
+          }
+     }
+     return count;
+}

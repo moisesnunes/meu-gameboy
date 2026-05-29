@@ -2669,27 +2669,6 @@ static void viz_block(ImDrawList *dl, ImVec2 tl, ImVec2 br,
           dl->AddText(ImVec2(tx, ty + 16.0f), IM_COL32(180, 200, 180, 220), body);
 }
 
-static void viz_arrow(ImDrawList *dl, ImVec2 from, ImVec2 to, ImU32 col, float thickness = 2.0f)
-{
-     dl->AddLine(from, to, col, thickness);
-     /* arrow head */
-     float dx = to.x - from.x;
-     float dy = to.y - from.y;
-     float len = sqrtf(dx * dx + dy * dy);
-     if (len < 1.0f)
-          return;
-     dx /= len;
-     dy /= len;
-     float sz = 7.0f;
-     dl->AddTriangleFilled(
-         to,
-         ImVec2(to.x - sz * dx + sz * 0.5f * dy,
-                to.y - sz * dy - sz * 0.5f * dx),
-         ImVec2(to.x - sz * dx - sz * 0.5f * dy,
-                to.y - sz * dy + sz * 0.5f * dx),
-         col);
-}
-
 /* ────────────────────────────────────────────────────────── */
 /* Painel: Hardware System Diagram                             */
 /* ────────────────────────────────────────────────────────── */
@@ -2740,6 +2719,11 @@ void draw_panel_hw_viz(struct gb *gb)
 {
      float dt = ImGui::GetIO().DeltaTime;
 
+     ImVec2 win_size = ImGui::GetWindowSize();
+     if (win_size.x < 960.0f || win_size.y < 660.0f)
+          ImGui::SetWindowSize(ImVec2(win_size.x < 960.0f ? 960.0f : win_size.x,
+                                      win_size.y < 660.0f ? 660.0f : win_size.y));
+
      /* ── Decay dos fade timers ── */
      struct gb_sys_viz *sv = &gb->debug.sys_viz;
      float decay = dt * 8.0f;
@@ -2753,36 +2737,173 @@ void draw_panel_hw_viz(struct gb *gb)
      sv->fade_irq_cpu = (sv->fade_irq_cpu > decay) ? sv->fade_irq_cpu - decay : 0.0f;
      sv->fade_apu = (sv->fade_apu > decay) ? sv->fade_apu - decay : 0.0f;
 
+     auto max2 = [](float a, float b) -> float
+     { return a > b ? a : b; };
+
+     float f_cpu_bus = max2(max2(max2(sv->fade_cpu_rom, sv->fade_cpu_wram),
+                                  max2(sv->fade_cpu_vram, sv->fade_cpu_oam)),
+                            sv->fade_cpu_io);
+     float f_video = max2(max2(sv->fade_cpu_vram, sv->fade_ppu_vram),
+                          max2(sv->fade_cpu_oam, sv->fade_dma_oam));
+     float f_dma = sv->fade_dma_oam;
+     float f_irq = sv->fade_irq_cpu;
+     float f_apu = sv->fade_apu;
+
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
      ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-     if (canvas_size.x < 600.0f)
-          canvas_size.x = 600.0f;
-     if (canvas_size.y < 500.0f)
-          canvas_size.y = 500.0f;
+     if (canvas_size.x < 760.0f)
+          canvas_size.x = 760.0f;
+     if (canvas_size.y < 560.0f)
+          canvas_size.y = 560.0f;
 
      /* Invisible widget para reservar o espaço */
      ImGui::InvisibleButton("##hw_canvas", canvas_size);
      ImDrawList *dl = ImGui::GetWindowDrawList();
 
-     float ox = canvas_pos.x;
-     float oy = canvas_pos.y;
-
-     /* ── Posições dos blocos (layout fixo, escalado) ── */
-     float sx = canvas_size.x / 720.0f;
-     float sy = canvas_size.y / 520.0f;
+     const float design_w = 920.0f;
+     const float design_h = 600.0f;
+     float sx = canvas_size.x / design_w;
+     float sy = canvas_size.y / design_h;
      float sc = sx < sy ? sx : sy;
+     if (sc > 1.0f)
+          sc = 1.0f;
+
+     float ox = canvas_pos.x + (canvas_size.x - design_w * sc) * 0.5f;
+     float oy = canvas_pos.y + 4.0f;
 
      auto P = [&](float x, float y) -> ImVec2
      { return ImVec2(ox + x * sc, oy + y * sc); };
-     auto R = [&](float x, float y, float w, float h, const char *title, const char *body,
-                  ImU32 border)
+
+     auto rect = [&](float x, float y, float w, float h, ImU32 col, float rounding)
      {
-          viz_block(dl, P(x, y), P(x + w, y + h), title, body, border);
+          dl->AddRectFilled(P(x, y), P(x + w, y + h), col, rounding * sc);
      };
 
-     /* Cartridge */
-     char cart_title[32], cart_body[48];
-     snprintf(cart_title, sizeof(cart_title), "Cartridge");
+     auto outline = [&](float x, float y, float w, float h, ImU32 col, float rounding, float thick = 1.0f)
+     {
+          dl->AddRect(P(x, y), P(x + w, y + h), col, rounding * sc, 0, thick * sc);
+     };
+
+     auto text = [&](float x, float y, ImU32 col, const char *txt)
+     {
+          dl->AddText(P(x, y), col, txt);
+     };
+
+     auto draw_block = [&](float x, float y, float w, float h,
+                           const char *title, const char *body,
+                           ImU32 active_col, float fade)
+     {
+          ImU32 border = viz_col(active_col, fade);
+          ImVec2 tl = P(x, y);
+          ImVec2 br = P(x + w, y + h);
+          dl->AddRectFilled(tl, br, IM_COL32(24, 27, 34, 235), 7.0f * sc);
+          dl->AddRectFilled(tl, P(x + w, y + 22), IM_COL32(32, 36, 46, 245), 7.0f * sc,
+                            ImDrawFlags_RoundCornersTop);
+          dl->AddRect(tl, br, border, 7.0f * sc, 0, (fade > 0.05f ? 2.2f : 1.1f) * sc);
+          dl->AddText(P(x + 9, y + 5), IM_COL32(225, 230, 245, 245), title);
+          if (body && body[0])
+               dl->AddText(P(x + 9, y + 31), fade > 0.05f ? IM_COL32(230, 245, 220, 245)
+                                                           : IM_COL32(165, 176, 186, 220),
+                           body);
+          if (fade > 0.01f)
+          {
+               float pulse = fade > 1.0f ? 1.0f : fade;
+               dl->AddRectFilled(P(x + 8, y + h - 10), P(x + 8 + (w - 16) * pulse, y + h - 6),
+                                 active_col, 2.0f * sc);
+          }
+     };
+
+     auto draw_lane = [&](float x1, float y1, float x2, float y2,
+                          ImU32 active_col, float fade, const char *label)
+     {
+          ImU32 base = IM_COL32(58, 62, 74, 150);
+          ImU32 col = viz_col(active_col, fade);
+          float thick = (fade > 0.04f ? 3.2f : 1.4f) * sc;
+          dl->AddLine(P(x1, y1), P(x2, y2), base, 1.0f * sc);
+          dl->AddLine(P(x1, y1), P(x2, y2), col, thick);
+          if (label && label[0])
+          {
+               float mx = (x1 + x2) * 0.5f;
+               float my = (y1 + y2) * 0.5f;
+               dl->AddRectFilled(P(mx - 34, my - 9), P(mx + 34, my + 10), IM_COL32(18, 20, 26, 230), 4.0f * sc);
+               ImVec2 ts = ImGui::CalcTextSize(label);
+               dl->AddText(P(mx - ts.x * 0.5f / sc, my - 7), fade > 0.04f ? col : IM_COL32(135, 142, 154, 210), label);
+          }
+     };
+
+     auto draw_chip = [&](float x, float y, const char *label, bool active, ImU32 col)
+     {
+          ImVec2 ts = ImGui::CalcTextSize(label);
+          float w = ts.x / sc + 18.0f;
+          dl->AddRectFilled(P(x, y), P(x + w, y + 21), active ? col : IM_COL32(39, 42, 50, 225), 10.0f * sc);
+          dl->AddText(P(x + 9, y + 3), active ? IM_COL32(14, 16, 20, 255) : IM_COL32(145, 151, 164, 235), label);
+          return w;
+     };
+
+     auto event_name = [](gb_hw_trace_event_type type) -> const char *
+     {
+          switch (type)
+          {
+          case GB_HW_EVT_CPU_FETCH: return "FETCH";
+          case GB_HW_EVT_CPU_READ: return "READ";
+          case GB_HW_EVT_CPU_WRITE: return "WRITE";
+          case GB_HW_EVT_IRQ_REQUEST: return "IRQ_REQ";
+          case GB_HW_EVT_IRQ_ACK: return "IRQ_ACK";
+          case GB_HW_EVT_CPU_ALU: return "ALU";
+          case GB_HW_EVT_CPU_WRITEBACK: return "WBACK";
+          case GB_HW_EVT_DMA_READ: return "DMA_RD";
+          case GB_HW_EVT_DMA_WRITE: return "DMA_WR";
+          case GB_HW_EVT_PPU_MODE: return "PPU_MODE";
+          case GB_HW_EVT_APU_SAMPLE: return "APU_SMP";
+          case GB_HW_EVT_PPU_VBLANK: return "VBLANK";
+          case GB_HW_EVT_PPU_HBLANK: return "HBLANK";
+          case GB_HW_EVT_OAM_DMA: return "OAM_DMA";
+          case GB_HW_EVT_TIMER_OVF: return "TMR_OVF";
+          case GB_HW_EVT_APU_WRITE: return "APU_WR";
+          case GB_HW_EVT_JOYPAD: return "JOYPAD";
+          case GB_HW_EVT_SERIAL_START: return "SER_START";
+          case GB_HW_EVT_SERIAL_DONE: return "SER_DONE";
+          case GB_HW_EVT_MBC_SWITCH: return "MBC_SW";
+          default: return "EVENT";
+          }
+     };
+
+     /* Backdrop */
+     rect(0, 0, design_w, design_h, IM_COL32(14, 16, 22, 245), 9.0f);
+     outline(0, 0, design_w, design_h, IM_COL32(70, 78, 96, 180), 9.0f);
+     rect(12, 12, design_w - 24, 56, IM_COL32(20, 23, 31, 245), 7.0f);
+
+     text(28, 25, IM_COL32(230, 235, 248, 255), "Game Boy hardware bus view");
+     char headline[160];
+     snprintf(headline, sizeof(headline),
+              "%s  %s  PC:%04X  SP:%04X  IF:%02X IE:%02X  bus:%04X/%02X",
+              gb->gbc ? "CGB" : "DMG",
+              gb->double_speed ? "2x" : "1x",
+              gb->cpu.pc, gb->cpu.sp,
+              gb->irq.irq_flags, gb->irq.irq_enable,
+              sv->last_bus_addr, sv->last_bus_data);
+     text(28, 45, IM_COL32(145, 155, 172, 235), headline);
+
+     float chip_x = 610.0f;
+     chip_x += draw_chip(chip_x, 28, gb->cpu.halted ? "HALT" : "RUN", !gb->cpu.halted, IM_COL32(100, 220, 120, 255)) + 8.0f;
+     chip_x += draw_chip(chip_x, 28, gb->cpu.irq_enable ? "IME" : "DI", gb->cpu.irq_enable, IM_COL32(130, 200, 255, 255)) + 8.0f;
+     chip_x += draw_chip(chip_x, 28, gb->bootrom_mapped ? "BOOT" : "CART", gb->bootrom_mapped, IM_COL32(255, 220, 80, 255)) + 8.0f;
+     draw_chip(chip_x, 28, gb->debug.hw_trace.enabled ? "TRACE" : "TRACE OFF",
+               gb->debug.hw_trace.enabled, IM_COL32(255, 160, 80, 255));
+
+     /* Main rails */
+     rect(70, 174, 780, 46, IM_COL32(24, 28, 38, 235), 7.0f);
+     outline(70, 174, 780, 46, viz_col(IM_COL32(255, 220, 80, 255), f_cpu_bus), 7.0f, f_cpu_bus > 0.05f ? 2.0f : 1.0f);
+     text(86, 188, f_cpu_bus > 0.05f ? IM_COL32(255, 230, 120, 255) : IM_COL32(150, 155, 168, 225),
+          "CPU address/data bus");
+
+     rect(70, 328, 780, 38, IM_COL32(21, 25, 34, 230), 7.0f);
+     outline(70, 328, 780, 38, viz_col(IM_COL32(80, 190, 255, 255), f_video), 7.0f, f_video > 0.05f ? 2.0f : 1.0f);
+     text(86, 339, f_video > 0.05f ? IM_COL32(120, 215, 255, 255) : IM_COL32(140, 150, 166, 220),
+          "video memory path");
+
+     /* Blocks */
+     char cart_body[80];
      if (gb->cart.rom)
           snprintf(cart_body, sizeof(cart_body), "%s  ROM:%u  RAM:%u",
                    cart_model_str(gb->cart.model),
@@ -2790,55 +2911,42 @@ void draw_panel_hw_viz(struct gb *gb)
                    gb->cart.cur_ram_bank);
      else
           snprintf(cart_body, sizeof(cart_body), "(sem ROM)");
-     ImU32 cart_border = viz_col(IM_COL32(255, 220, 60, 255), sv->fade_cpu_rom);
-     R(10, 20, 140, 52, cart_title, cart_body, cart_border);
+     draw_block(28, 94, 168, 66, "Cartridge / MBC", cart_body, IM_COL32(255, 220, 60, 255), sv->fade_cpu_rom);
 
-     /* CPU */
      char cpu_body[96];
-     snprintf(cpu_body, sizeof(cpu_body),
-              "PC:%04X  SP:%04X  IME:%s\n"
-              "A:%02X  BC:%02X%02X  DE:%02X%02X  HL:%02X%02X",
-              gb->cpu.pc, gb->cpu.sp,
-              gb->cpu.irq_enable ? "ON" : "OFF",
-              gb->cpu.a,
-              gb->cpu.b, gb->cpu.c,
-              gb->cpu.d, gb->cpu.e,
-              gb->cpu.h, gb->cpu.l);
-     ImU32 cpu_border = IM_COL32(80, 180, 255, 220);
-     viz_block(dl, P(190, 10), P(540, 82), "CPU  LR35902", cpu_body, cpu_border);
+     snprintf(cpu_body, sizeof(cpu_body), "A:%02X BC:%02X%02X DE:%02X%02X HL:%02X%02X",
+              gb->cpu.a, gb->cpu.b, gb->cpu.c, gb->cpu.d, gb->cpu.e, gb->cpu.h, gb->cpu.l);
+     draw_block(278, 86, 364, 82, "CPU LR35902", cpu_body, IM_COL32(90, 180, 255, 255), max2(f_cpu_bus, f_irq));
 
-     /* IRQ */
      char irq_body[32];
      snprintf(irq_body, sizeof(irq_body), "IF:%02X  IE:%02X",
               gb->irq.irq_flags, gb->irq.irq_enable);
-     ImU32 irq_border = viz_col(IM_COL32(180, 100, 255, 255), sv->fade_irq_cpu);
-     R(560, 10, 150, 52, "IRQ Controller", irq_body, irq_border);
+     draw_block(710, 94, 170, 66, "IRQ Controller", irq_body, IM_COL32(190, 105, 255, 255), f_irq);
 
-     /* WRAM */
      char wram_body[24];
      snprintf(wram_body, sizeof(wram_body), "%s  bk:%u",
               gb->gbc ? "32 KiB" : "8 KiB", gb->iram_high_bank);
-     ImU32 wram_border = viz_col(IM_COL32(60, 200, 120, 255), sv->fade_cpu_wram);
-     R(10, 120, 130, 52, "WRAM", wram_body, wram_border);
+     draw_block(28, 238, 164, 64, "WRAM", wram_body, IM_COL32(70, 215, 130, 255), sv->fade_cpu_wram);
 
-     /* VRAM */
      char vram_body[24];
      snprintf(vram_body, sizeof(vram_body), "%s  bk:%u",
               gb->gbc ? "16 KiB" : "8 KiB", gb->vram_high_bank ? 1 : 0);
-     ImU32 vram_border = viz_col(IM_COL32(60, 160, 255, 255),
-                                 sv->fade_cpu_vram > sv->fade_ppu_vram
-                                     ? sv->fade_cpu_vram
-                                     : sv->fade_ppu_vram);
-     R(200, 120, 130, 52, "VRAM", vram_body, vram_border);
+     draw_block(244, 238, 164, 64, "VRAM", vram_body, IM_COL32(70, 170, 255, 255), max2(sv->fade_cpu_vram, sv->fade_ppu_vram));
 
-     /* IO Regs */
-     ImU32 io_border = viz_col(IM_COL32(255, 160, 60, 255), sv->fade_cpu_io);
-     R(380, 120, 130, 52, "IO Regs", "$FF00-$FF7F", io_border);
+     char timer_body[48];
+     snprintf(timer_body, sizeof(timer_body), "DIV:%04X TIMA:%02X %s",
+              gb->timer.divider_counter, gb->timer.counter,
+              gb->timer.started ? "ON" : "OFF");
+     draw_block(462, 238, 164, 64, "Timer", timer_body, IM_COL32(255, 220, 70, 255),
+                gb->timer.reload_pending ? 1.0f : sv->fade_cpu_io * 0.55f);
 
-     /* PPU/GPU */
+     char io_body[48];
+     snprintf(io_body, sizeof(io_body), "IO $FF00-$FF7F  SB:%02X", gb->serial_data);
+     draw_block(680, 238, 200, 64, "IO / Serial / Joypad", io_body, IM_COL32(255, 165, 70, 255), sv->fade_cpu_io);
+
      char ppu_body[48];
      uint8_t ppu_mode = gb_gpu_get_mode(gb);
-     snprintf(ppu_body, sizeof(ppu_body), "Mode:%s  LY:%3d\nLCDC:%02X  STAT:%02X",
+     snprintf(ppu_body, sizeof(ppu_body), "%s LY:%3d LCDC:%02X STAT:%02X",
               gpu_mode_str(ppu_mode), gb->gpu.ly,
               gb_gpu_get_lcdc(gb), gb_gpu_get_lcd_stat(gb));
      ImU32 ppu_mode_colors[4] = {
@@ -2847,167 +2955,137 @@ void draw_panel_hw_viz(struct gb *gb)
          IM_COL32(60, 180, 255, 255),  /* 2 OAM Scan */
          IM_COL32(255, 100, 100, 255), /* 3 Drawing */
      };
-     ImU32 ppu_border = gb->gpu.master_enable
-                            ? ppu_mode_colors[ppu_mode & 3]
-                            : IM_COL32(80, 80, 80, 200);
-     R(200, 240, 160, 68, "PPU / GPU", ppu_body, ppu_border);
+     draw_block(308, 390, 304, 72, "PPU / LCD controller", ppu_body,
+                gb->gpu.master_enable ? ppu_mode_colors[ppu_mode & 3] : IM_COL32(95, 95, 105, 220),
+                gb->gpu.master_enable ? max2(sv->fade_ppu_vram, 0.25f) : 0.0f);
 
-     /* OAM */
      char oam_body[24];
      snprintf(oam_body, sizeof(oam_body), "40 sprites  OBJ:%s",
               gb->gpu.sprite_enable ? "ON" : "OFF");
-     ImU32 oam_border = viz_col(IM_COL32(255, 140, 200, 255),
-                                sv->fade_cpu_oam > sv->fade_dma_oam
-                                    ? sv->fade_cpu_oam
-                                    : sv->fade_dma_oam);
-     R(10, 240, 140, 52, "OAM", oam_body, oam_border);
+     draw_block(28, 390, 164, 64, "OAM", oam_body, IM_COL32(255, 140, 205, 255), max2(sv->fade_cpu_oam, sv->fade_dma_oam));
 
-     /* DMA Engine */
      char dma_body[32];
      if (gb->dma.running)
           snprintf(dma_body, sizeof(dma_body), "pos:%u  src:%04X",
                    gb->dma.position, gb->dma.source);
      else
           snprintf(dma_body, sizeof(dma_body), "idle");
-     ImU32 dma_border = viz_col(IM_COL32(255, 140, 200, 255), sv->fade_dma_oam);
-     R(10, 350, 130, 52, "DMA Engine", dma_body, dma_border);
+     draw_block(28, 480, 164, 64, "DMA Engine", dma_body, IM_COL32(255, 150, 210, 255), f_dma);
 
-     /* APU */
      char apu_body[40];
-     snprintf(apu_body, sizeof(apu_body), "CH1:%s CH2:%s CH3:%s CH4:%s",
-              gb->spu.nr1.running ? "\xe2\x96\xa0" : "\xe2\x96\xa1",
-              gb->spu.nr2.running ? "\xe2\x96\xa0" : "\xe2\x96\xa1",
-              gb->spu.nr3.running ? "\xe2\x96\xa0" : "\xe2\x96\xa1",
-              gb->spu.nr4.running ? "\xe2\x96\xa0" : "\xe2\x96\xa1");
-     ImU32 apu_border = viz_col(IM_COL32(255, 200, 100, 255), sv->fade_apu);
-     R(420, 240, 150, 52, "APU", apu_body, apu_border);
+     snprintf(apu_body, sizeof(apu_body), "CH:%c%c%c%c  %s",
+              gb->spu.nr1.running ? '1' : '-',
+              gb->spu.nr2.running ? '2' : '-',
+              gb->spu.nr3.running ? '3' : '-',
+              gb->spu.nr4.running ? '4' : '-',
+              gb->spu.enable ? "ON" : "OFF");
+     draw_block(680, 390, 200, 64, "APU", apu_body, IM_COL32(255, 200, 100, 255), f_apu);
 
-     /* LCD */
      char lcd_body[24];
-     snprintf(lcd_body, sizeof(lcd_body), "160x144  %s",
-              gb->gpu.master_enable ? "ON" : "OFF");
-     R(200, 370, 160, 52, "LCD", lcd_body, IM_COL32(120, 200, 120, 200));
+     snprintf(lcd_body, sizeof(lcd_body), "160x144 %s", gb->gpu.master_enable ? "ON" : "OFF");
+     draw_block(308, 492, 304, 54, "LCD output", lcd_body, IM_COL32(120, 230, 130, 255),
+                gb->gpu.master_enable ? 0.35f : 0.0f);
 
-     /* ── Linhas de barramento ── */
+     /* Lanes on top of the rails. */
+     draw_lane(196, 127, 278, 127, IM_COL32(255, 220, 60, 255), sv->fade_cpu_rom, "ROM");
+     draw_lane(642, 127, 710, 127, IM_COL32(190, 105, 255, 255), f_irq, "IRQ");
+     draw_lane(110, 220, 110, 238, IM_COL32(70, 215, 130, 255), sv->fade_cpu_wram, "WRAM");
+     draw_lane(326, 220, 326, 238, IM_COL32(70, 170, 255, 255), sv->fade_cpu_vram, "VRAM");
+     draw_lane(544, 220, 544, 238, IM_COL32(255, 220, 70, 255), sv->fade_cpu_io, "TIMER");
+     draw_lane(780, 220, 780, 238, IM_COL32(255, 165, 70, 255), sv->fade_cpu_io, "IO");
+     draw_lane(326, 302, 326, 328, IM_COL32(70, 170, 255, 255), sv->fade_ppu_vram, "PPU");
+     draw_lane(110, 366, 110, 390, IM_COL32(255, 140, 205, 255), max2(sv->fade_cpu_oam, sv->fade_dma_oam), "OAM");
+     draw_lane(110, 480, 110, 454, IM_COL32(255, 150, 210, 255), f_dma, "DMA");
+     draw_lane(530, 366, 530, 390, IM_COL32(80, 190, 255, 255), sv->fade_ppu_vram, "PIX");
+     draw_lane(780, 302, 780, 390, IM_COL32(255, 200, 100, 255), max2(f_apu, sv->fade_cpu_io), "APU");
+     draw_lane(460, 462, 460, 492, IM_COL32(120, 230, 130, 255), gb->gpu.master_enable ? 0.45f : 0.0f, "LCD");
 
-     /* Cartridge ↔ CPU (address+data bus) */
+     /* PPU scanline progress bar */
      {
-          ImU32 c = viz_col(IM_COL32(255, 220, 60, 255), sv->fade_cpu_rom);
-          ImVec2 cart_r = P(150, 46);
-          ImVec2 cpu_l = P(190, 46);
-          dl->AddLine(cart_r, cpu_l, c, 2.5f);
-     }
-
-     /* CPU ↓ WRAM */
-     {
-          ImU32 c = viz_col(IM_COL32(60, 200, 120, 255), sv->fade_cpu_wram);
-          viz_arrow(dl, P(250, 82), P(75, 120), c);
-     }
-
-     /* CPU ↓ VRAM */
-     {
-          ImU32 c = viz_col(IM_COL32(60, 160, 255, 255), sv->fade_cpu_vram);
-          viz_arrow(dl, P(310, 82), P(265, 120), c);
-     }
-
-     /* CPU ↓ IO */
-     {
-          ImU32 c = viz_col(IM_COL32(255, 160, 60, 255), sv->fade_cpu_io);
-          viz_arrow(dl, P(400, 82), P(445, 120), c);
-     }
-
-     /* CPU → IRQ */
-     {
-          ImU32 c = viz_col(IM_COL32(180, 100, 255, 255), sv->fade_irq_cpu);
-          dl->AddLine(P(540, 46), P(560, 46), c, 2.5f);
-     }
-
-     /* VRAM ↓ PPU */
-     {
-          ImU32 c = viz_col(IM_COL32(60, 160, 255, 255), sv->fade_ppu_vram);
-          viz_arrow(dl, P(265, 172), P(265, 240), c);
-     }
-
-     /* PPU ↓ LCD */
-     {
-          ImU32 c = gb->gpu.master_enable
-                        ? IM_COL32(120, 240, 120, 220)
-                        : IM_COL32(80, 80, 80, 150);
-          viz_arrow(dl, P(280, 308), P(280, 370), c);
-     }
-
-     /* OAM ↔ PPU */
-     {
-          ImU32 c = viz_col(IM_COL32(255, 140, 200, 255),
-                            sv->fade_cpu_oam > sv->fade_dma_oam
-                                ? sv->fade_cpu_oam
-                                : sv->fade_dma_oam);
-          dl->AddLine(P(150, 266), P(200, 266), c, 2.5f);
-     }
-
-     /* DMA → OAM */
-     {
-          ImU32 c = viz_col(IM_COL32(255, 140, 200, 255), sv->fade_dma_oam);
-          viz_arrow(dl, P(75, 350), P(75, 292), c);
-     }
-
-     /* IO Regs → APU (APU é controlado via registradores de IO $FF10-$FF3F) */
-     {
-          ImU32 c = viz_col(IM_COL32(255, 200, 100, 255), sv->fade_cpu_io);
-          /* IO Regs bottom → APU top */
-          ImVec2 io_b = P(445, 172);
-          ImVec2 apu_t = P(495, 240);
-          dl->AddLine(io_b, ImVec2(io_b.x, apu_t.y - 10.0f * sc), c, 2.0f);
-          viz_arrow(dl, ImVec2(io_b.x, apu_t.y - 10.0f * sc), apu_t, c);
-     }
-
-     /* ── PPU scanline progress bar ── */
-     {
-          float bar_x = ox + 200.0f * sc;
-          float bar_y = oy + 460.0f * sc;
-          float bar_w = 160.0f * sc;
-          float bar_h = 14.0f * sc;
+          float bar_x = ox + 326.0f * sc;
+          float bar_y = oy + 448.0f * sc;
+          float bar_w = 268.0f * sc;
+          float bar_h = 8.0f * sc;
           dl->AddRectFilled(ImVec2(bar_x, bar_y), ImVec2(bar_x + bar_w, bar_y + bar_h),
-                            IM_COL32(30, 30, 40, 220), 3.0f);
+                            IM_COL32(34, 36, 44, 230), 4.0f * sc);
           /* 154 total scanlines: 0-143 visible, 144-153 VBlank */
           float pct = gb->gpu.ly / 154.0f;
           ImU32 bar_col = gb->gpu.ly < 144
-                              ? ppu_mode_colors[ppu_mode & 3]
-                              : IM_COL32(255, 200, 60, 200);
+	                              ? ppu_mode_colors[ppu_mode & 3]
+	                              : IM_COL32(255, 200, 60, 200);
           dl->AddRectFilled(ImVec2(bar_x, bar_y),
-                            ImVec2(bar_x + bar_w * pct, bar_y + bar_h),
-                            bar_col, 3.0f);
+	                            ImVec2(bar_x + bar_w * pct, bar_y + bar_h),
+	                            bar_col, 4.0f * sc);
           char bar_label[32];
           snprintf(bar_label, sizeof(bar_label), "LY %3d / 154", gb->gpu.ly);
-          dl->AddText(ImVec2(bar_x + 4.0f, bar_y + 1.0f),
-                      IM_COL32(220, 220, 220, 255), bar_label);
+          dl->AddText(ImVec2(bar_x + 4.0f, bar_y - 16.0f * sc),
+	                      IM_COL32(220, 220, 220, 255), bar_label);
      }
 
-     /* ── Legend ── */
+     /* Activity meters */
      {
-          float lx = ox + 560.0f * sc;
-          float ly = oy + 120.0f * sc;
-          float lh = 18.0f * sc;
           struct
           {
-               ImU32 col;
+               const char *name;
+               float fade;
                const char *label;
+               ImU32 col;
           } entries[] = {
-              {IM_COL32(255, 220, 60, 255), "ROM/bus"},
-              {IM_COL32(60, 200, 120, 255), "WRAM"},
-              {IM_COL32(60, 160, 255, 255), "VRAM"},
-              {IM_COL32(255, 160, 60, 255), "IO"},
-              {IM_COL32(255, 140, 200, 255), "OAM/DMA"},
-              {IM_COL32(180, 100, 255, 255), "IRQ"},
+              {"ROM", sv->fade_cpu_rom, "$0000-7FFF/$A000", IM_COL32(255, 220, 60, 255)},
+              {"WRAM", sv->fade_cpu_wram, "$C000-DFFF", IM_COL32(70, 215, 130, 255)},
+              {"VRAM", max2(sv->fade_cpu_vram, sv->fade_ppu_vram), "$8000-9FFF", IM_COL32(70, 170, 255, 255)},
+              {"OAM", max2(sv->fade_cpu_oam, sv->fade_dma_oam), "$FE00-FE9F", IM_COL32(255, 140, 205, 255)},
+              {"IO", sv->fade_cpu_io, "$FF00-FF7F", IM_COL32(255, 165, 70, 255)},
+              {"IRQ", f_irq, "IF/IE", IM_COL32(190, 105, 255, 255)},
+              {"APU", f_apu, "$FF10-FF3F", IM_COL32(255, 200, 100, 255)},
           };
-          dl->AddText(ImVec2(lx, ly - lh), IM_COL32(160, 160, 160, 200), "Bus activity:");
-          for (int i = 0; i < 6; ++i)
+          rect(626, 476, 254, 70, IM_COL32(19, 22, 30, 235), 7.0f);
+          outline(626, 476, 254, 70, IM_COL32(70, 78, 96, 160), 7.0f);
+          text(640, 488, IM_COL32(178, 186, 202, 235), "Activity");
+          for (int i = 0; i < 7; ++i)
           {
-               dl->AddRectFilled(ImVec2(lx, ly + i * lh + 2.0f),
-                                 ImVec2(lx + 12.0f, ly + i * lh + 12.0f),
-                                 entries[i].col, 2.0f);
-               dl->AddText(ImVec2(lx + 16.0f, ly + i * lh),
-                           IM_COL32(200, 200, 200, 220), entries[i].label);
+               float x = 640.0f + (i % 4) * 58.0f;
+               float y = 512.0f + (i / 4) * 17.0f;
+               float t = entries[i].fade > 1.0f ? 1.0f : entries[i].fade;
+               dl->AddRectFilled(P(x, y), P(x + 46, y + 7), IM_COL32(40, 43, 52, 220), 3.0f * sc);
+               dl->AddRectFilled(P(x, y), P(x + 46 * t, y + 7), entries[i].col, 3.0f * sc);
+               dl->AddText(P(x, y - 11), IM_COL32(145, 151, 164, 220), entries[i].name);
+          }
+     }
+
+     /* Recent HW trace strip */
+     {
+          struct gb_hw_trace *tr = &gb->debug.hw_trace;
+          rect(28, 560, 852, 26, IM_COL32(18, 20, 27, 235), 6.0f);
+          if (!tr->enabled)
+          {
+               text(42, 566, IM_COL32(135, 142, 154, 220), "HW Trace disabled");
+          }
+          else if (tr->count == 0)
+          {
+               text(42, 566, IM_COL32(135, 142, 154, 220), "HW Trace enabled, waiting for events");
+          }
+          else
+          {
+               char trace_label[48];
+               snprintf(trace_label, sizeof(trace_label), "Trace %u", tr->count);
+               text(42, 566, IM_COL32(165, 174, 190, 235), trace_label);
+               float x = 116.0f;
+               uint32_t total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+               if (total > 9)
+                    total = 9;
+               for (uint32_t i = 0; i < total; i++)
+               {
+                    uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - i) & (GB_HW_TRACE_CAP - 1);
+                    const gb_hw_trace_event *ev = &tr->events[idx];
+                    const char *name = event_name(ev->type);
+                    ImVec2 ts = ImGui::CalcTextSize(name);
+                    float w = ts.x / sc + 18.0f;
+                    ImU32 col = ev->write ? IM_COL32(255, 130, 70, 230) : IM_COL32(100, 185, 255, 230);
+                    dl->AddRectFilled(P(x, 563), P(x + w, 582), col, 9.0f * sc);
+                    dl->AddText(P(x + 9, 566), IM_COL32(14, 16, 20, 255), name);
+                    x += w + 7.0f;
+               }
           }
      }
 }
@@ -3566,12 +3644,13 @@ static void rebuild_inspect_neighbours(int tr_idx)
      }
 }
 
-/* Connected-arc highlight: list of arc indices to draw highlighted */
-/* Flat boolean lookup arrays for net highlight (arc and node).
+/* Flat boolean lookup arrays for net highlight (arc, node, transistor).
  * Allocated once, never freed; zeroed on each rebuild. */
-static uint8_t *s_arc_highlight_flags = nullptr;
-static uint8_t *s_node_highlight_flags = nullptr;
+static uint8_t *s_arc_highlight_flags   = nullptr;
+static uint8_t *s_node_highlight_flags  = nullptr;
+static uint8_t *s_trans_highlight_flags = nullptr;
 static int s_highlight_flags_cap = 0; /* tracks SM83_ARC_COUNT at alloc time */
+static int s_highlight_net_id    = -1; /* net_id currently highlighted, -1 = none */
 
 static void rebuild_highlight(void)
 {
@@ -3579,20 +3658,55 @@ static void rebuild_highlight(void)
      {
           delete[] s_arc_highlight_flags;
           delete[] s_node_highlight_flags;
-          s_arc_highlight_flags = new uint8_t[SM83_ARC_COUNT]();
-          s_node_highlight_flags = new uint8_t[SM83_NODE_COUNT]();
-          s_highlight_flags_cap = SM83_ARC_COUNT;
+          delete[] s_trans_highlight_flags;
+          s_arc_highlight_flags   = new uint8_t[SM83_ARC_COUNT]();
+          s_node_highlight_flags  = new uint8_t[SM83_NODE_COUNT]();
+          s_trans_highlight_flags = new uint8_t[SM83_TRANSISTOR_COUNT]();
+          s_highlight_flags_cap   = SM83_ARC_COUNT;
      }
      else
      {
-          memset(s_arc_highlight_flags, 0, SM83_ARC_COUNT);
-          memset(s_node_highlight_flags, 0, SM83_NODE_COUNT);
+          memset(s_arc_highlight_flags,   0, SM83_ARC_COUNT);
+          memset(s_node_highlight_flags,  0, SM83_NODE_COUNT);
+          memset(s_trans_highlight_flags, 0, SM83_TRANSISTOR_COUNT);
      }
+     s_highlight_net_id = -1;
 
-     if (s_die_sel.type != SM83_SEL_NODE || s_die_sel.index < 0)
+     if (s_die_sel.index < 0 || s_die_sel.type == SM83_SEL_NONE)
           return;
 
-     sm83_net_flood(s_die_sel.index, s_arc_highlight_flags, s_node_highlight_flags);
+     /* Resolve the net_id for the selected element */
+     int net_id = -1;
+     if (s_die_sel.type == SM83_SEL_TRANSISTOR)
+     {
+          /* For a transistor, highlight whichever terminal the user last hovered,
+           * defaulting to gate. All three nets are shown via s_trans_highlight_flags
+           * already; use gate for the arc highlight. */
+          const Sm83Transistor *tr = &sm83_transistors[s_die_sel.index];
+          net_id = tr->gate_net >= 0 ? tr->gate_net :
+                   tr->s1_net  >= 0 ? tr->s1_net  : tr->s2_net;
+     }
+     else if (s_die_sel.type == SM83_SEL_NODE)
+     {
+          /* Check if the selected node's first arc has a net_id */
+          int arc_buf[16];
+          int n = sm83_node_arcs(s_die_sel.index, arc_buf, 16);
+          for (int i = 0; i < n && net_id < 0; i++)
+               if (sm83_arcs[arc_buf[i]].net_id >= 0)
+                    net_id = sm83_arcs[arc_buf[i]].net_id;
+     }
+
+     if (net_id >= 0)
+     {
+          /* Electrical highlight: mark every arc and transistor on this net */
+          sm83_net_highlight_by_netid(net_id, s_arc_highlight_flags, s_trans_highlight_flags);
+          s_highlight_net_id = net_id;
+     }
+     else if (s_die_sel.type == SM83_SEL_NODE)
+     {
+          /* Fallback: geometric BFS for nodes whose arcs have no net_id */
+          sm83_net_flood(s_die_sel.index, s_arc_highlight_flags, s_node_highlight_flags);
+     }
 }
 
 void draw_panel_transistor_viz(struct gb *gb)
@@ -4073,11 +4187,19 @@ void draw_panel_transistor_viz(struct gb *gb)
 
                bool is_sel = (s_die_sel.type == SM83_SEL_TRANSISTOR && s_die_sel.index == i);
 
+               bool is_net_hi = s_trans_highlight_flags && s_trans_highlight_flags[i] && !is_sel;
+
                ImU32 col;
                float r = trans_r;
                if (is_sel)
                {
                     col = IM_COL32(255, 255, 80, 255);
+               }
+               else if (is_net_hi)
+               {
+                    /* electrically connected to selected net — cyan ring */
+                    col = is_nmos ? IM_COL32(80, 220, 255, 220) : IM_COL32(255, 160, 80, 220);
+                    r *= 1.15f;
                }
                else if (sim_active)
                {
@@ -4109,6 +4231,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                dl->AddCircleFilled(ImVec2(sx, sy), r, col);
                if (is_sel)
                     dl->AddCircle(ImVec2(sx, sy), r + 2.0f, IM_COL32(255, 255, 255, 200), 0, 1.5f);
+               else if (is_net_hi)
+                    dl->AddCircle(ImVec2(sx, sy), r + 1.5f, IM_COL32(255, 255, 255, 120), 0, 1.0f);
                s_drawn_trans++;
           }
      }
@@ -4969,6 +5093,10 @@ void draw_panel_transistor_viz(struct gb *gb)
                                   "arcs:%d  trans:%d  %.0f fps  |  sim: DIVERGED (64 iters)%s  nets:%d",
                                   s_drawn_arcs, s_drawn_trans, fps, rail_tag, SM83_NET_COUNT);
      }
+     else if (s_highlight_net_id >= 0 && s_highlight_net_id < SM83_NET_COUNT)
+          ImGui::TextDisabled("arcs:%d  trans:%d  %.0f fps  |  net #%d: %s",
+                              s_drawn_arcs, s_drawn_trans, fps,
+                              s_highlight_net_id, sm83_nets[s_highlight_net_id]);
      else
           ImGui::TextDisabled("arcs:%d  trans:%d  %.0f fps", s_drawn_arcs, s_drawn_trans, fps);
      ImGui::SameLine(0, 16);
