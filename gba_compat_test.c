@@ -108,7 +108,12 @@ static void reset_volatile_backup(struct gba *gba)
     memset(cart->sram, 0xFF, sizeof(cart->sram));
     memset(cart->flash, 0xFF, sizeof(cart->flash));
     memset(&cart->flash_state, 0, sizeof(cart->flash_state));
-    memset(&cart->eeprom, 0xFF, sizeof(cart->eeprom));
+    memset(cart->eeprom.data, 0xFF, sizeof(cart->eeprom.data));
+    cart->eeprom.command = 0;
+    cart->eeprom.read_bits_remaining = 0;
+    cart->eeprom.read_address = 0;
+    cart->eeprom.write_address = 0;
+    cart->eeprom.settling_until = 0;
     cart->flash_state.manufacturer = 0x32;
     cart->flash_state.device = 0x1B;
     cart->dirty = false;

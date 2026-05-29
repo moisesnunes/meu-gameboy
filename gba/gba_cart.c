@@ -47,6 +47,22 @@ static bool detect_rtc(const uint8_t *rom, uint32_t size)
      return false;
 }
 
+static void eeprom_reset(struct gba_cart *cart)
+{
+     memset(cart->eeprom.data, 0xFF, sizeof(cart->eeprom.data));
+     cart->eeprom.command = 0;
+     cart->eeprom.read_bits_remaining = 0;
+     cart->eeprom.read_address = 0;
+     cart->eeprom.write_address = 0;
+     cart->eeprom.settling_until = 0;
+}
+
+static void eeprom_ensure_size(struct gba_cart *cart, uint32_t byte_addr)
+{
+     if (byte_addr >= 512 && cart->backup_type == GBA_BACKUP_EEPROM_512)
+          cart->backup_type = GBA_BACKUP_EEPROM_8K;
+}
+
 /* -------------------------------------------------------------------------
  * RTC helpers
  * ---------------------------------------------------------------------- */
@@ -256,7 +272,7 @@ bool gba_cart_load(struct gba *gba, const char *path)
      memset(cart->sram, 0xFF, sizeof(cart->sram));
      memset(cart->flash, 0xFF, sizeof(cart->flash));
      memset(&cart->flash_state, 0, sizeof(cart->flash_state));
-     memset(&cart->eeprom, 0xFF, sizeof(cart->eeprom));
+     eeprom_reset(cart);
      memset(&cart->rtc, 0, sizeof(cart->rtc));
 
      /* Flash device ID: Panasonic 512KB */
@@ -357,6 +373,105 @@ void gba_cart_sync(struct gba *gba)
 {
      gba_cart_save(gba);
      gba_sync_next(gba, GBA_SYNC_CART, GBA_SYNC_NEVER);
+}
+
+bool gba_cart_is_eeprom(struct gba *gba)
+{
+     return gba->cart.backup_type == GBA_BACKUP_EEPROM_512 ||
+            gba->cart.backup_type == GBA_BACKUP_EEPROM_8K;
+}
+
+uint16_t gba_cart_eeprom_read(struct gba *gba)
+{
+     struct gba_cart *cart = &gba->cart;
+     struct gba_cart_eeprom *ee = &cart->eeprom;
+
+     if (ee->command != 4)
+          return (ee->settling_until && gba->timestamp < ee->settling_until) ? 0 : 1;
+
+     ee->read_bits_remaining--;
+     if (ee->read_bits_remaining < 64)
+     {
+          int step = 63 - ee->read_bits_remaining;
+          uint32_t byte_addr = (ee->read_address + (uint32_t)step) >> 3;
+          eeprom_ensure_size(cart, byte_addr);
+          if (byte_addr >= sizeof(ee->data))
+               return 1;
+
+          uint8_t data = ee->data[byte_addr];
+          uint16_t bit = (uint16_t)((data >> (7 - (step & 7))) & 1);
+          if (ee->read_bits_remaining == 0)
+               ee->command = 0;
+          return bit;
+     }
+
+     return 0;
+}
+
+void gba_cart_eeprom_write(struct gba *gba, uint16_t value, uint32_t write_size)
+{
+     struct gba_cart *cart = &gba->cart;
+     struct gba_cart_eeprom *ee = &cart->eeprom;
+     uint32_t bit = value & 1;
+
+     switch (ee->command)
+     {
+     case 0: /* first command bit */
+          ee->command = (uint8_t)bit;
+          break;
+     case 1: /* second command bit */
+          ee->command = (uint8_t)((ee->command << 1) | bit);
+          if (ee->command == 2)
+               ee->write_address = 0;
+          else if (ee->command == 3)
+               ee->read_address = 0;
+          else
+               ee->command = 0;
+          break;
+     case 2: /* write command: address, 64 data bits, stop bit */
+          if (write_size > 65)
+          {
+               ee->write_address <<= 1;
+               ee->write_address |= bit << 6;
+          }
+          else if (write_size == 1)
+          {
+               ee->command = 0;
+          }
+          else
+          {
+               uint32_t byte_addr = ee->write_address >> 3;
+               eeprom_ensure_size(cart, byte_addr);
+               if (byte_addr < sizeof(ee->data))
+               {
+                    uint8_t mask = (uint8_t)(1u << (7 - (ee->write_address & 7)));
+                    if (bit)
+                         ee->data[byte_addr] |= mask;
+                    else
+                         ee->data[byte_addr] &= (uint8_t)~mask;
+                    cart->dirty = true;
+                    ee->settling_until = gba->timestamp + 115000;
+               }
+               ee->write_address++;
+          }
+          break;
+     case 3: /* read command: address then one final bit before output */
+          if (write_size > 1)
+          {
+               ee->read_address <<= 1;
+               if (bit)
+                    ee->read_address |= 0x40;
+          }
+          else
+          {
+               ee->read_bits_remaining = 68;
+               ee->command = 4;
+          }
+          break;
+     default:
+          ee->command = 0;
+          break;
+     }
 }
 
 /* --- ROM reads --- */

@@ -41,10 +41,11 @@ struct gba_cart_flash {
 /* EEPROM serial access state */
 struct gba_cart_eeprom {
     uint8_t  data[8192];   /* up to 8KB */
-    uint16_t shift_reg;
-    int      bit_count;
-    uint16_t address;
-    bool     writing;
+    uint8_t  command;
+    int8_t   read_bits_remaining;
+    uint32_t read_address;
+    uint32_t write_address;
+    int32_t  settling_until;
 };
 
 enum gba_rtc_state {
@@ -106,5 +107,8 @@ void gba_cart_write16(struct gba *gba, uint32_t addr, uint16_t val);
 
 void gba_cart_save(struct gba *gba);
 void gba_cart_sync(struct gba *gba);
+bool gba_cart_is_eeprom(struct gba *gba);
+uint16_t gba_cart_eeprom_read(struct gba *gba);
+void gba_cart_eeprom_write(struct gba *gba, uint16_t value, uint32_t write_size);
 
 #endif /* _GBA_CART_H_ */

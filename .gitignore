@@ -32,7 +32,6 @@ tests/games/out-after-*/
 tests/games/out-target/
 tests/games/gba_out/
 tests/games/gba_out_quickcheck/
-tests/games/run_gba_game_smoke.py
 tests/gba_compat/out/
 tests/shootout/out/
 

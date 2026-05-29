@@ -620,6 +620,8 @@ uint16_t gba_memory_read16(struct gba *gba, uint32_t addr)
      /* ROM is a 16-bit bus: one halfword read is one bus access. */
      if ((addr >> 24) >= 0x08 && (addr >> 24) <= 0x0D)
      {
+          if ((addr >> 24) == 0x0D && gba_cart_is_eeprom(gba))
+               return gba_cart_eeprom_read(gba);
           gba->mem_cycles += memory_wait_cycles(gba, addr & ~1U, false);
           addr &= ~1U;
           return (uint16_t)(gba_cart_read8(gba, addr) |
@@ -845,7 +847,10 @@ void gba_memory_write16(struct gba *gba, uint32_t addr, uint16_t val)
      case 0x0B:
      case 0x0C:
      case 0x0D:
-          gba_cart_write16(gba, addr, val);
+          if ((addr >> 24) == 0x0D && gba_cart_is_eeprom(gba))
+               gba_cart_eeprom_write(gba, val, 1);
+          else
+               gba_cart_write16(gba, addr, val);
           break;
      case 0x0E:
      case 0x0F:

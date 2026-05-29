@@ -88,6 +88,14 @@ static bool dma_dst_is_affine_ppu_reg(uint32_t addr)
            (addr >= REG_BG3PA && addr <= REG_BG3Y + 2);
 }
 
+static bool dma_is_hblank_affine_sampling(const struct gba_dma_channel *ch)
+{
+    return !ch->word_32 &&
+           ch->timing == GBA_DMA_HBLANK &&
+           ch->dst_mode == GBA_DMA_ADDR_FIXED &&
+           dma_dst_is_affine_ppu_reg(ch->dst);
+}
+
 /* Returns extra wait-state cycles for a DMA memory access */
 static int dma_access_cycles(struct gba *gba, uint32_t addr, bool word32, bool seq)
 {
@@ -194,7 +202,12 @@ static void dma_run(struct gba *gba, int n)
             gba_memory_write32(gba, ch->dst & ~3U, v);
         } else {
             uint16_t v;
-            if (timed_if_sampling)
+            if (((src >> 24) == 0x0D) && gba_cart_is_eeprom(gba))
+            {
+                v = gba_cart_eeprom_read(gba);
+                ch->data_latch = (uint32_t)v | ((uint32_t)v << 16);
+            }
+            else if (timed_if_sampling)
             {
                 v = gba_memory_read16(gba, REG_IF);
                 if (gba->gpu.hblank_irq_en)
@@ -217,7 +230,10 @@ static void dma_run(struct gba *gba, int n)
                 else
                     ch->data_latch = (ch->data_latch & 0xFFFF0000U) | v;
             }
-            gba_memory_write16(gba, ch->dst & ~1U, v);
+            if (((ch->dst >> 24) == 0x0D) && gba_cart_is_eeprom(gba))
+                gba_cart_eeprom_write(gba, v, (uint32_t)count + 1);
+            else
+                gba_memory_write16(gba, ch->dst & ~1U, v);
         }
         if (timed_sampling)
             dma_advance_sampling_time(gba, src_cycles + dst_cycles);
@@ -287,9 +303,29 @@ static void dma_run(struct gba *gba, int n)
 
 void gba_dma_sync(struct gba *gba)
 {
-    gba_sync_resync(gba, GBA_SYNC_DMA);
     int n;
     bool any_pending = false;
+    bool precise_affine_sampling = false;
+    int32_t due_timestamp = gba->sync.next_event[GBA_SYNC_DMA];
+    int32_t late_timestamp = gba->timestamp;
+
+    for (n = 0; n < GBA_DMA_COUNT; n++) {
+        const struct gba_dma_channel *ch = &gba->dma.ch[n];
+        if (ch->pending && ch->count > 32 && dma_is_hblank_affine_sampling(ch)) {
+            precise_affine_sampling = true;
+            break;
+        }
+    }
+
+    /*
+     * Long HBlank DMAs that write affine reference registers are sampled by the
+     * PPU at end-of-line.  Run them from their scheduled DMA timestamp so CPU
+     * instruction overshoot cannot shift the sampled BG2X/BG3X value by a pixel.
+     */
+    if (precise_affine_sampling && late_timestamp > due_timestamp)
+        gba->timestamp = due_timestamp;
+
+    gba_sync_resync(gba, GBA_SYNC_DMA);
 
     for (n = 0; n < GBA_DMA_COUNT; n++) {
         if (gba->dma.ch[n].pending) {
@@ -302,12 +338,16 @@ void gba_dma_sync(struct gba *gba)
         gba_sync_next(gba, GBA_SYNC_DMA, 2);
     else
         gba_sync_next(gba, GBA_SYNC_DMA, GBA_SYNC_NEVER);
+
+    if (precise_affine_sampling && gba->timestamp < late_timestamp)
+        gba->timestamp = late_timestamp;
 }
 
 static void dma_trigger_timing(struct gba *gba, enum gba_dma_timing timing)
 {
     int n;
     bool triggered = false;
+
     for (n = 0; n < GBA_DMA_COUNT; n++) {
         struct gba_dma_channel *ch = &gba->dma.ch[n];
         if (ch->enable && ch->timing == timing) {

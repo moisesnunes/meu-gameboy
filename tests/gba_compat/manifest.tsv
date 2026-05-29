@@ -53,8 +53,8 @@ glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000
 {gba_root}/hw-test-master/archive/ppu/mode2/mode2.gba	visual	100000000
 {gba_root}/hw-test-master/archive/ppu/mode3/mode3.gba	visual	100000000
 {gba_root}/hw-test-master/archive/ppu/mode4/mode4.gba	visual	100000000
-{gba_root}/hw-test-master/ppu/bgx/bgx.gba	visual	100000000	e0fa97ebdf3245ef99692697ed5c019b520fc55e
-{gba_root}/hw-test-master/ppu/bgpd/bgpd.gba	visual	100000000	2bff5fdbaeefdd83381863ec3fcf15a969ab535c
+{gba_root}/hw-test-master/ppu/bgx/bgx.gba	visual	100000000	89ff2a08d8eef11c111b93c19a0e909662bc5823
+{gba_root}/hw-test-master/ppu/bgpd/bgpd.gba	visual	100000000	362afc771f5efd9be5d0e2ae687554a441361c09
 {gba_root}/hw-test-master/ppu/dispcnt-latch/dispcnt-latch.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/ram-access-timing/ram-access-timing.gba	visual	100000000
