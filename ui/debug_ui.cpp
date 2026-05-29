@@ -14,7 +14,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_opengl3.h"
-#include "misc/fonts/RobotoMedium.h"
+#include "RobotoMedium.h"
 #include "debug_ui_actions.h"
 #include "debug_ui_config.h"
 #include "debug_ui_menus.h"
@@ -178,10 +178,10 @@ static void apply_ui_config(const debug_ui_config &cfg)
      s_show_profiler = cfg.show_profiler;
      s_show_call_stack = cfg.show_call_stack;
      s_show_status_bar = cfg.show_status_bar;
-     s_show_hw_viz          = cfg.show_hw_viz;
-     s_show_cpu_viz         = cfg.show_cpu_viz;
-     s_show_transistor_viz  = cfg.show_transistor_viz;
-     s_show_hw_schematic    = cfg.show_hw_schematic;
+     s_show_hw_viz = cfg.show_hw_viz;
+     s_show_cpu_viz = cfg.show_cpu_viz;
+     s_show_transistor_viz = cfg.show_transistor_viz;
+     s_show_hw_schematic = cfg.show_hw_schematic;
 
      s_vsync = cfg.vsync;
      s_bilinear = cfg.bilinear;
@@ -223,10 +223,10 @@ static void capture_ui_config(debug_ui_config *cfg)
      cfg->show_profiler = s_show_profiler;
      cfg->show_call_stack = s_show_call_stack;
      cfg->show_status_bar = s_show_status_bar;
-     cfg->show_hw_viz          = s_show_hw_viz;
-     cfg->show_cpu_viz         = s_show_cpu_viz;
-     cfg->show_transistor_viz  = s_show_transistor_viz;
-     cfg->show_hw_schematic    = s_show_hw_schematic;
+     cfg->show_hw_viz = s_show_hw_viz;
+     cfg->show_cpu_viz = s_show_cpu_viz;
+     cfg->show_transistor_viz = s_show_transistor_viz;
+     cfg->show_hw_schematic = s_show_hw_schematic;
 
      cfg->vsync = s_vsync;
      cfg->bilinear = s_bilinear;
