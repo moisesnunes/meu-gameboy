@@ -43,6 +43,27 @@ make gameboy-simple
 make gameboy-vector
 ```
 
+## Make targets
+
+| Target | Description |
+| --- | --- |
+| `make gameboy` | Game Boy / GBC emulator with full debug UI |
+| `make meu-gba` | GBA emulator |
+| `make gameboy-simple` | Minimal GB emulator (no debug UI) |
+| `make gameboy-vector` | GB emulator with vector renderer frontend |
+| `make compat_test` | Build the GB compatibility test runner |
+| `make gba_compat_test` | Build the GBA compatibility test runner |
+| `make rom_tester` | Build the ROM smoke-test runner |
+| `make sm83-validate` | Build the SM83 netlist validator |
+| `make compat-run` | Run GB blargg/Mooneye compat suite |
+| `make mooneye-run` | Run Mooneye test suite |
+| `make game-smoke` | Run GB game smoke tests |
+| `make gba-compat-run` | Run GBA compat suite |
+| `make gba-game-smoke` | Run GBA game smoke tests |
+| `make shootout-run` | Run PPU shootout tests |
+| `make shootout-list` | List available shootout tests |
+| `make clean` | Remove all build artifacts |
+
 ## Usage
 
 ```sh
