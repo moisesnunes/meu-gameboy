@@ -11,7 +11,7 @@ void gb_sdl_frontend_init(struct gb *gb);
 void gb_sdl_process_event(struct gb *gb, SDL_Event *e);
 
 /* Retorna o ponteiro para a janela SDL (usada pelo debug_ui para criar o GL context) */
-SDL_Window     *gb_sdl_get_window(struct gb *gb);
+SDL_Window *gb_sdl_get_window(struct gb *gb);
 
 /* Retorna o buffer de pixels do frame atual (160×144 XRGB8888) */
 const uint32_t *gb_sdl_get_pixels(struct gb *gb);

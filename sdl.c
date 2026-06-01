@@ -6,34 +6,34 @@
 
 struct gb_sdl_context
 {
-     SDL_Window        *window;
-     SDL_AudioStream   *audio_stream;
-     uint32_t           pixels[GB_LCD_WIDTH * GB_LCD_HEIGHT];
-     SDL_Gamepad       *gamepad;
-     unsigned           audio_buffer_index;
-     size_t             audio_buffer_offset;
+     SDL_Window *window;
+     SDL_AudioStream *audio_stream;
+     uint32_t pixels[GB_LCD_WIDTH * GB_LCD_HEIGHT];
+     SDL_Gamepad *gamepad;
+     unsigned audio_buffer_index;
+     size_t audio_buffer_offset;
 };
 
 static SDL_Keycode s_key_map[8] = {
-     [GB_INPUT_RIGHT]  = SDLK_RIGHT,
-     [GB_INPUT_LEFT]   = SDLK_LEFT,
-     [GB_INPUT_UP]     = SDLK_UP,
-     [GB_INPUT_DOWN]   = SDLK_DOWN,
-     [GB_INPUT_A]      = SDLK_LCTRL,
-     [GB_INPUT_B]      = SDLK_LSHIFT,
-     [GB_INPUT_SELECT] = SDLK_RSHIFT,
-     [GB_INPUT_START]  = SDLK_RETURN,
+    [GB_INPUT_RIGHT] = SDLK_RIGHT,
+    [GB_INPUT_LEFT] = SDLK_LEFT,
+    [GB_INPUT_UP] = SDLK_UP,
+    [GB_INPUT_DOWN] = SDLK_DOWN,
+    [GB_INPUT_A] = SDLK_LCTRL,
+    [GB_INPUT_B] = SDLK_LSHIFT,
+    [GB_INPUT_SELECT] = SDLK_RSHIFT,
+    [GB_INPUT_START] = SDLK_RETURN,
 };
 
 static const SDL_Keycode s_default_key_map[8] = {
-     [GB_INPUT_RIGHT]  = SDLK_RIGHT,
-     [GB_INPUT_LEFT]   = SDLK_LEFT,
-     [GB_INPUT_UP]     = SDLK_UP,
-     [GB_INPUT_DOWN]   = SDLK_DOWN,
-     [GB_INPUT_A]      = SDLK_LCTRL,
-     [GB_INPUT_B]      = SDLK_LSHIFT,
-     [GB_INPUT_SELECT] = SDLK_RSHIFT,
-     [GB_INPUT_START]  = SDLK_RETURN,
+    [GB_INPUT_RIGHT] = SDLK_RIGHT,
+    [GB_INPUT_LEFT] = SDLK_LEFT,
+    [GB_INPUT_UP] = SDLK_UP,
+    [GB_INPUT_DOWN] = SDLK_DOWN,
+    [GB_INPUT_A] = SDLK_LCTRL,
+    [GB_INPUT_B] = SDLK_LSHIFT,
+    [GB_INPUT_SELECT] = SDLK_RSHIFT,
+    [GB_INPUT_START] = SDLK_RETURN,
 };
 
 /* ── Callbacks de desenho ── */
@@ -44,10 +44,10 @@ static void gb_sdl_draw_line_dmg(struct gb *gb, unsigned ly,
      struct gb_sdl_context *ctx = gb->frontend.data;
 
      static const uint32_t col_map[4] = {
-         [GB_COL_WHITE]     = 0xff75a32c,
+         [GB_COL_WHITE] = 0xff75a32c,
          [GB_COL_LIGHTGREY] = 0xff387a21,
-         [GB_COL_DARKGREY]  = 0xff255116,
-         [GB_COL_BLACK]     = 0xff12280b,
+         [GB_COL_DARKGREY] = 0xff255116,
+         [GB_COL_BLACK] = 0xff12280b,
      };
 
      for (unsigned i = 0; i < GB_LCD_WIDTH; i++)
@@ -82,7 +82,8 @@ static void gb_sdl_handle_key(struct gb *gb, SDL_Keycode key, bool pressed)
 {
      if (key == SDLK_Q || key == SDLK_ESCAPE)
      {
-          if (pressed) gb->quit = true;
+          if (pressed)
+               gb->quit = true;
           return;
      }
 
@@ -100,22 +101,40 @@ static void gb_sdl_handle_button(struct gb *gb, SDL_GamepadButton button, bool p
 {
      switch (button)
      {
-     case SDL_GAMEPAD_BUTTON_START:          gb_input_set(gb, GB_INPUT_START,  pressed); break;
-     case SDL_GAMEPAD_BUTTON_BACK:           gb_input_set(gb, GB_INPUT_SELECT, pressed); break;
-     case SDL_GAMEPAD_BUTTON_EAST:           gb_input_set(gb, GB_INPUT_A,      pressed); break;
-     case SDL_GAMEPAD_BUTTON_SOUTH:          gb_input_set(gb, GB_INPUT_B,      pressed); break;
-     case SDL_GAMEPAD_BUTTON_DPAD_UP:        gb_input_set(gb, GB_INPUT_UP,     pressed); break;
-     case SDL_GAMEPAD_BUTTON_DPAD_DOWN:      gb_input_set(gb, GB_INPUT_DOWN,   pressed); break;
-     case SDL_GAMEPAD_BUTTON_DPAD_LEFT:      gb_input_set(gb, GB_INPUT_LEFT,   pressed); break;
-     case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:     gb_input_set(gb, GB_INPUT_RIGHT,  pressed); break;
-     default: break;
+     case SDL_GAMEPAD_BUTTON_START:
+          gb_input_set(gb, GB_INPUT_START, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_BACK:
+          gb_input_set(gb, GB_INPUT_SELECT, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_EAST:
+          gb_input_set(gb, GB_INPUT_A, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_SOUTH:
+          gb_input_set(gb, GB_INPUT_B, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_DPAD_UP:
+          gb_input_set(gb, GB_INPUT_UP, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+          gb_input_set(gb, GB_INPUT_DOWN, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+          gb_input_set(gb, GB_INPUT_LEFT, pressed);
+          break;
+     case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+          gb_input_set(gb, GB_INPUT_RIGHT, pressed);
+          break;
+     default:
+          break;
      }
 }
 
 static void gb_sdl_open_gamepad(struct gb *gb)
 {
      struct gb_sdl_context *ctx = gb->frontend.data;
-     if (ctx->gamepad) return;
+     if (ctx->gamepad)
+          return;
 
      int count = 0;
      SDL_JoystickID *ids = SDL_GetGamepads(&count);
@@ -242,7 +261,11 @@ static void gb_sdl_destroy(struct gb *gb)
 void gb_sdl_frontend_init(struct gb *gb)
 {
      struct gb_sdl_context *ctx = malloc(sizeof(*ctx));
-     if (!ctx) { perror("malloc"); die(); }
+     if (!ctx)
+     {
+          perror("malloc");
+          die();
+     }
 
      memset(ctx, 0, sizeof(*ctx));
      gb->frontend.data = ctx;
@@ -273,9 +296,9 @@ void gb_sdl_frontend_init(struct gb *gb)
 
      /* Áudio via AudioStream */
      SDL_AudioSpec spec = {
-         .format   = SDL_AUDIO_S16,
+         .format = SDL_AUDIO_S16,
          .channels = 2,
-         .freq     = GB_SPU_SAMPLE_RATE_HZ,
+         .freq = GB_SPU_SAMPLE_RATE_HZ,
      };
      ctx->audio_stream = SDL_OpenAudioDeviceStream(
          SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
@@ -287,11 +310,11 @@ void gb_sdl_frontend_init(struct gb *gb)
      }
      SDL_ResumeAudioStreamDevice(ctx->audio_stream);
 
-     gb->frontend.draw_line_dmg  = gb_sdl_draw_line_dmg;
-     gb->frontend.draw_line_gbc  = gb_sdl_draw_line_gbc;
-     gb->frontend.flip           = gb_sdl_flip;
-     gb->frontend.refresh_input  = gb_sdl_refresh_input;
-     gb->frontend.destroy        = gb_sdl_destroy;
+     gb->frontend.draw_line_dmg = gb_sdl_draw_line_dmg;
+     gb->frontend.draw_line_gbc = gb_sdl_draw_line_gbc;
+     gb->frontend.flip = gb_sdl_flip;
+     gb->frontend.refresh_input = gb_sdl_refresh_input;
+     gb->frontend.destroy = gb_sdl_destroy;
 
      memset(ctx->pixels, 0, sizeof(ctx->pixels));
      gb_sdl_open_gamepad(gb);
@@ -300,7 +323,7 @@ void gb_sdl_frontend_init(struct gb *gb)
 void gb_sdl_reset_audio_buffer(struct gb *gb)
 {
      struct gb_sdl_context *ctx = gb->frontend.data;
-     ctx->audio_buffer_index  = 0;
+     ctx->audio_buffer_index = 0;
      ctx->audio_buffer_offset = 0;
 }
 

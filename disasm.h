@@ -6,14 +6,16 @@
 
 struct gb;
 
-typedef enum {
+typedef enum
+{
      GB_DISASM_TARGET_NONE,
      GB_DISASM_TARGET_BRANCH,
      GB_DISASM_TARGET_CALL,
      GB_DISASM_TARGET_RST,
 } gb_disasm_target_type;
 
-struct gb_disasm_instr {
+struct gb_disasm_instr
+{
      uint16_t addr;
      uint8_t bytes[3];
      int len;

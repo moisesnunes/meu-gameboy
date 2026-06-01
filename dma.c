@@ -38,14 +38,14 @@
  */
 void gb_dma_reset(struct gb *gb)
 {
-    struct gb_dma *dma = &gb->dma;
+     struct gb_dma *dma = &gb->dma;
 
-    dma->running = false;
-    dma->restarting = false;
-    dma->syncing = false;
-    dma->source = 0;
-    dma->position = 0;
-    dma->delay = 0;
+     dma->running = false;
+     dma->restarting = false;
+     dma->syncing = false;
+     dma->source = 0;
+     dma->position = 0;
+     dma->delay = 0;
 }
 
 /*
@@ -66,82 +66,82 @@ void gb_dma_reset(struct gb *gb)
  */
 void gb_dma_sync(struct gb *gb)
 {
-    struct gb_dma *dma = &gb->dma;
-    int32_t elapsed = gb_sync_resync(gb, GB_SYNC_DMA);
-    /* Em double speed o DMA ainda copia 1 byte por ciclo de máquina,
-     * mas cada ciclo de máquina vale 2 T-cycles em vez de 4. */
-    unsigned cycles_per_byte = 4U >> gb->double_speed;
+     struct gb_dma *dma = &gb->dma;
+     int32_t elapsed = gb_sync_resync(gb, GB_SYNC_DMA);
+     /* Em double speed o DMA ainda copia 1 byte por ciclo de máquina,
+      * mas cada ciclo de máquina vale 2 T-cycles em vez de 4. */
+     unsigned cycles_per_byte = 4U >> gb->double_speed;
 
-    if (!dma->running)
-    {
-        /* Nothing to do */
-        gb_sync_next(gb, GB_SYNC_DMA, GB_SYNC_NEVER);
-        return;
-    }
+     if (!dma->running)
+     {
+          /* Nothing to do */
+          gb_sync_next(gb, GB_SYNC_DMA, GB_SYNC_NEVER);
+          return;
+     }
 
-    while (dma->running)
-    {
-        uint16_t source_addr;
-        uint32_t b;
+     while (dma->running)
+     {
+          uint16_t source_addr;
+          uint32_t b;
 
-        /* Ainda dentro do período de delay: subtrai o tempo decorrido e
-         * agenda o próximo evento para quando o delay expirar. */
-        if (elapsed < dma->delay)
-        {
-            dma->delay -= (uint8_t)elapsed;
-            gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
-            return;
-        }
+          /* Ainda dentro do período de delay: subtrai o tempo decorrido e
+           * agenda o próximo evento para quando o delay expirar. */
+          if (elapsed < dma->delay)
+          {
+               dma->delay -= (uint8_t)elapsed;
+               gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
+               return;
+          }
 
-        elapsed -= dma->delay;
+          elapsed -= dma->delay;
 
-        if (dma->position >= GB_DMA_LENGTH_BYTES)
-        {
-            /* The bus remains blocked for one final DMA slot after byte 159. */
-            dma->running = false;
-            dma->restarting = false;
-            dma->delay = 0;
-            gb_sync_next(gb, GB_SYNC_DMA, GB_SYNC_NEVER);
-            return;
-        }
+          if (dma->position >= GB_DMA_LENGTH_BYTES)
+          {
+               /* The bus remains blocked for one final DMA slot after byte 159. */
+               dma->running = false;
+               dma->restarting = false;
+               dma->delay = 0;
+               gb_sync_next(gb, GB_SYNC_DMA, GB_SYNC_NEVER);
+               return;
+          }
 
-        /* Flag prevents the CPU bus-block check in gb_memory_readb from
-         * blocking the DMA engine's own reads from the source address. */
-        source_addr = dma->source + dma->position;
-        if (source_addr >= 0xe000U && gb->gbc)
-        {
-            /* No CGB, leituras de 0xE000+ pelo DMA retornam 0xFF */
-            b = 0xff;
-        }
-        else
-        {
-            /* No DMG, 0xE000–0xFFFF espelha a WRAM (remove o bit 13) */
-            if (source_addr >= 0xe000U)
-                source_addr &= ~0x2000U;
+          /* Flag prevents the CPU bus-block check in gb_memory_readb from
+           * blocking the DMA engine's own reads from the source address. */
+          source_addr = dma->source + dma->position;
+          if (source_addr >= 0xe000U && gb->gbc)
+          {
+               /* No CGB, leituras de 0xE000+ pelo DMA retornam 0xFF */
+               b = 0xff;
+          }
+          else
+          {
+               /* No DMG, 0xE000–0xFFFF espelha a WRAM (remove o bit 13) */
+               if (source_addr >= 0xe000U)
+                    source_addr &= ~0x2000U;
 
-            dma->syncing = true;
-            b = gb_memory_readb(gb, source_addr);
-            dma->syncing = false;
-        }
+               dma->syncing = true;
+               b = gb_memory_readb(gb, source_addr);
+               dma->syncing = false;
+          }
 
-        gb->gpu.oam[dma->position] = b;
-        gb->debug.sys_viz.fade_dma_oam = 1.0f;
-        gb_debug_hw_trace_oam_dma(gb, (uint8_t)dma->position, (uint8_t)b);
+          gb->gpu.oam[dma->position] = b;
+          gb->debug.sys_viz.fade_dma_oam = 1.0f;
+          gb_debug_hw_trace_oam_dma(gb, (uint8_t)dma->position, (uint8_t)b);
 
-        dma->position++;
+          dma->position++;
 
-        if (dma->position >= GB_DMA_LENGTH_BYTES)
-        {
-            /* Todos os 160 bytes foram copiados. Mantém o barramento bloqueado
-             * por mais um slot antes de liberar (comportamento do hardware). */
-            dma->delay = (uint8_t)cycles_per_byte;
-            gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
-            return;
-        }
+          if (dma->position >= GB_DMA_LENGTH_BYTES)
+          {
+               /* Todos os 160 bytes foram copiados. Mantém o barramento bloqueado
+                * por mais um slot antes de liberar (comportamento do hardware). */
+               dma->delay = (uint8_t)cycles_per_byte;
+               gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
+               return;
+          }
 
-        /* Intervalo de um ciclo de máquina até o próximo byte */
-        dma->delay = (uint8_t)cycles_per_byte;
-    }
+          /* Intervalo de um ciclo de máquina até o próximo byte */
+          dma->delay = (uint8_t)cycles_per_byte;
+     }
 }
 
 /*
@@ -158,18 +158,18 @@ void gb_dma_sync(struct gb *gb)
  */
 void gb_dma_start(struct gb *gb, uint8_t source)
 {
-    struct gb_dma *dma = &gb->dma;
-    bool restarting;
+     struct gb_dma *dma = &gb->dma;
+     bool restarting;
 
-    /* Sync our state in case we were already running */
-    gb_dma_sync(gb);
-    restarting = dma->running && dma->position < GB_DMA_LENGTH_BYTES;
+     /* Sync our state in case we were already running */
+     gb_dma_sync(gb);
+     restarting = dma->running && dma->position < GB_DMA_LENGTH_BYTES;
 
-    dma->source = (uint16_t)source << 8;
-    dma->position = 0;
-    dma->delay = GB_DMA_START_DELAY_CYCLES >> gb->double_speed;
-    dma->restarting = restarting;
+     dma->source = (uint16_t)source << 8;
+     dma->position = 0;
+     dma->delay = GB_DMA_START_DELAY_CYCLES >> gb->double_speed;
+     dma->restarting = restarting;
 
-    dma->running = true;
-    gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
+     dma->running = true;
+     gb_sync_next(gb, GB_SYNC_DMA, dma->delay);
 }

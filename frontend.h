@@ -1,22 +1,38 @@
 #ifndef _GB_FRONTEND_H_
 #define _GB_FRONTEND_H_
 
+/*
+ * Interface entre o núcleo do emulador e o frontend de exibição.
+ * O núcleo chama esses callbacks sem conhecer os detalhes de renderização;
+ * cada frontend (SDL, ImGui, headless, etc.) preenche os ponteiros ao inicializar.
+ * Todos os ponteiros são obrigatórios, exceto onde indicado.
+ */
 struct gb_frontend
 {
-     /* Draw a single line in DMG mode */
+     /* Renderiza uma linha horizontal no modo DMG (paleta de 4 tons).
+      * Chamado pela PPU a cada scanline visível (ly 0..143). */
      void (*draw_line_dmg)(struct gb *gb, unsigned ly,
                            union gb_gpu_color col[GB_LCD_WIDTH]);
-     /* Draw a single line in GBC mode */
+
+     /* Renderiza uma linha horizontal no modo GBC (cor de 15 bits).
+      * Chamado no lugar de draw_line_dmg quando o cartucho é GBC. */
      void (*draw_line_gbc)(struct gb *gb, unsigned ly,
                            union gb_gpu_color col[GB_LCD_WIDTH]);
-     /* Called when we're done drawing a frame and it's ready to be displayed */
+
+     /* Chamado ao fim de cada frame (após a linha 143), indicando que o
+      * buffer está completo e pronto para ser apresentado na tela. */
      void (*flip)(struct gb *gb);
-     /* Handle user input */
+
+     /* Lê o estado atual dos botões e atualiza gb_input.
+      * Chamado pelo núcleo antes de processar interrupções de joypad. */
      void (*refresh_input)(struct gb *gb);
-     /* Called when the emulator wants to quit and the frontend should be
-      * destroyed */
+
+     /* Libera todos os recursos do frontend. Chamado quando gb->quit é true
+      * ou quando a ROM é descarregada definitivamente. */
      void (*destroy)(struct gb *gb);
-     /* Opaque pointer to hold frontend-specific data */
+
+     /* Ponteiro opaco para dados privados do frontend (contexto SDL, janela
+      * ImGui, etc.). O núcleo nunca acessa este campo diretamente. */
      void *data;
 };
 

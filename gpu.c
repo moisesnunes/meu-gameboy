@@ -168,7 +168,7 @@
  * SameBoy: 76 + 2 = 78 T-cycles, mas o mode 3 começa 1 cycle depois da
  * transição (SameBoy adiciona 2 mais e depois vai ao goto mode_3_start). */
 #define LCD_FIRST_MODE3_START 77U
-#define LCD_FIRST_MODE3_END   (LCD_FIRST_MODE3_START + MODE_3_CYCLES)
+#define LCD_FIRST_MODE3_END (LCD_FIRST_MODE3_START + MODE_3_CYCLES)
 
 /* Linha onde começa o VBlank (após as 144 linhas ativas) */
 #define VSYNC_START 144U
@@ -290,8 +290,8 @@ void gb_gpu_reset(struct gb *gb)
      struct gb_gpu *gpu = &gb->gpu;
      unsigned i;
 
-     gpu->scx = 0;         /* Sem rolagem horizontal */
-     gpu->scy = 0;         /* Sem rolagem vertical */
+     gpu->scx = 0; /* Sem rolagem horizontal */
+     gpu->scy = 0; /* Sem rolagem vertical */
      gpu->iten_lyc = false;
      gpu->iten_mode0 = false;
      gpu->iten_mode1 = false;
@@ -300,22 +300,22 @@ void gb_gpu_reset(struct gb *gb)
      gpu->bg_enable = true;
      gpu->window_enable = false;
      gpu->sprite_enable = false;
-     gpu->tall_sprites = false;           /* Sprites 8×8 por padrão */
+     gpu->tall_sprites = false; /* Sprites 8×8 por padrão */
      gpu->bg_use_high_tm = false;
      gpu->window_use_high_tm = false;
      gpu->bg_window_use_sprite_ts = true;
-     gpu->ly = 0;           /* Scanline atual */
-     gpu->lyc = 0;          /* Valor de comparação com LY */
-     gpu->bgp = 0xfc;       /* Paleta do fundo (DMG) */
-     gpu->obp0 = 0xff;      /* Paleta de sprite 0 (DMG) */
-     gpu->obp1 = 0xff;      /* Paleta de sprite 1 (DMG) */
-     gpu->wx = 0;           /* Posição X da janela (+7 do valor real) */
-     gpu->wy = 0;           /* Posição Y da janela */
-     gpu->line_pos = 0;     /* Posição dentro da scanline atual */
+     gpu->ly = 0;       /* Scanline atual */
+     gpu->lyc = 0;      /* Valor de comparação com LY */
+     gpu->bgp = 0xfc;   /* Paleta do fundo (DMG) */
+     gpu->obp0 = 0xff;  /* Paleta de sprite 0 (DMG) */
+     gpu->obp1 = 0xff;  /* Paleta de sprite 1 (DMG) */
+     gpu->wx = 0;       /* Posição X da janela (+7 do valor real) */
+     gpu->wy = 0;       /* Posição Y da janela */
+     gpu->line_pos = 0; /* Posição dentro da scanline atual */
      gpu->lcd_enable_ly_quirk = false;
      gpu->stat_irq_line = false;
      gpu->stat_lyc_flag = true;
-     gpu->window_line = 0;  /* Contador interno de linhas da window */
+     gpu->window_line = 0; /* Contador interno de linhas da window */
      gb_gpu_reset_line_state(gpu);
 
      if (!gb->bootrom && gb->hw_model == GB_HW_DMG0)
@@ -338,13 +338,13 @@ void gb_gpu_reset(struct gb *gb)
           unsigned c;
           for (c = 0; c < 4; c++)
           {
-               gpu->bg_palettes.colors[i][c]     = 0x7fff;
+               gpu->bg_palettes.colors[i][c] = 0x7fff;
                gpu->sprite_palettes.colors[i][c] = 0x7fff;
           }
      }
-     gpu->bg_palettes.write_index     = 0x08;
-     gpu->bg_palettes.auto_increment  = true;
-     gpu->sprite_palettes.write_index    = 0x10;
+     gpu->bg_palettes.write_index = 0x08;
+     gpu->bg_palettes.auto_increment = true;
+     gpu->sprite_palettes.write_index = 0x10;
      gpu->sprite_palettes.auto_increment = true;
      gpu->opri = 0;
 }
@@ -649,7 +649,7 @@ static enum gb_color gb_gpu_get_tile_color(struct gb *gb,
 static enum gb_color gb_gpu_palette_transform(enum gb_color color,
                                               uint8_t palette)
 {
-     unsigned off = 2 * color;  /* Cada cor ocupa 2 bits no registrador */
+     unsigned off = 2 * color; /* Cada cor ocupa 2 bits no registrador */
 
      return (palette >> off) & 3;
 }
@@ -663,10 +663,10 @@ static bool gb_gpu_cgb_dmg_compat(const struct gb *gb)
 static uint16_t gb_gpu_dmg_color_to_gbc(enum gb_color color)
 {
      static const uint16_t map[4] = {
-          [GB_COL_WHITE]     = 0x7fff,
-          [GB_COL_LIGHTGREY] = 0x56b5,
-          [GB_COL_DARKGREY]  = 0x294a,
-          [GB_COL_BLACK]     = 0x0000,
+         [GB_COL_WHITE] = 0x7fff,
+         [GB_COL_LIGHTGREY] = 0x56b5,
+         [GB_COL_DARKGREY] = 0x294a,
+         [GB_COL_BLACK] = 0x0000,
      };
 
      return map[color & 3];
@@ -802,29 +802,29 @@ static struct gb_sprite gb_get_oam_sprite(struct gb *gb, unsigned index)
 {
      struct gb_gpu *gpu = &gb->gpu;
      struct gb_sprite s;
-     unsigned oam_off = index * 4;  /* Cada sprite ocupa 4 bytes na OAM */
+     unsigned oam_off = index * 4; /* Cada sprite ocupa 4 bytes na OAM */
      uint8_t flags;
 
-     s.y = (int)gpu->oam[oam_off] - 16;      /* Remove bias de Y */
-     s.x = (int)gpu->oam[oam_off + 1] - 8;   /* Remove bias de X */
+     s.y = (int)gpu->oam[oam_off] - 16;    /* Remove bias de Y */
+     s.x = (int)gpu->oam[oam_off + 1] - 8; /* Remove bias de X */
      s.tile_index = gpu->oam[oam_off + 2];
 
      flags = gpu->oam[oam_off + 3];
 
-     s.use_obp1  = flags & 0x10;
-     s.x_flip    = flags & 0x20;
-     s.y_flip    = flags & 0x40;
+     s.use_obp1 = flags & 0x10;
+     s.x_flip = flags & 0x20;
+     s.y_flip = flags & 0x40;
      s.background = flags & 0x80;
 
      if (gb->gbc)
      {
           s.high_bank = flags & 0x08;
-          s.palette   = flags & 0x07;
+          s.palette = flags & 0x07;
      }
      else
      {
           s.high_bank = false;
-          s.palette   = 0;
+          s.palette = 0;
      }
 
      return s;
@@ -999,7 +999,7 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
            * gb_gpu_get_tile_color, que usa y*2 como offset no tile).
            */
           tile_index = sprite->tile_index & 0xfe;
-          sprite_flip_height = 15;  /* Para flip vertical: 15 - sprite_y */
+          sprite_flip_height = 15; /* Para flip vertical: 15 - sprite_y */
      }
      else
      {
@@ -1054,7 +1054,7 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
           if (gb->gbc)
           {
                p->color.gbc_color =
-                    gb_gpu_dmg_color_to_gbc(gb_gpu_palette_transform(col, palette));
+                   gb_gpu_dmg_color_to_gbc(gb_gpu_palette_transform(col, palette));
           }
           else
           {
@@ -1340,33 +1340,33 @@ static unsigned gb_gpu_obj_fetch_penalty(struct gb_gpu *gpu,
 {
      struct gb_sprite *s = &gpu->line_sprites[sprite_index];
      unsigned left_edge_before = gb_gpu_left_edge_sprites_before(gpu,
-                                                                  sprite_index);
+                                                                 sprite_index);
      unsigned same_x_count = gb_gpu_sprite_same_x_count(gpu, s->x);
      unsigned oam_x = (unsigned)(s->x + 8);
      unsigned phase = (oam_x + gpu->scx) & 7;
      unsigned penalty = gb_gpu_sprite_penalty(oam_x, gpu->scx);
 
-	     if (!runtime_stall && s->x < 0 &&
-	         gb_gpu_line_sprite_count(gpu) > 2 &&
-	         sprite_index + 1 < GB_GPU_LINE_SPRITES &&
-	         gpu->line_sprites[sprite_index + 1].x == s->x + 8 &&
-	         (!gpu->sprite_enable || s->x == -8))
-	     {
-	          return gpu->sprite_enable ? 32 : 48;
-	     }
+     if (!runtime_stall && s->x < 0 &&
+         gb_gpu_line_sprite_count(gpu) > 2 &&
+         sprite_index + 1 < GB_GPU_LINE_SPRITES &&
+         gpu->line_sprites[sprite_index + 1].x == s->x + 8 &&
+         (!gpu->sprite_enable || s->x == -8))
+     {
+          return gpu->sprite_enable ? 32 : 48;
+     }
 
-	     if (!runtime_stall && gpu->sprite_enable && s->x < 0 &&
-	         gb_gpu_line_sprite_count(gpu) > 2 &&
-	         sprite_index + 1 < GB_GPU_LINE_SPRITES &&
-	         gpu->line_sprites[sprite_index + 1].x == s->x + 8)
-	     {
-	          return 24;
-	     }
+     if (!runtime_stall && gpu->sprite_enable && s->x < 0 &&
+         gb_gpu_line_sprite_count(gpu) > 2 &&
+         sprite_index + 1 < GB_GPU_LINE_SPRITES &&
+         gpu->line_sprites[sprite_index + 1].x == s->x + 8)
+     {
+          return 24;
+     }
 
-	     if (s->x == -8)
-	     {
-	          return left_edge_before == 0 ? 8 : 6;
-	     }
+     if (s->x == -8)
+     {
+          return left_edge_before == 0 ? 8 : 6;
+     }
 
      if (gb_gpu_sprite_x_repeated_before(gpu, sprite_index, runtime_stall))
      {
@@ -1459,7 +1459,7 @@ static void gb_gpu_begin_pixel_transfer(struct gb *gb)
 
           gpu->mode3_min_end = MODE_3_END + scx_penalty + sprite_penalty;
      }
-	     gb_gpu_fetcher_restart(gb, false);
+     gb_gpu_fetcher_restart(gb, false);
 }
 
 static bool gb_gpu_maybe_start_window(struct gb *gb)
@@ -1532,16 +1532,16 @@ static bool gb_gpu_start_sprite_stall(struct gb *gb)
           }
 
           gpu->line_sprite_stalled[i] = true;
-	          {
-	               unsigned penalty = gb_gpu_obj_fetch_penalty(gpu, i, true);
+          {
+               unsigned penalty = gb_gpu_obj_fetch_penalty(gpu, i, true);
 
-	               if (penalty == 0)
-	               {
-	                    continue;
-	               }
+               if (penalty == 0)
+               {
+                    continue;
+               }
 
-	               gpu->sprite_stall = penalty - 1;
-	          }
+               gpu->sprite_stall = penalty - 1;
+          }
 
           return true;
      }
@@ -1630,7 +1630,7 @@ static void gb_gpu_step_pixel_transfer(struct gb *gb)
           if (gb->gbc)
           {
                p.color.gbc_color =
-                    gb_gpu_dmg_color_to_gbc(gb_gpu_palette_transform(p.raw, gpu->bgp));
+                   gb_gpu_dmg_color_to_gbc(gb_gpu_palette_transform(p.raw, gpu->bgp));
           }
           else
           {
@@ -1760,7 +1760,7 @@ static void gb_gpu_finish_scanline(struct gb *gb)
  */
 void gb_gpu_sync(struct gb *gb)
 {
-     struct gb_gpu *gpu  = &gb->gpu;
+     struct gb_gpu *gpu = &gb->gpu;
      struct gb_hdma *hdma = &gb->hdma;
      int32_t elapsed = gb_sync_resync(gb, GB_SYNC_GPU);
      int32_t next_event;
@@ -1784,13 +1784,12 @@ void gb_gpu_sync(struct gb *gb)
 
           if (gpu->ly >= VSYNC_START)
           {
-               /* VBlank has no pixel transfer, so we can jump to line end. */
+               /* VBlank não tem transferência de pixels — pode saltar ao fim da linha. */
                step = gb_gpu_line_total(gb) - gpu->line_pos;
           }
-          else if (gpu->lcd_enable_ly_quirk && gpu->ly == 0 && prev_mode == 0
-                   && gpu->line_pos < LCD_FIRST_MODE3_START)
+          else if (gpu->lcd_enable_ly_quirk && gpu->ly == 0 && prev_mode == 0 && gpu->line_pos < LCD_FIRST_MODE3_START)
           {
-               /* First scanline after LCD enable: mode 0 for 72T before mode 3. */
+               /* Primeiro scanline após LCD enable: modo 0 por 72T antes do modo 3. */
                step = LCD_FIRST_MODE3_START - gpu->line_pos;
           }
           else if (prev_mode == 2)
@@ -1858,29 +1857,28 @@ void gb_gpu_sync(struct gb *gb)
      }
      else
      {
-          if (gpu->lcd_enable_ly_quirk && gpu->ly == 0
-              && gb_gpu_get_mode(gb) == 0
-              && gpu->line_pos < LCD_FIRST_MODE3_START)
+          if (gpu->lcd_enable_ly_quirk && gpu->ly == 0 && gb_gpu_get_mode(gb) == 0 && gpu->line_pos < LCD_FIRST_MODE3_START)
           {
                next_event = LCD_FIRST_MODE3_START - gpu->line_pos;
           }
-          else switch (gb_gpu_get_mode(gb))
-          {
-          case 2:
-               next_event = MODE_2_CYCLES - gpu->line_pos;
-               break;
-          case 3:
-               /*
-                * Pixel transfer is now stateful. Keep scheduling short syncs
-                * so register writes, VRAM/OAM access blocking and HBlank IRQs
-                * see the FIFO at the right point inside the scanline.
-                */
-               next_event = 1;
-               break;
-          default:
-               next_event = gb_gpu_line_total(gb) - gpu->line_pos;
-               break;
-          }
+          else
+               switch (gb_gpu_get_mode(gb))
+               {
+               case 2:
+                    next_event = MODE_2_CYCLES - gpu->line_pos;
+                    break;
+               case 3:
+                    /*
+                     * A transferência de pixels é stateful. Mantemos syncs curtas para
+                     * que escritas em registradores, bloqueio de VRAM/OAM e IRQs de
+                     * HBlank vejam o FIFO no ponto correto dentro da scanline.
+                     */
+                    next_event = 1;
+                    break;
+               default:
+                    next_event = gb_gpu_line_total(gb) - gpu->line_pos;
+                    break;
+               }
      }
 
      if (next_event <= 0)
@@ -1918,13 +1916,13 @@ void gb_gpu_set_lcd_stat(struct gb *gb, uint8_t stat)
      gpu->iten_mode0 = stat & 0x08;
      gpu->iten_mode1 = stat & 0x10;
      gpu->iten_mode2 = stat & 0x20;
-     gpu->iten_lyc   = stat & 0x40;
+     gpu->iten_lyc = stat & 0x40;
 
      if (dmg_write_glitch)
      {
           /*
-           * DMG quirk: writing STAT briefly behaves as if all STAT interrupt
-           * sources were enabled. CGB does not have this write glitch.
+           * DMG quirk: escrever no STAT brevemente se comporta como se todas as
+           * fontes de IRQ do STAT estivessem habilitadas. O CGB não tem esse glitch.
            */
           gb_irq_trigger(gb, GB_IRQ_LCD_STAT);
      }
@@ -1952,20 +1950,20 @@ uint8_t gb_gpu_get_lcd_stat(struct gb *gb)
           r |= gpu->iten_mode0 << 3;
           r |= gpu->iten_mode1 << 4;
           r |= gpu->iten_mode2 << 5;
-          r |= gpu->iten_lyc   << 6;
+          r |= gpu->iten_lyc << 6;
           return r;
      }
 
      /* Sincroniza para que o modo retornado reflita o timestamp atual */
      gb_gpu_sync(gb);
 
-     r |= 0x80;                           /* Bit 7: unused, reads as 1 */
-     r |= gb_gpu_get_stat_mode(gb);       /* Bits 1–0: modo atual */
+     r |= 0x80;                     /* Bit 7: não usado, sempre lê 1 */
+     r |= gb_gpu_get_stat_mode(gb); /* Bits 1–0: modo atual */
      r |= gb_gpu_stat_lyc_match(gb) << 2;
      r |= gpu->iten_mode0 << 3;
      r |= gpu->iten_mode1 << 4;
      r |= gpu->iten_mode2 << 5;
-     r |= gpu->iten_lyc   << 6;
+     r |= gpu->iten_lyc << 6;
 
      return r;
 }
@@ -1998,14 +1996,14 @@ void gb_gpu_set_lcdc(struct gb *gb, uint8_t lcdc)
      /* Sincroniza antes de alterar qualquer configuração */
      gb_gpu_sync(gb);
 
-     gpu->bg_enable               = lcdc & 0x01;
-     gpu->sprite_enable           = lcdc & 0x02;
-     gpu->tall_sprites            = lcdc & 0x04;
-     gpu->bg_use_high_tm          = lcdc & 0x08;
+     gpu->bg_enable = lcdc & 0x01;
+     gpu->sprite_enable = lcdc & 0x02;
+     gpu->tall_sprites = lcdc & 0x04;
+     gpu->bg_use_high_tm = lcdc & 0x08;
      gpu->bg_window_use_sprite_ts = lcdc & 0x10;
-     gpu->window_enable           = lcdc & 0x20;
-     gpu->window_use_high_tm      = lcdc & 0x40;
-     master_enable                = lcdc & 0x80;
+     gpu->window_enable = lcdc & 0x20;
+     gpu->window_use_high_tm = lcdc & 0x40;
+     master_enable = lcdc & 0x80;
 
      if (master_enable != gpu->master_enable)
      {
@@ -2036,7 +2034,7 @@ void gb_gpu_set_lcdc(struct gb *gb, uint8_t lcdc)
                          gb->frontend.draw_line_dmg(gb, i, line);
                }
 
-               gpu->ly       = 0;
+               gpu->ly = 0;
                gpu->line_pos = 0;
                gpu->lcd_enable_ly_quirk = false;
                gpu->stat_irq_line = false;
@@ -2082,14 +2080,14 @@ uint8_t gb_gpu_get_lcdc(struct gb *gb)
 
      gb_gpu_sync(gb);
 
-     lcdc |= (gpu->bg_enable               << 0);
-     lcdc |= (gpu->sprite_enable           << 1);
-     lcdc |= (gpu->tall_sprites            << 2);
-     lcdc |= (gpu->bg_use_high_tm          << 3);
+     lcdc |= (gpu->bg_enable << 0);
+     lcdc |= (gpu->sprite_enable << 1);
+     lcdc |= (gpu->tall_sprites << 2);
+     lcdc |= (gpu->bg_use_high_tm << 3);
      lcdc |= (gpu->bg_window_use_sprite_ts << 4);
-     lcdc |= (gpu->window_enable           << 5);
-     lcdc |= (gpu->window_use_high_tm      << 6);
-     lcdc |= (gpu->master_enable           << 7);
+     lcdc |= (gpu->window_enable << 5);
+     lcdc |= (gpu->window_use_high_tm << 6);
+     lcdc |= (gpu->master_enable << 7);
 
      return lcdc;
 }

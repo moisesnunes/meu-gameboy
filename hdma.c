@@ -6,12 +6,12 @@ static void gb_hdma_copy(struct gb *gb, uint16_t len)
      uint16_t src = hdma->source;
      uint16_t dst = hdma->destination;
 
-     /* Copy takes about 2 cycles per byte */
+     /* Cada byte copiado consome ~2 T-cycles */
      gb->timestamp += len * 2;
 
      while (len--)
      {
-          /* Destination has to be in VRAM */
+          /* O destino é sempre espelhado para a VRAM (0x8000–0x9FFF) */
           uint16_t vram_addr = 0x8000U + (dst % 0x2000U);
 
           uint8_t v = gb_memory_readb(gb, src);
@@ -21,11 +21,12 @@ static void gb_hdma_copy(struct gb *gb, uint16_t len)
           dst++;
      }
 
-     hdma->source      = src;
+     hdma->source = src;
      hdma->destination = dst;
 }
 
-/* Called by the GPU on every HBLANK when hdma->run_on_hblank is true */
+/* Chamado pela GPU a cada HBlank quando hdma->run_on_hblank é true.
+ * Copia um chunk de 16 bytes e decrementa o contador de blocos restantes. */
 void gb_hdma_hblank(struct gb *gb)
 {
      struct gb_hdma *hdma = &gb->hdma;
@@ -34,9 +35,9 @@ void gb_hdma_hblank(struct gb *gb)
 
      if (hdma->length == 0)
      {
-          /* DMA done */
+          /* Transferência concluída: desativa o modo HBlank e sinaliza fim (0x7F) */
           hdma->run_on_hblank = false;
-          hdma->length        = 0x7f;
+          hdma->length = 0x7f;
      }
      else
      {
@@ -50,8 +51,8 @@ void gb_hdma_start(struct gb *gb, bool hblank)
 
      if (hblank)
      {
-          /* The magic will happen in the GPU code since we need to run on every
-           * HBLANK until we're done */
+          /* Modo H-Blank DMA: a cópia é feita em chunks de 16 bytes por HBlank.
+           * A GPU chama gb_hdma_hblank() a cada Mode 0 até length chegar a zero. */
           gb_gpu_sync(gb);
           hdma->run_on_hblank = true;
 
@@ -65,13 +66,13 @@ void gb_hdma_start(struct gb *gb, bool hblank)
      }
      else
      {
-          /* Do the transfer in one shot */
+          /* Modo General Purpose DMA: transferência completa em um único passo */
           uint16_t len = (hdma->length + 1) * 0x10;
 
           gb_hdma_copy(gb, len);
 
-          /* Transfer done */
+          /* Transferência concluída */
           hdma->run_on_hblank = false;
-          hdma->length        = 0x7f;
+          hdma->length = 0x7f;
      }
 }

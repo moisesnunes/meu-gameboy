@@ -52,11 +52,11 @@
 #define GB_CART_MAX_SIZE (32U * 1024 * 1024)
 
 /* Offsets de byte dentro do cabeçalho do cartucho (todos no primeiro banco de ROM). */
-#define GB_CART_OFF_TITLE     0x134  /* Título do jogo, até 16 bytes ASCII */
-#define GB_CART_OFF_GBC       0x143  /* Flag GBC: bit 7 = compatível com GBC */
-#define GB_CART_OFF_TYPE      0x147  /* Tipo de cartucho / identificador do MBC */
-#define GB_CART_OFF_ROM_BANKS 0x148  /* Código do tamanho da ROM (decodificado em gb_cart_load) */
-#define GB_CART_OFF_RAM_BANKS 0x149  /* Código do tamanho da RAM (decodificado em gb_cart_load) */
+#define GB_CART_OFF_TITLE 0x134     /* Título do jogo, até 16 bytes ASCII */
+#define GB_CART_OFF_GBC 0x143       /* Flag GBC: bit 7 = compatível com GBC */
+#define GB_CART_OFF_TYPE 0x147      /* Tipo de cartucho / identificador do MBC */
+#define GB_CART_OFF_ROM_BANKS 0x148 /* Código do tamanho da ROM (decodificado em gb_cart_load) */
+#define GB_CART_OFF_RAM_BANKS 0x149 /* Código do tamanho da RAM (decodificado em gb_cart_load) */
 
 static uint64_t gb_cart_system_time(void)
 {
@@ -263,15 +263,15 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
 
      /* Inicializa os campos do cartucho com valores seguros antes de qualquer alocação. */
      cart->rom = NULL;
-     cart->cur_rom_bank = 1;      /* Banco 0 é fixo; banco 1 é o banco comutável padrão */
+     cart->cur_rom_bank = 1; /* Banco 0 é fixo; banco 1 é o banco comutável padrão */
      cart->ram = NULL;
      cart->cur_ram_bank = 0;
-     cart->ram_write_protected = true;  /* RAM começa bloqueada; o jogo deve habilitá-la explicitamente */
-     cart->mbc1_bank_ram = false;       /* MBC1 inicia no modo de bancos de ROM */
+     cart->ram_write_protected = true; /* RAM começa bloqueada; o jogo deve habilitá-la explicitamente */
+     cart->mbc1_bank_ram = false;      /* MBC1 inicia no modo de bancos de ROM */
      cart->mbc1_multicart = false;
      cart->save_file = NULL;
      cart->dirty_ram = false;
-     cart->has_rtc    = false;
+     cart->has_rtc = false;
      cart->has_rumble = false;
      cart->has_eeprom = false;
      memset(&cart->mbc7, 0, sizeof(cart->mbc7));
@@ -342,19 +342,43 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
       */
      switch (cart->rom[GB_CART_OFF_ROM_BANKS])
      {
-     case 0:  cart->rom_banks = 2;   break;  /*  32 KB */
-     case 1:  cart->rom_banks = 4;   break;  /*  64 KB */
-     case 2:  cart->rom_banks = 8;   break;  /* 128 KB */
-     case 3:  cart->rom_banks = 16;  break;  /* 256 KB */
-     case 4:  cart->rom_banks = 32;  break;  /* 512 KB */
-     case 5:  cart->rom_banks = 64;  break;  /*   1 MB */
-     case 6:  cart->rom_banks = 128; break;  /*   2 MB */
-     case 7:  cart->rom_banks = 256; break;  /*   4 MB */
-     case 8:  cart->rom_banks = 512; break;  /*   8 MB */
+     case 0:
+          cart->rom_banks = 2;
+          break; /*  32 KB */
+     case 1:
+          cart->rom_banks = 4;
+          break; /*  64 KB */
+     case 2:
+          cart->rom_banks = 8;
+          break; /* 128 KB */
+     case 3:
+          cart->rom_banks = 16;
+          break; /* 256 KB */
+     case 4:
+          cart->rom_banks = 32;
+          break; /* 512 KB */
+     case 5:
+          cart->rom_banks = 64;
+          break; /*   1 MB */
+     case 6:
+          cart->rom_banks = 128;
+          break; /*   2 MB */
+     case 7:
+          cart->rom_banks = 256;
+          break; /*   4 MB */
+     case 8:
+          cart->rom_banks = 512;
+          break; /*   8 MB */
      /* Tamanhos não-potência-de-2, usados por um pequeno número de lançamentos japoneses: */
-     case 0x52: cart->rom_banks = 72;  break; /* 1,125 MB */
-     case 0x53: cart->rom_banks = 80;  break; /* 1,25  MB */
-     case 0x54: cart->rom_banks = 96;  break; /* 1,5   MB */
+     case 0x52:
+          cart->rom_banks = 72;
+          break; /* 1,125 MB */
+     case 0x53:
+          cart->rom_banks = 80;
+          break; /* 1,25  MB */
+     case 0x54:
+          cart->rom_banks = 96;
+          break; /* 1,5   MB */
      default:
           fprintf(stderr, "Unknown ROM size configuration: %x\n",
                   cart->rom[GB_CART_OFF_ROM_BANKS]);
@@ -390,19 +414,19 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
           break;
      case 2:
           cart->ram_banks = 1;
-          cart->ram_length = GB_RAM_BANK_SIZE;           /*  8 KB */
+          cart->ram_length = GB_RAM_BANK_SIZE; /*  8 KB */
           break;
      case 3:
           cart->ram_banks = 4;
-          cart->ram_length = GB_RAM_BANK_SIZE * 4;       /* 32 KB */
+          cart->ram_length = GB_RAM_BANK_SIZE * 4; /* 32 KB */
           break;
      case 4:
           cart->ram_banks = 16;
-          cart->ram_length = GB_RAM_BANK_SIZE * 16;      /* 128 KB */
+          cart->ram_length = GB_RAM_BANK_SIZE * 16; /* 128 KB */
           break;
      case 5:
           cart->ram_banks = 8;
-          cart->ram_length = GB_RAM_BANK_SIZE * 8;       /* 64 KB */
+          cart->ram_length = GB_RAM_BANK_SIZE * 8; /* 64 KB */
           break;
      default:
           fprintf(stderr, "Unknown RAM size configuration: %x\n",
@@ -421,18 +445,18 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
       */
      switch (cart->rom[GB_CART_OFF_TYPE])
      {
-     case 0x00:                        /* ROM ONLY */
-     case 0x08:                        /* ROM + RAM */
-     case 0x09:                        /* ROM + RAM + BATERIA */
+     case 0x00: /* ROM ONLY */
+     case 0x08: /* ROM + RAM */
+     case 0x09: /* ROM + RAM + BATERIA */
           cart->model = GB_CART_SIMPLE;
           break;
-     case 0x01:                        /* MBC1 */
-     case 0x02:                        /* MBC1 + RAM */
-     case 0x03:                        /* MBC1 + RAM + BATERIA */
+     case 0x01: /* MBC1 */
+     case 0x02: /* MBC1 + RAM */
+     case 0x03: /* MBC1 + RAM + BATERIA */
           cart->model = GB_CART_MBC1;
           break;
-     case 0x05:                        /* MBC2 */
-     case 0x06:                        /* MBC2 + BATERIA */
+     case 0x05: /* MBC2 */
+     case 0x06: /* MBC2 + BATERIA */
           cart->model = GB_CART_MBC2;
           /*
            * O MBC2 sempre tem 512 × 4 bits de RAM embutida, independente do byte 0x149.
@@ -442,39 +466,39 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
           cart->ram_banks = 1;
           cart->ram_length = 512;
           break;
-     case 0x0f:                        /* MBC3 + TIMER + BATERIA */
-     case 0x10:                        /* MBC3 + TIMER + RAM + BATERIA */
-     case 0x11:                        /* MBC3 */
-     case 0x12:                        /* MBC3 + RAM */
-     case 0x13:                        /* MBC3 + RAM + BATERIA */
+     case 0x0f: /* MBC3 + TIMER + BATERIA */
+     case 0x10: /* MBC3 + TIMER + RAM + BATERIA */
+     case 0x11: /* MBC3 */
+     case 0x12: /* MBC3 + RAM */
+     case 0x13: /* MBC3 + RAM + BATERIA */
           cart->model = GB_CART_MBC3;
           break;
-     case 0x19:                        /* MBC5 */
-     case 0x1a:                        /* MBC5 + RAM */
-     case 0x1b:                        /* MBC5 + RAM + BATERIA */
+     case 0x19: /* MBC5 */
+     case 0x1a: /* MBC5 + RAM */
+     case 0x1b: /* MBC5 + RAM + BATERIA */
           cart->model = GB_CART_MBC5;
           break;
-     case 0x1c:                        /* MBC5 + RUMBLE */
-     case 0x1d:                        /* MBC5 + RUMBLE + RAM */
-     case 0x1e:                        /* MBC5 + RUMBLE + RAM + BATERIA */
+     case 0x1c: /* MBC5 + RUMBLE */
+     case 0x1d: /* MBC5 + RUMBLE + RAM */
+     case 0x1e: /* MBC5 + RUMBLE + RAM + BATERIA */
           cart->model = GB_CART_MBC5;
           cart->has_rumble = true;
           break;
-     case 0x22:                        /* MBC7 + SENSOR + RUMBLE + EEPROM */
+     case 0x22: /* MBC7 + SENSOR + RUMBLE + EEPROM */
           cart->model = GB_CART_MBC7;
           cart->has_rumble = true;
           cart->has_eeprom = true;
           /* EEPROM: 128 palavras × 16 bits = 256 bytes (sem RAM convencional) */
-          cart->ram_banks  = 0;
+          cart->ram_banks = 0;
           cart->ram_length = 0;
           /* Inicializa EEPROM com 0xFF (estado apagado) */
           memset(cart->mbc7.eeprom, 0xff, sizeof(cart->mbc7.eeprom));
-          cart->mbc7.dout  = 1;
+          cart->mbc7.dout = 1;
           break;
-     case 0xfe:                        /* HuC3 + RTC + IR + RAM + BATERIA */
+     case 0xfe: /* HuC3 + RTC + IR + RAM + BATERIA */
           cart->model = GB_CART_HUC3;
           break;
-     case 0xff:                        /* HuC1 + IR + RAM + BATERIA */
+     case 0xff: /* HuC1 + IR + RAM + BATERIA */
           cart->model = GB_CART_HUC1;
           cart->ram_write_protected = false;
           break;
@@ -660,9 +684,9 @@ void gb_cart_load(struct gb *gb, const char *rom_path)
      fprintf(stderr, "Succesfully Loaded %s\n", rom_path);
      fprintf(stderr, "Title: '%s'\n", rom_title);
      fprintf(stderr, "ROM banks: %u (%uKiB)\n", cart->rom_banks,
-            cart->rom_banks * GB_ROM_BANK_SIZE / 1024);
+             cart->rom_banks * GB_ROM_BANK_SIZE / 1024);
      fprintf(stderr, "RAM banks: %u (%uKiB)\n", cart->ram_banks,
-            cart->ram_length / 1024);
+             cart->ram_length / 1024);
      return;
 
 error:
@@ -900,26 +924,26 @@ bool gb_cart_load_ram_now(struct gb *gb)
 static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
 {
      struct gb_mbc7 *m = &gb->cart.mbc7;
-     uint8_t cs  = (val >> 7) & 1;
+     uint8_t cs = (val >> 7) & 1;
      uint8_t clk = (val >> 6) & 1;
      uint8_t din = (val >> 1) & 1;
 
      /* Borda de subida do CS: inicia nova transação */
      if (!m->cs && cs)
      {
-          m->recv       = 0;
+          m->recv = 0;
           m->recv_count = 0;
           m->send_count = 0;
           m->wdata_count = 0;
-          m->dout       = 0;
+          m->dout = 0;
      }
 
      /* Borda de descida do CS: encerra a transação */
      if (m->cs && !cs)
      {
-          m->send_count  = 0;
+          m->send_count = 0;
           m->wdata_count = 0;
-          m->dout        = 1;
+          m->dout = 1;
      }
 
      /* Processa bit na borda de subida do CLK (com CS alto) */
@@ -952,13 +976,13 @@ static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
                               unsigned i;
                               for (i = 0; i < 128; i++)
                               {
-                                   gb->cart.mbc7.eeprom[i * 2]     = m->wdata >> 8;
+                                   gb->cart.mbc7.eeprom[i * 2] = m->wdata >> 8;
                                    gb->cart.mbc7.eeprom[i * 2 + 1] = m->wdata & 0xff;
                               }
                          }
                          else
                          {
-                              gb->cart.mbc7.eeprom[m->waddr * 2]     = m->wdata >> 8;
+                              gb->cart.mbc7.eeprom[m->waddr * 2] = m->wdata >> 8;
                               gb->cart.mbc7.eeprom[m->waddr * 2 + 1] = m->wdata & 0xff;
                          }
                          gb->cart.dirty_ram = true;
@@ -975,8 +999,8 @@ static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
                if (m->recv_count == 11)
                {
                     uint8_t start = (m->recv >> 10) & 1;
-                    uint8_t op    = (m->recv >>  8) & 3;
-                    uint8_t adr   = (uint8_t)(m->recv & 0xff);
+                    uint8_t op = (m->recv >> 8) & 3;
+                    uint8_t adr = (uint8_t)(m->recv & 0xff);
 
                     m->recv_count = 0;
 
@@ -987,23 +1011,23 @@ static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
                     else if (op == 2) /* READ */
                     {
                          m->send = (uint16_t)((gb->cart.mbc7.eeprom[adr * 2] << 8) |
-                                               gb->cart.mbc7.eeprom[adr * 2 + 1]);
+                                              gb->cart.mbc7.eeprom[adr * 2 + 1]);
                          m->send_count = 16;
                          m->dout = 0;
                     }
                     else if (op == 1) /* WRITE */
                     {
-                         m->waddr      = adr;
-                         m->wdata      = 0;
+                         m->waddr = adr;
+                         m->wdata = 0;
                          m->wdata_count = 16;
-                         m->wral       = false;
-                         m->dout       = 0;
+                         m->wral = false;
+                         m->dout = 0;
                     }
                     else if (op == 3) /* ERASE */
                     {
                          if (m->write_enabled)
                          {
-                              gb->cart.mbc7.eeprom[adr * 2]     = 0xff;
+                              gb->cart.mbc7.eeprom[adr * 2] = 0xff;
                               gb->cart.mbc7.eeprom[adr * 2 + 1] = 0xff;
                               gb->cart.dirty_ram = true;
                          }
@@ -1031,10 +1055,10 @@ static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
                          }
                          else /* sub == 1: WRAL */
                          {
-                              m->wdata       = 0;
+                              m->wdata = 0;
                               m->wdata_count = 16;
-                              m->wral        = true;
-                              m->dout        = 0;
+                              m->wral = true;
+                              m->dout = 0;
                          }
                          if (sub != 1)
                          {
@@ -1045,7 +1069,7 @@ static void gb_mbc7_eeprom_write(struct gb *gb, uint8_t val)
           }
      }
 
-     m->cs  = cs;
+     m->cs = cs;
      m->clk = clk;
      m->din = din;
 }
@@ -1239,7 +1263,7 @@ uint8_t gb_cart_rom_readb(struct gb *gb, uint16_t addr)
                          /* Bancos 0x00/0x20/0x40/0x60 são inacessíveis na janela
                           * comutável; hardware força bit 0. */
                          bank++;
-                     }
+                    }
                }
 
                rom_off = (bank * GB_ROM_BANK_SIZE) + (addr & (GB_ROM_BANK_SIZE - 1));
@@ -1356,7 +1380,7 @@ void gb_cart_rom_writeb(struct gb *gb, uint16_t addr, uint8_t v)
 {
      struct gb_cart *cart = &gb->cart;
      uint16_t old_rom_bank = (uint16_t)cart->cur_rom_bank;
-     uint8_t  old_ram_bank = (uint8_t)cart->cur_ram_bank;
+     uint8_t old_ram_bank = (uint8_t)cart->cur_ram_bank;
 
      switch (cart->model)
      {
@@ -1543,7 +1567,7 @@ void gb_cart_rom_writeb(struct gb *gb, uint16_t addr, uint8_t v)
      }
 
      if ((uint16_t)cart->cur_rom_bank != old_rom_bank ||
-         (uint8_t)cart->cur_ram_bank  != old_ram_bank)
+         (uint8_t)cart->cur_ram_bank != old_ram_bank)
      {
           gb_debug_hw_trace_mbc_switch(gb, addr,
                                        (uint16_t)cart->cur_rom_bank,
@@ -1686,10 +1710,14 @@ uint8_t gb_cart_ram_readb(struct gb *gb, uint16_t addr)
                return m->accel_latched ? (uint8_t)(m->accel_y & 0xff) : 0xff;
           case 0x03: /* Acelerômetro Y, byte alto */
                return m->accel_latched ? (uint8_t)(m->accel_y >> 8) : 0xff;
-          case 0x04: return 0x00; /* reservado */
-          case 0x05: return 0xff; /* reservado */
-          case 0x06: return 0x00; /* reservado */
-          case 0x07: return 0xff; /* reservado */
+          case 0x04:
+               return 0x00; /* reservado */
+          case 0x05:
+               return 0xff; /* reservado */
+          case 0x06:
+               return 0x00; /* reservado */
+          case 0x07:
+               return 0xff; /* reservado */
           case 0x08:
                /* Byte de controle da EEPROM:
                 *   bit 7: CS (echo)   bit 6: CLK (echo)
@@ -1867,9 +1895,9 @@ void gb_cart_ram_writeb(struct gb *gb, uint16_t addr, uint8_t v)
                /* Passo 2 do latch: escrever 0xAA confirma a captura */
                if (v == 0xaa && m->accel_latch_prepare)
                {
-                    m->accel_latched       = true;
-                    m->accel_x             = 0x8000; /* neutro — sem inclinação */
-                    m->accel_y             = 0x8000;
+                    m->accel_latched = true;
+                    m->accel_x = 0x8000; /* neutro — sem inclinação */
+                    m->accel_y = 0x8000;
                     m->accel_latch_prepare = false;
                }
           }

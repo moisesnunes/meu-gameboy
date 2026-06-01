@@ -10,7 +10,11 @@
 static void load_bootrom(struct gb *gb, const char *path)
 {
      FILE *f = fopen(path, "rb");
-     if (!f) { perror(path); return; }
+     if (!f)
+     {
+          perror(path);
+          return;
+     }
 
      fseek(f, 0, SEEK_END);
      long size = ftell(f);
@@ -24,7 +28,12 @@ static void load_bootrom(struct gb *gb, const char *path)
      }
 
      uint8_t *buf = malloc((size_t)size);
-     if (!buf) { perror("malloc"); fclose(f); return; }
+     if (!buf)
+     {
+          perror("malloc");
+          fclose(f);
+          return;
+     }
 
      if (fread(buf, 1, (size_t)size, f) != (size_t)size)
      {
@@ -36,7 +45,7 @@ static void load_bootrom(struct gb *gb, const char *path)
      fclose(f);
 
      free(gb->bootrom);
-     gb->bootrom      = buf;
+     gb->bootrom = buf;
      gb->bootrom_size = (uint32_t)size;
      printf("Boot ROM carregada: %s (%ld bytes)\n", path, size);
 }
@@ -79,9 +88,9 @@ static void load_rom(struct gb *gb, const char *path)
 
 int main(int argc, char **argv)
 {
-     const char *rom_file     = NULL;
+     const char *rom_file = NULL;
      const char *bootrom_file = NULL;
-     bool        debug_flag   = false;
+     bool debug_flag = false;
 
      for (int i = 1; i < argc; i++)
      {
@@ -94,14 +103,18 @@ int main(int argc, char **argv)
      }
 
      struct gb *gb = calloc(1, sizeof(*gb));
-     if (!gb) { perror("calloc"); return EXIT_FAILURE; }
+     if (!gb)
+     {
+          perror("calloc");
+          return EXIT_FAILURE;
+     }
 
      /* Inicialização base dos semáforos de áudio; gb_spu_reset fará destroy+init
       * a cada ROM carregada para garantir estado limpo. */
      for (unsigned i = 0; i < GB_SPU_SAMPLE_BUFFER_COUNT; i++)
      {
           struct gb_spu_sample_buffer *buf = &gb->spu.buffers[i];
-          sem_init(&buf->free,  0, 1);
+          sem_init(&buf->free, 0, 1);
           sem_init(&buf->ready, 0, 0);
      }
 
@@ -122,7 +135,7 @@ int main(int argc, char **argv)
           gb->debug.state = pause_on_load ? GB_DEBUG_PAUSED : GB_DEBUG_RUNNING;
      }
 
-     gb->quit        = false;
+     gb->quit = false;
      gb->double_speed = false;
      gb->speed_switch_pending = false;
 
@@ -161,12 +174,13 @@ int main(int argc, char **argv)
           if (gb->cart.rom &&
               !(gb->debug.enabled && gb->debug.state == GB_DEBUG_PAUSED))
           {
-               uint64_t now_ns  = SDL_GetTicksNS();
+               uint64_t now_ns = SDL_GetTicksNS();
                uint64_t elapsed = now_ns - last_ns;
                last_ns = now_ns;
 
                /* Limita a 50 ms para evitar spiral-of-death após perda de foco */
-               if (elapsed > 50000000ULL) elapsed = 50000000ULL;
+               if (elapsed > 50000000ULL)
+                    elapsed = 50000000ULL;
 
                float ff = debug_ui_get_speed_multiplier();
                int32_t cycles = (int32_t)((float)(elapsed * (uint64_t)GB_CPU_FREQ_HZ / 1000000000ULL) * ff);

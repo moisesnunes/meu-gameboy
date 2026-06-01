@@ -12,17 +12,17 @@
 
 struct gb_input
 {
-    /* Estado do D-pad (direita, esquerda, cima, embaixo) */
-    uint8_t dpad_state;
+     /* Estado do D-pad (direita, esquerda, cima, embaixo) */
+     uint8_t dpad_state;
 
-    /* Verdadeiro se D-pad selecionado */
-    bool dpad_selected;
+     /* Verdadeiro se D-pad selecionado */
+     bool dpad_selected;
 
-    /* Estado dos butões */
-    uint8_t buttons_state;
+     /* Estado dos butões */
+     uint8_t buttons_state;
 
-    /*  Verdadeiro se butões selecionados  */
-    bool buttons_selected;
+     /*  Verdadeiro se butões selecionados  */
+     bool buttons_selected;
 };
 
 void gb_input_reset(struct gb *gb);

@@ -28,13 +28,13 @@ struct gb;
 
 enum gb_hw_model
 {
-     GB_HW_DMG,    /* DMG original (revisões A/B/C) */
-     GB_HW_DMG0,   /* DMG original revisão 0 */
-     GB_HW_MGB,    /* Game Boy Pocket */
-     GB_HW_SGB,    /* Super Game Boy */
-     GB_HW_SGB2,   /* Super Game Boy 2 */
-     GB_HW_CGB0,   /* Game Boy Color revisão 0 */
-     GB_HW_CGB,    /* Game Boy Color */
+     GB_HW_DMG,  /* DMG original (revisões A/B/C) */
+     GB_HW_DMG0, /* DMG original revisão 0 */
+     GB_HW_MGB,  /* Game Boy Pocket */
+     GB_HW_SGB,  /* Super Game Boy */
+     GB_HW_SGB2, /* Super Game Boy 2 */
+     GB_HW_CGB0, /* Game Boy Color revisão 0 */
+     GB_HW_CGB,  /* Game Boy Color */
 };
 
 struct gb

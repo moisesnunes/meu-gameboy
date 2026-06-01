@@ -23,6 +23,7 @@ int32_t gb_sync_resync(struct gb *gb, enum gb_sync_token token)
 
      if (elapsed < 0)
      {
+          /* Nunca deveria acontecer — indica rebase ausente ou bug no agendamento */
           fprintf(stderr, "Got negative sync %d for token %u",
                   elapsed, token);
      }
@@ -39,7 +40,7 @@ void gb_sync_next(struct gb *gb, enum gb_sync_token token, int32_t cycles)
 
      sync->next_event[token] = gb->timestamp + cycles;
 
-     /* Recompute the date of the first event to come */
+     /* Recalcula first_event como o mínimo de todos os next_event */
      sync->first_event = sync->next_event[0];
 
      for (i = 1; i < GB_SYNC_NUM; i++)
@@ -88,9 +89,8 @@ void gb_sync_check_events(struct gb *gb)
      }
 }
 
-/* Subtract the current value of the timestamp from all last_sync and next_event
- * dates, therefore avoiding potential overflows while keeping everything in
- * sync */
+/* Subtrai o timestamp atual de todas as datas de last_sync e next_event,
+ * prevenindo overflow do int32_t sem perder a relação temporal entre os eventos. */
 void gb_sync_rebase(struct gb *gb)
 {
      struct gb_sync *sync = &gb->sync;

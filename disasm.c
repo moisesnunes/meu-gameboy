@@ -478,11 +478,11 @@ int gb_disasm_ex(struct gb *gb, uint16_t addr, struct gb_disasm_instr *info)
           return info->len;
 
      case OP_N8:
-          {
-               char replacement[16];
-               snprintf(replacement, sizeof(replacement), "0x%02X", n8);
-               replace_token(info->text, sizeof(info->text), fmt, "$n8", replacement);
-          }
+     {
+          char replacement[16];
+          snprintf(replacement, sizeof(replacement), "0x%02X", n8);
+          replace_token(info->text, sizeof(info->text), fmt, "$n8", replacement);
+     }
           info->len = 2;
           split_text(info);
           return info->len;
@@ -505,25 +505,25 @@ int gb_disasm_ex(struct gb *gb, uint16_t addr, struct gb_disasm_instr *info)
           return info->len;
 
      case OP_R8:
+     {
+          int8_t offset = (int8_t)n8;
+          char replacement[32];
+
+          if (is_relative_branch(op))
           {
-               int8_t offset = (int8_t)n8;
-               char replacement[32];
-
-               if (is_relative_branch(op))
-               {
-                    info->has_target = true;
-                    info->target = (uint16_t)(addr + 2 + offset);
-                    info->target_type = GB_DISASM_TARGET_BRANCH;
-                    snprintf(replacement, sizeof(replacement), "0x%04X (%+d)",
-                             info->target, offset);
-               }
-               else
-               {
-                    snprintf(replacement, sizeof(replacement), "%+d", offset);
-               }
-
-               replace_token(info->text, sizeof(info->text), fmt, "$r8", replacement);
+               info->has_target = true;
+               info->target = (uint16_t)(addr + 2 + offset);
+               info->target_type = GB_DISASM_TARGET_BRANCH;
+               snprintf(replacement, sizeof(replacement), "0x%04X (%+d)",
+                        info->target, offset);
           }
+          else
+          {
+               snprintf(replacement, sizeof(replacement), "%+d", offset);
+          }
+
+          replace_token(info->text, sizeof(info->text), fmt, "$r8", replacement);
+     }
           info->len = 2;
           split_text(info);
           return info->len;

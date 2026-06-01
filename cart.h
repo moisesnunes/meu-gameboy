@@ -42,24 +42,24 @@ struct gb_mbc7
      bool write_enabled;
 
      /* Interface serial bit-banged */
-     uint8_t cs;         /* CS atual */
-     uint8_t clk;        /* CLK atual */
-     uint8_t din;        /* DIN atual (para echo na leitura) */
-     uint8_t dout;       /* DOUT corrente: dado saindo da EEPROM para o jogo */
+     uint8_t cs;   /* CS atual */
+     uint8_t clk;  /* CLK atual */
+     uint8_t din;  /* DIN atual (para echo na leitura) */
+     uint8_t dout; /* DOUT corrente: dado saindo da EEPROM para o jogo */
 
      /* Registrador de entrada: bits recebidos enquanto recebe o comando */
-     uint32_t recv;      /* shift register; MSB recebido primeiro */
-     int recv_count;     /* número de bits recebidos até agora (0–11) */
+     uint32_t recv;  /* shift register; MSB recebido primeiro */
+     int recv_count; /* número de bits recebidos até agora (0–11) */
 
      /* Modo READ: enviando 16 bits de dados */
-     uint16_t send;      /* palavra sendo deslocada para fora */
-     int send_count;     /* bits restantes a enviar (0 = inativo) */
+     uint16_t send;  /* palavra sendo deslocada para fora */
+     int send_count; /* bits restantes a enviar (0 = inativo) */
 
      /* Modo WRITE/WRAL: recebendo 16 bits de dados */
-     uint16_t wdata;     /* palavra sendo montada */
-     int wdata_count;    /* bits restantes a receber (0 = inativo) */
-     uint8_t waddr;      /* endereço de destino para WRITE */
-     bool wral;          /* true quando WRAL (write-all) está em andamento */
+     uint16_t wdata;  /* palavra sendo montada */
+     int wdata_count; /* bits restantes a receber (0 = inativo) */
+     uint8_t waddr;   /* endereço de destino para WRITE */
+     bool wral;       /* true quando WRAL (write-all) está em andamento */
 
      /* Acelerômetro ADXL202E (emulado como posição neutra) */
      bool accel_latch_prepare; /* primeiro passo do latch (write 0x55 a offset 0x00) */
@@ -68,8 +68,8 @@ struct gb_mbc7
      uint16_t accel_y;         /* valor latched de Y (neutro = 0x8000) */
 
      /* Habilitar a região 0xA000-0xBFFF requer dois desbloqueios separados */
-     bool ram_enable_1;  /* write 0x0A para 0x0000-0x1FFF */
-     bool ram_enable_2;  /* write 0x40 para 0x4000-0x5FFF */
+     bool ram_enable_1; /* write 0x0A para 0x0000-0x1FFF */
+     bool ram_enable_2; /* write 0x40 para 0x4000-0x5FFF */
 };
 
 struct gb_huc1

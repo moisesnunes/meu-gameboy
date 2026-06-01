@@ -4,21 +4,21 @@
 struct gb_dma
 {
      bool running;
-     
-     /* True when FF46 was written while a previous OAM DMA was still active. */
+
+     /* Verdadeiro quando FF46 foi escrito enquanto um OAM DMA anterior ainda estava ativo. */
      bool restarting;
 
-     /* True while gb_dma_sync is executing a memory read, preventing the CPU
-      * access check in gb_memory_readb from blocking the DMA engine itself. */
+     /* Verdadeiro enquanto gb_dma_sync está executando uma leitura de memória, impedindo que
+      * a verificação de acesso da CPU em gb_memory_readb bloqueie o próprio motor de DMA. */
      bool syncing;
 
-     /* Source address */
+     /* Endereço fonte */
      uint16_t source;
 
-     /* Number of bytes copied so far */
+     /* Número de bytes copiados até agora */
      uint8_t position;
 
-     /* Timestamp ticks until the next byte is copied. */
+     /* Ticks de timestamp até o próximo byte ser copiado. */
      uint8_t delay;
 };
 

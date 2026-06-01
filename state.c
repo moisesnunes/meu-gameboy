@@ -5,40 +5,57 @@
 #include "gb.h"
 #include "state.h"
 
+/* Identificador fixo no início de todo arquivo de save state */
 #define GB_STATE_MAGIC "GBST0001"
+/* Incrementar sempre que o layout binário mudar — impede carregar saves incompatíveis */
 #define GB_STATE_VERSION 5u
 
+/*
+ * Cabeçalho do arquivo de save state.
+ * Lido antes de qualquer outro dado; serve como guarda de compatibilidade.
+ * Todos os campos são uint32_t para portabilidade entre plataformas.
+ */
 struct gb_state_header
 {
-     char magic[8];
-     uint32_t version;
-     uint32_t gbc;
-     uint32_t ram_length;
-     uint32_t vram_size;
-     uint32_t iram_size;
-     uint32_t rom_length;
-     uint32_t rom_hash;
+     char magic[8];       /* deve ser igual a GB_STATE_MAGIC */
+     uint32_t version;    /* deve ser igual a GB_STATE_VERSION */
+     uint32_t gbc;        /* 1 se a ROM é GBC, 0 se DMG — deve coincidir com a ROM carregada */
+     uint32_t ram_length; /* tamanho da RAM do cartucho — deve coincidir */
+     uint32_t vram_size;  /* sizeof(gb->vram) — detecta mudança no layout de memória */
+     uint32_t iram_size;  /* sizeof(gb->iram) — idem */
+     uint32_t rom_length; /* tamanho da ROM — deve coincidir */
+     uint32_t rom_hash;   /* hash FNV-1a da ROM — garante que é a mesma ROM */
 };
 
+/*
+ * Snapshot do estado do cartucho (MBC + RTC + periféricos).
+ * Campos de ROM/RAM são re-verificados no restore para detectar
+ * save states de ROMs diferentes carregados por engano.
+ */
 struct gb_state_cart
 {
      unsigned rom_length;
      unsigned rom_banks;
-     unsigned cur_rom_bank;
+     unsigned cur_rom_bank;      /* banco de ROM selecionado atualmente */
      unsigned ram_length;
      unsigned ram_banks;
-     unsigned cur_ram_bank;
-     bool ram_write_protected;
-     enum gb_cart_model model;
-     bool mbc1_bank_ram;
-     bool dirty_ram;
+     unsigned cur_ram_bank;      /* banco de RAM selecionado atualmente */
+     bool ram_write_protected;   /* RAM desabilitada para escrita pelo MBC */
+     enum gb_cart_model model;   /* tipo de MBC (MBC1, MBC3, MBC5, etc.) */
+     bool mbc1_bank_ram;         /* MBC1: modo de banking (ROM ou RAM) */
+     bool dirty_ram;             /* RAM foi escrita desde o último save de SRAM */
      bool has_rtc;
      bool has_rumble;
      bool has_eeprom;
-     struct gb_rtc rtc;
-     struct gb_mbc7 mbc7;
+     struct gb_rtc rtc;          /* estado completo do RTC (base, halt, latched) */
+     struct gb_mbc7 mbc7;        /* estado do acelerômetro/EEPROM do MBC7 */
 };
 
+/*
+ * Snapshot da APU. Exclui propositalmente os buffers de áudio e semáforos
+ * (gb_spu_sample_buffer) — esses pertencem ao frontend e não fazem parte
+ * do estado emulado.
+ */
 struct gb_state_spu
 {
      bool enable;
@@ -55,18 +72,20 @@ struct gb_state_spu
      struct gb_spu_nr4 nr4;
 };
 
-#define WRITE_FIELD(f, ptr, size)                          \
-     do                                                     \
-     {                                                      \
-          if (fwrite((ptr), 1, (size), (f)) != (size))      \
-               return false;                               \
+/* Escreve `size` bytes; retorna false da função chamadora se falhar */
+#define WRITE_FIELD(f, ptr, size)                      \
+     do                                                \
+     {                                                 \
+          if (fwrite((ptr), 1, (size), (f)) != (size)) \
+               return false;                           \
      } while (0)
 
-#define READ_FIELD(f, ptr, size)                           \
-     do                                                     \
-     {                                                      \
-          if (fread((ptr), 1, (size), (f)) != (size))       \
-               return false;                               \
+/* Lê `size` bytes; retorna false da função chamadora se falhar */
+#define READ_FIELD(f, ptr, size)                      \
+     do                                               \
+     {                                                \
+          if (fread((ptr), 1, (size), (f)) != (size)) \
+               return false;                          \
      } while (0)
 
 static bool state_write(FILE *f, const void *ptr, size_t size)
@@ -81,19 +100,23 @@ static bool state_read(FILE *f, void *ptr, size_t size)
      return true;
 }
 
+/* Rejeita saves com PC apontando para o range de I/O (0xFF00–0xFF7F).
+ * Um PC ali indica save corrompido — a CPU nunca deveria estar parada lá. */
 static bool state_cpu_pc_valid(uint16_t pc)
 {
      return !(pc >= 0xff00 && pc < 0xff80);
 }
 
+/* Hash FNV-1a de 32 bits da ROM inteira.
+ * Usado no cabeçalho para detectar save states de ROMs diferentes. */
 static uint32_t state_rom_hash(struct gb *gb)
 {
-     uint32_t h = 2166136261u;
+     uint32_t h = 2166136261u; /* FNV offset basis */
 
      for (unsigned i = 0; i < gb->cart.rom_length; i++)
      {
           h ^= gb->cart.rom[i];
-          h *= 16777619u;
+          h *= 16777619u; /* FNV prime */
      }
 
      return h;
@@ -176,7 +199,8 @@ static void state_restore_spu(struct gb *gb, const struct gb_state_spu *s)
      spu->nr3 = s->nr3;
      spu->nr4 = s->nr4;
 
-     /* Keep the live audio ring/semaphores owned by the frontend. */
+     /* Os buffers de áudio e semáforos pertencem ao frontend — não restaurar.
+      * Reinicia sample_index para que o próximo sample comece num slot limpo. */
      spu->sample_index = 0;
 }
 
@@ -190,6 +214,8 @@ bool gb_state_save(struct gb *gb, const char *path)
      if (!gb->cart.rom)
           return false;
 
+     /* Monta o cabeçalho com os campos de compatibilidade antes de abrir o arquivo,
+      * para evitar criar um arquivo truncado se a captura de estado falhar. */
      memset(&h, 0, sizeof(h));
      memcpy(h.magic, GB_STATE_MAGIC, sizeof(h.magic));
      h.version = GB_STATE_VERSION;
@@ -210,6 +236,7 @@ bool gb_state_save(struct gb *gb, const char *path)
           return false;
      }
 
+     /* Serialização sequencial: cabeçalho → estado da CPU/PPU/APU/memória → RAM do cartucho */
      if (!state_write(f, &h, sizeof(h)) ||
          !state_write(f, &gb->gbc, sizeof(gb->gbc)) ||
          !state_write(f, &gb->speed_switch_pending, sizeof(gb->speed_switch_pending)) ||
@@ -229,13 +256,13 @@ bool gb_state_save(struct gb *gb, const char *path)
          !state_write(f, &spu, sizeof(spu)) ||
          !state_write(f, &gb->iram, sizeof(gb->iram)) ||
          !state_write(f, &gb->iram_high_bank, sizeof(gb->iram_high_bank)) ||
-	         !state_write(f, &gb->zram, sizeof(gb->zram)) ||
-	         !state_write(f, &gb->vram, sizeof(gb->vram)) ||
-	         !state_write(f, &gb->vram_high_bank, sizeof(gb->vram_high_bank)) ||
-	         !state_write(f, &gb->cgb_reg_ff72, sizeof(gb->cgb_reg_ff72)) ||
-	         !state_write(f, &gb->cgb_reg_ff73, sizeof(gb->cgb_reg_ff73)) ||
-	         !state_write(f, &gb->cgb_reg_ff75, sizeof(gb->cgb_reg_ff75)) ||
-	         !state_write(f, &gb->bootrom_mapped, sizeof(gb->bootrom_mapped)) ||
+         !state_write(f, &gb->zram, sizeof(gb->zram)) ||
+         !state_write(f, &gb->vram, sizeof(gb->vram)) ||
+         !state_write(f, &gb->vram_high_bank, sizeof(gb->vram_high_bank)) ||
+         !state_write(f, &gb->cgb_reg_ff72, sizeof(gb->cgb_reg_ff72)) ||
+         !state_write(f, &gb->cgb_reg_ff73, sizeof(gb->cgb_reg_ff73)) ||
+         !state_write(f, &gb->cgb_reg_ff75, sizeof(gb->cgb_reg_ff75)) ||
+         !state_write(f, &gb->bootrom_mapped, sizeof(gb->bootrom_mapped)) ||
          (gb->cart.ram_length > 0 &&
           !state_write(f, gb->cart.ram, gb->cart.ram_length)))
      {
@@ -291,6 +318,7 @@ bool gb_state_load(struct gb *gb, const char *path)
           return false;
      }
 
+     /* Valida o cabeçalho antes de alocar memória ou sobrescrever o estado atual */
      if (!state_read(f, &h, sizeof(h)) ||
          memcmp(h.magic, GB_STATE_MAGIC, sizeof(h.magic)) != 0 ||
          h.version != GB_STATE_VERSION ||
@@ -306,6 +334,8 @@ bool gb_state_load(struct gb *gb, const char *path)
           return false;
      }
 
+     /* Aloca buffer temporário para a RAM do cartucho antes de ler o restante
+      * do arquivo — o estado atual só é sobrescrito se toda a leitura for bem-sucedida. */
      if (gb->cart.ram_length > 0)
      {
           cart_ram = malloc(gb->cart.ram_length);
@@ -334,14 +364,14 @@ bool gb_state_load(struct gb *gb, const char *path)
           state_read(f, &timer, sizeof(timer)) &&
           state_read(f, &spu, sizeof(spu)) &&
           state_read(f, iram, sizeof(iram)) &&
-	          state_read(f, &iram_high_bank, sizeof(iram_high_bank)) &&
-	          state_read(f, zram, sizeof(zram)) &&
-	          state_read(f, vram, sizeof(vram)) &&
-	          state_read(f, &vram_high_bank, sizeof(vram_high_bank)) &&
-	          state_read(f, &cgb_reg_ff72, sizeof(cgb_reg_ff72)) &&
-	          state_read(f, &cgb_reg_ff73, sizeof(cgb_reg_ff73)) &&
-	          state_read(f, &cgb_reg_ff75, sizeof(cgb_reg_ff75)) &&
-	          state_read(f, &bootrom_mapped, sizeof(bootrom_mapped)) &&
+          state_read(f, &iram_high_bank, sizeof(iram_high_bank)) &&
+          state_read(f, zram, sizeof(zram)) &&
+          state_read(f, vram, sizeof(vram)) &&
+          state_read(f, &vram_high_bank, sizeof(vram_high_bank)) &&
+          state_read(f, &cgb_reg_ff72, sizeof(cgb_reg_ff72)) &&
+          state_read(f, &cgb_reg_ff73, sizeof(cgb_reg_ff73)) &&
+          state_read(f, &cgb_reg_ff75, sizeof(cgb_reg_ff75)) &&
+          state_read(f, &bootrom_mapped, sizeof(bootrom_mapped)) &&
           (gb->cart.ram_length == 0 ||
            state_read(f, cart_ram, gb->cart.ram_length));
 
@@ -355,6 +385,7 @@ bool gb_state_load(struct gb *gb, const char *path)
 
      fclose(f);
 
+     /* Validação de sanidade antes de aplicar o estado — evita corrupção irrecuperável */
      if (!state_cpu_pc_valid(cpu.pc))
      {
           fprintf(stderr, "load state: refusing invalid PC 0x%04x in '%s'\n",

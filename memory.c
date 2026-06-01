@@ -784,15 +784,22 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
      gb_debug_check_watchpoint(gb, addr, GB_WATCHPOINT_READ);
 
      /* ── Hardware viz bus activity ── */
-     if (!gb->dma.syncing) {
+     if (!gb->dma.syncing)
+     {
           struct gb_sys_viz *sv = &gb->debug.sys_viz;
           sv->last_bus_addr = addr;
-          if      (addr < 0x8000u)                            sv->fade_cpu_rom  = 1.0f;
-          else if (addr < 0xa000u)                            sv->fade_cpu_vram = 1.0f;
-          else if (addr < 0xc000u)                            sv->fade_cpu_rom  = 1.0f;
-          else if (addr < 0xfe00u)                            sv->fade_cpu_wram = 1.0f;
-          else if (addr < 0xff00u)                            sv->fade_cpu_oam  = 1.0f;
-          else                                                sv->fade_cpu_io   = 1.0f;
+          if (addr < 0x8000u)
+               sv->fade_cpu_rom = 1.0f;
+          else if (addr < 0xa000u)
+               sv->fade_cpu_vram = 1.0f;
+          else if (addr < 0xc000u)
+               sv->fade_cpu_rom = 1.0f;
+          else if (addr < 0xfe00u)
+               sv->fade_cpu_wram = 1.0f;
+          else if (addr < 0xff00u)
+               sv->fade_cpu_oam = 1.0f;
+          else
+               sv->fade_cpu_io = 1.0f;
           /* trace emitido em gb_cpu_readb com o valor real após leitura */
      }
 
@@ -1255,16 +1262,23 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
      gb_debug_check_watchpoint(gb, addr, GB_WATCHPOINT_WRITE);
 
      /* ── Hardware viz bus activity ── */
-     if (!gb->dma.syncing) {
+     if (!gb->dma.syncing)
+     {
           struct gb_sys_viz *sv = &gb->debug.sys_viz;
           sv->last_bus_addr = addr;
           sv->last_bus_data = val;
-          if      (addr < 0x8000u)                            sv->fade_cpu_rom  = 1.0f;
-          else if (addr < 0xa000u)                            sv->fade_cpu_vram = 1.0f;
-          else if (addr < 0xc000u)                            sv->fade_cpu_rom  = 1.0f;
-          else if (addr < 0xfe00u)                            sv->fade_cpu_wram = 1.0f;
-          else if (addr < 0xff00u)                            sv->fade_cpu_oam  = 1.0f;
-          else                                                sv->fade_cpu_io   = 1.0f;
+          if (addr < 0x8000u)
+               sv->fade_cpu_rom = 1.0f;
+          else if (addr < 0xa000u)
+               sv->fade_cpu_vram = 1.0f;
+          else if (addr < 0xc000u)
+               sv->fade_cpu_rom = 1.0f;
+          else if (addr < 0xfe00u)
+               sv->fade_cpu_wram = 1.0f;
+          else if (addr < 0xff00u)
+               sv->fade_cpu_oam = 1.0f;
+          else
+               sv->fade_cpu_io = 1.0f;
           gb_debug_hw_trace_cpu_write(gb, addr, val);
      }
 

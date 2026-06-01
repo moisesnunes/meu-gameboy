@@ -4,22 +4,19 @@
 
 enum gb_irq_token
 {
-    /* Triggered on LCD VSYNC */
-    GB_IRQ_VSYNC = 0,
-    /* Triggered based on LCD STAT value */
-    GB_IRQ_LCD_STAT = 1,
-    /* Triggered on timer overflow */
-    GB_IRQ_TIMER = 2,
-    /* Triggered on serial transfer completion */
-    GB_IRQ_SERIAL = 3,
-    /* Triggered on button press */
-    GB_IRQ_INPUT = 4,
+     GB_IRQ_VSYNC    = 0, /* VBlank — fim do último scanline visível (LY 143→144) */
+     GB_IRQ_LCD_STAT = 1, /* LCD STAT — condição configurada em 0xFF41 (LYC, modos) */
+     GB_IRQ_TIMER    = 2, /* Timer — overflow do registrador TIMA (0xFF05) */
+     GB_IRQ_SERIAL   = 3, /* Serial — transferência via link cable concluída */
+     GB_IRQ_INPUT    = 4, /* Joypad — borda descendente em botão selecionado */
 };
 
 struct gb_irq
 {
-    uint8_t irq_flags;
-    uint8_t irq_enable;
+     /* Registrador IF (0xFF0F): bits pendentes de interrupção (escrita seta o bit) */
+     uint8_t irq_flags;
+     /* Registrador IE (0xFFFF): máscara de interrupções habilitadas pela ROM */
+     uint8_t irq_enable;
 };
 
 void gb_irq_reset(struct gb *gb);

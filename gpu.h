@@ -1,11 +1,11 @@
 #ifndef _GB_GPU_H_
 #define _GB_GPU_H_
 
-/* The GPU supports up to 40 sprites concurrently */
+/* A PPU suporta até 40 sprites simultâneos na OAM */
 #define GB_GPU_MAX_SPRITES 40
-/* The hardware only selects up to 10 sprites per scanline */
+/* O hardware seleciona no máximo 10 sprites por scanline */
 #define GB_GPU_LINE_SPRITES 10
-/* Background/window FIFO depth used by the pixel transfer model */
+/* Profundidade do FIFO de BG/window usado pelo modelo de transferência de pixels */
 #define GB_GPU_FIFO_CAPACITY 16
 
 enum gb_color
@@ -18,14 +18,14 @@ enum gb_color
 
 /* Resolução nativa do LCD do Game Boy. O fator de escala para a janela
  * do desktop fica no frontend (sdl.c), não aqui. */
-#define GB_LCD_WIDTH  160
+#define GB_LCD_WIDTH 160
 #define GB_LCD_HEIGHT 144
 
 union gb_gpu_color
 {
-     /* DMG color: 4 shades */
+     /* Cor DMG: 4 tons (0=branco … 3=preto) */
      enum gb_color dmg_color;
-     /* GBC color: xRGB 1555 */
+     /* Cor GBC: formato xBGR 1555 (15 bits de cor) */
      uint16_t gbc_color;
 };
 
@@ -37,25 +37,26 @@ struct gb_gpu_pixel
       * BGP seja lida no momento do pop, não do fetch. */
      enum gb_color raw;
      bool opaque;
-     /* GBC tile attribute bit 7: BG/window pixel has sprite priority. */
+     /* Atributo GBC bit 7: pixel de BG/window tem prioridade sobre sprites. */
      bool bg_priority;
 };
 
 /*
- * Decoded OAM entry selected for the current line. It lives in the GPU state
- * because pixel transfer can be suspended and resumed between CPU accesses.
+ * Entrada decodificada da OAM selecionada para a scanline atual.
+ * Vive no estado da PPU porque a transferência de pixels pode ser suspensa
+ * e retomada entre acessos da CPU.
  */
 struct gb_sprite
 {
-     int x;
-     int y;
-     uint8_t tile_index;
-     bool background;
-     bool x_flip;
-     bool y_flip;
-     bool use_obp1;
-     bool high_bank;
-     uint8_t palette;
+     int x;              /* Posição X na tela (com bias removido: OAM_X - 8) */
+     int y;              /* Posição Y na tela (com bias removido: OAM_Y - 16) */
+     uint8_t tile_index; /* Índice do tile na VRAM (tile set de sprite) */
+     bool background;    /* Se true, o sprite fica atrás do BG/window não-branco */
+     bool x_flip;        /* Espelha o sprite horizontalmente */
+     bool y_flip;        /* Espelha o sprite verticalmente */
+     bool use_obp1;      /* DMG: usa paleta OBP1 em vez de OBP0 */
+     bool high_bank;     /* GBC: usa o banco alto da VRAM para os dados do tile */
+     uint8_t palette;    /* GBC: índice da paleta de sprite (0–7) */
 };
 
 struct gb_gpu_fetcher
@@ -69,99 +70,101 @@ struct gb_gpu_fetcher
      uint8_t tile_count;
 };
 
-/* Palette used by the GBC */
+/* Paleta de cores usada pelo GBC (registradores BCPS/BCPD e OCPS/OCPD) */
 struct gb_color_palette
 {
-     /* 8 palettes of 4 colors. Each color is stored as xBGR 1555 */
+     /* 8 paletas de 4 cores cada. Cada cor em formato xBGR 1555 */
      uint16_t colors[8][4];
-     /* Index of the next write in this palette */
+     /* Índice da próxima escrita nesta paleta */
      uint8_t write_index;
-     /* If true `write_index` auto-increments after a write */
+     /* Se true, write_index é incrementado automaticamente após cada escrita */
      bool auto_increment;
 };
 
 struct gb_gpu
 {
-     /* Background scroll X */
+     /* Rolagem horizontal do fundo (registrador SCX, 0xFF43) */
      uint8_t scx;
-     /* Background scroll Y */
+     /* Rolagem vertical do fundo (registrador SCY, 0xFF42) */
      uint8_t scy;
-     /* Line counter interrupt enable */
+     /* Habilita IRQ de LCD STAT quando LY == LYC */
      bool iten_lyc;
-     /* Mode 0 interrupt enable */
+     /* Habilita IRQ de LCD STAT no início do Modo 0 (HBlank) */
      bool iten_mode0;
-     /* Mode 1 interrupt enable */
+     /* Habilita IRQ de LCD STAT no início do Modo 1 (VBlank) */
      bool iten_mode1;
-     /* Mode 2 interrupt enable */
+     /* Habilita IRQ de LCD STAT no início do Modo 2 (OAM scan) */
      bool iten_mode2;
-     /* True if the GPU is enabled */
+     /* LCDC bit 7: liga/desliga toda a PPU */
      bool master_enable;
-     /* True if the background is enabled */
+     /* LCDC bit 0: habilita o fundo (DMG) / prioridade BG sobre sprites (GBC) */
      bool bg_enable;
-     /* True if the window is enabled */
+     /* LCDC bit 5: habilita a camada de janela (window) */
      bool window_enable;
-     /* True if the sprites are enabled */
+     /* LCDC bit 1: habilita os sprites */
      bool sprite_enable;
-     /* If true sprites are 8x16, otherwise 8x8 */
+     /* LCDC bit 2: false=sprites 8×8, true=sprites 8×16 */
      bool tall_sprites;
-     /* If true the background uses the "high" tile map */
+     /* LCDC bit 3: false=tile map do fundo em 0x9800, true=em 0x9C00 */
      bool bg_use_high_tm;
-     /* If true the window uses the "high" tile map */
+     /* LCDC bit 6: false=tile map da window em 0x9800, true=em 0x9C00 */
      bool window_use_high_tm;
-     /* If true the background and window use the sprite tile set */
+     /* LCDC bit 4: false=tile set de BG (0x8800, signed), true=tile set de sprite (0x8000) */
      bool bg_window_use_sprite_ts;
-     /* LY register */
+     /* Registrador LY (0xFF44): scanline atual (0–153) */
      uint8_t ly;
-     /* LYC register */
+     /* Registrador LYC (0xFF45): valor de comparação com LY para IRQ */
      uint8_t lyc;
-     /* Background palette */
+     /* Registrador BGP (0xFF47): paleta do fundo no DMG */
      uint8_t bgp;
-     /* Sprite palette 0 */
+     /* Registrador OBP0 (0xFF48): paleta de sprite 0 no DMG */
      uint8_t obp0;
-     /* Sprite palette 1 */
+     /* Registrador OBP1 (0xFF49): paleta de sprite 1 no DMG */
      uint8_t obp1;
-     /* Window position X + 7 */
+     /* Registrador WX (0xFF4B): posição X da window + 7 */
      uint8_t wx;
-     /* Window position Y */
+     /* Registrador WY (0xFF4A): posição Y da window */
      uint8_t wy;
-     /* Current position within the current line */
+     /* Posição atual dentro da scanline em T-cycles (0–455) */
      uint16_t line_pos;
-     /* DMG quirk: after enabling LCD, LY reads 1 just before line 0 ends. */
+     /* DMG quirk: após habilitar o LCD, LY lê 1 um pouco antes do fim da linha 0. */
      bool lcd_enable_ly_quirk;
-     /* Current LCD STAT interrupt signal. IF is raised only on low->high. */
+     /* Nível atual do sinal de IRQ do LCD STAT. A IRQ só é disparada na borda 0→1. */
      bool stat_irq_line;
-     /* Latched STAT coincidence bit. LCD-off handling can preserve it briefly. */
+     /* Bit de coincidência LY==LYC travado. Pode ser preservado brevemente ao desligar o LCD. */
      bool stat_lyc_flag;
-     /* Internal window line counter — increments only when the window is
-     * actually rendered on a scanline, independent of LY and WY. */
+     /* Contador interno de linhas da window — incrementa apenas quando a window
+      * é efetivamente renderizada numa scanline, independente de LY e WY. */
      uint8_t window_line;
-     /* STAT Mode 0 IRQ is asserted one T-cycle before HBlank is visible. */
+     /* A IRQ de Modo 0 do STAT é disparada um T-cycle antes do HBlank ser visível. */
      bool stat_mode0_early_fired;
-     /* Pixel FIFO transfer state for the current scanline. */
-     bool line_started;
-     bool line_complete;
-     bool line_sent;
-     bool window_active;
-     bool window_rendered;
-     uint8_t screen_x;
-     uint8_t fifo_discard;
-     uint8_t fifo_len;
-     uint8_t sprite_stall;
-     uint16_t mode3_min_end;
-     union gb_gpu_color line[GB_LCD_WIDTH];
-     struct gb_gpu_pixel fifo[GB_GPU_FIFO_CAPACITY];
-     struct gb_gpu_fetcher fetcher;
-     struct gb_sprite line_sprites[GB_GPU_LINE_SPRITES + 1];
-     bool line_sprite_stalled[GB_GPU_LINE_SPRITES];
-     /* Object Attribute Memory (sprite configuration). Each sprite uses 4 bytes
-      * for attributes. */
+
+     /* ── Estado da transferência de pixels (Pixel FIFO) para a scanline atual ── */
+     bool line_started;    /* true após iniciar a transferência da linha atual */
+     bool line_complete;   /* true após os 160 pixels serem emitidos */
+     bool line_sent;       /* true após enviar a linha ao frontend via draw_line_* */
+     bool window_active;   /* true enquanto o fetcher está buscando tiles da window */
+     bool window_rendered; /* true se a window foi renderizada em algum pixel desta linha */
+     uint8_t screen_x;     /* Próxima coluna a ser escrita (0–159) */
+     uint8_t fifo_discard; /* Pixels a descartar no início da linha por causa do SCX & 7 */
+     uint8_t fifo_len;     /* Quantidade de pixels atualmente no FIFO */
+     uint8_t sprite_stall; /* T-cycles restantes de penalidade por fetch de sprite */
+     uint16_t mode3_min_end; /* Posição mínima dentro da scanline para sair do Modo 3 */
+
+     union gb_gpu_color line[GB_LCD_WIDTH];          /* Buffer da scanline atual */
+     struct gb_gpu_pixel fifo[GB_GPU_FIFO_CAPACITY]; /* FIFO de pixels BG/window */
+     struct gb_gpu_fetcher fetcher;                  /* Estado do tile fetcher */
+     struct gb_sprite line_sprites[GB_GPU_LINE_SPRITES + 1]; /* Sprites da scanline (+1 sentinela) */
+     bool line_sprite_stalled[GB_GPU_LINE_SPRITES];  /* Marca sprites já processados pelo stall */
+
+     /* OAM — Object Attribute Memory: configuração dos 40 sprites (4 bytes cada) */
      uint8_t oam[GB_GPU_MAX_SPRITES * 4];
-     /* GBC-only: background color palettes */
+     /* GBC: paletas de cor do fundo (registradores BCPS/BCPD, 0xFF68/0xFF69) */
      struct gb_color_palette bg_palettes;
-     /* GBC-only: sprite color palettes */
+     /* GBC: paletas de cor dos sprites (registradores OCPS/OCPD, 0xFF6A/0xFF6B) */
      struct gb_color_palette sprite_palettes;
-     /* GBC-only: OPRI (0xFF6C). Bit 0: 0=GBC priority (OAM index),
-      * 1=DMG priority (X coordinate). Written by boot ROM; locked after boot. */
+     /* GBC: OPRI (0xFF6C). Bit 0: 0=prioridade por índice OAM (GBC), 1=prioridade por X (DMG).
+      * Escrito pelo boot ROM; travado após o boot. */
      uint8_t opri;
 };
 

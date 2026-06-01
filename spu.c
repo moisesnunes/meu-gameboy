@@ -13,19 +13,18 @@ void gb_spu_update_sound_amp(struct gb *gb)
 {
      struct gb_spu *spu = &gb->spu;
      unsigned sound;
-     /* The maximum value a sample can take while summing the raw values */
+     /* Amplitude máxima possível ao somar os valores brutos de todos os canais */
      unsigned max_amplitude;
      unsigned scaling;
 
-     /* Each sound generates values 4bit unsigned values */
+     /* Cada canal gera valores de 4 bits sem sinal (0–15) */
      max_amplitude = 15;
-     /* Which can then be amplified up to 8 times by the `output_level` setting
-      */
+     /* NR50 amplifica até 8× por canal */
      max_amplitude *= 8;
-     /* Finally we sum up to 4 sounds */
+     /* Soma de até 4 canais */
      max_amplitude *= 4;
 
-     /* Linear scaling to saturate the output at max amplitude */
+     /* Fator linear para escalar a soma até INT16_MAX sem clipping */
      scaling = 0x7fff / max_amplitude;
 
      for (sound = 0; sound < 4; sound++)
@@ -61,7 +60,7 @@ static void gb_spu_frequency_reload(struct gb_spu_divider *f)
 
 static void gb_spu_lfsr_counter_reload(struct gb_spu_nr4 *nr4)
 {
-     /* The LFSR clock has a divider and a shifter */
+     /* Período do LFSR = divisor base × 2^(shift+1). Divisor 0 usa base 4, demais usam 8×div. */
      uint8_t div = nr4->lfsr_config & 7;
      uint8_t shift = (nr4->lfsr_config >> 4) + 1;
 
@@ -89,15 +88,15 @@ void gb_spu_reset(struct gb *gb)
      struct gb_spu *spu = &gb->spu;
      unsigned i;
 
-     /* Reset audio ring-buffer semaphores to a clean state so that loading a
-      * new ROM never leaves sem_wait() blocked on a stale semaphore value. */
+     /* Reinicializa os semáforos do anel de buffers para um estado limpo,
+      * evitando que carregar uma nova ROM bloqueie sem_wait() em valor obsoleto. */
      for (i = 0; i < GB_SPU_SAMPLE_BUFFER_COUNT; i++)
      {
           struct gb_spu_sample_buffer *buf = &spu->buffers[i];
-          /* Drain any posted-but-unconsumed values before re-initialising. */
+          /* Destrói antes de recriar para descartar qualquer post pendente. */
           sem_destroy(&buf->free);
           sem_destroy(&buf->ready);
-          sem_init(&buf->free,  0, 1);
+          sem_init(&buf->free, 0, 1);
           sem_init(&buf->ready, 0, 0);
      }
      spu->buffer_index = 0;
@@ -227,6 +226,8 @@ void gb_spu_duration_reload(struct gb_spu_duration *d,
      d->counter = duration_max + 1 - t1;
 }
 
+/* Retorna true se o próximo tick do frame sequencer vai decrementar o length counter.
+ * Os passos pares (0, 2, 4, 6) acionam o length; os ímpares (1, 3, 5, 7) não. */
 static bool gb_spu_next_frame_step_clocks_length(struct gb *gb)
 {
      return (gb->spu.frame_seq_step & 1) == 0;
@@ -273,7 +274,7 @@ static void gb_spu_duration_trigger(struct gb *gb,
      d->enable = false;
 }
 
-/* Clock the length counter. Returns true if the channel should be disabled. */
+/* Decrementa o length counter. Retorna true se o canal deve ser desativado. */
 static bool gb_spu_duration_clock(struct gb_spu_duration *d)
 {
      if (d->enable && d->counter)
@@ -285,7 +286,8 @@ static bool gb_spu_duration_clock(struct gb_spu_duration *d)
      return false;
 }
 
-/* Update the frequency counter and return the number of times it ran out */
+/* Avança o divisor de frequência por `cycles` T-cycles.
+ * Retorna quantas vezes o contador chegou a zero (= quantos ticks de onda ocorreram). */
 static unsigned gb_spu_frequency_update(struct gb_spu_divider *f,
                                         unsigned cycles)
 {
@@ -302,7 +304,6 @@ static unsigned gb_spu_frequency_update(struct gb_spu_divider *f,
           {
                count++;
                cycles -= f->counter;
-               /* Reload counter */
                gb_spu_frequency_reload(f);
           }
      }
@@ -409,7 +410,7 @@ static void gb_spu_envelope_reload_counter(struct gb_spu_envelope *e)
      e->counter = e->step_duration;
 }
 
-/* Reload the envelope config from the register value */
+/* Carrega o estado do envelope a partir do valor bruto do registrador NRx2 */
 static void gb_spu_envelope_init(struct gb_spu_envelope *e, uint8_t config)
 {
      e->value = config >> 4;
@@ -425,8 +426,8 @@ static bool gb_spu_envelope_dac_enabled(uint8_t config)
      return (config & 0xf8) != 0;
 }
 
-/* Run the envelope if it's enabled. Reaching volume 0 only stops further
- * volume changes; it does not disable the channel by itself. */
+/* Executa um tick do envelope. Chegar a volume 0 apenas para o envelope;
+ * não desativa o canal — o DAC continua gerando sinal (silencioso). */
 static void gb_spu_envelope_clock(struct gb_spu_envelope *e)
 {
      if (!e->running || e->step_duration == 0)
@@ -518,9 +519,9 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 
      if (!gb->gbc)
      {
-          /* DMG: process the wave timer cycle-by-cycle to track the access window
-           * accurately. Each time the timer fires we open a 2-cycle window; then
-           * we count down the remaining cycles in the batch to close it. */
+          /* DMG: processa o timer da onda ciclo a ciclo para rastrear a janela
+           * de acesso com precisão. Cada vez que o timer dispara, abre uma janela
+           * de 2 ciclos; depois conta regressivamente para fechá-la. */
           unsigned remaining = cycles;
           while (remaining)
           {
@@ -555,11 +556,10 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 
      if (spu->nr3.volume_shift == 0)
      {
-          /* Sound is muted */
-          return 0;
+          return 0; /* volume_shift 0 = mudo */
      }
 
-     /* We pack two samples per byte */
+     /* Duas amostras de 4 bits empacotadas por byte: nibble alto = índice par */
      sample = spu->nr3.ram[spu->nr3.index / 2];
 
      if (spu->nr3.index & 1)
@@ -577,7 +577,7 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 
 static void gb_spu_lfsr_step(struct gb_spu_nr4 *nr4)
 {
-     /* If true the lfsr only uses 7 bits for the effective register period */
+     /* NR43 bit 3: modo 7 bits — carry também é copiado para o bit 6, encurtando o período */
      bool period_7bits = nr4->lfsr_config & 0x8;
      uint16_t shifted;
      uint16_t carry;
@@ -590,7 +590,7 @@ static void gb_spu_lfsr_step(struct gb_spu_nr4 *nr4)
 
      if (period_7bits)
      {
-          /* Carry is also copied to bit 6 */
+          /* Copia carry para bit 6 → período efetivo de 7 bits em vez de 15 */
           nr4->lfsr &= ~(1U << 6);
           nr4->lfsr |= carry << 6;
      }
@@ -626,7 +626,8 @@ static int16_t gb_spu_next_nr4_sample(struct gb *gb, unsigned cycles)
      return sample ? spu->nr4.envelope.value : -spu->nr4.envelope.value;
 }
 
-/* Send a pair of left/right samples to the frontend */
+/* Envia um par L/R ao frontend. Bloqueia em sem_wait() se o buffer ainda não foi
+ * consumido — sincroniza a velocidade da emulação com a taxa de reprodução de áudio. */
 static void gb_spu_send_sample_to_frontend(struct gb *gb,
                                            int16_t sample_l, int16_t sample_r)
 {
@@ -637,10 +638,7 @@ static void gb_spu_send_sample_to_frontend(struct gb *gb,
 
      if (spu->sample_index == 0)
      {
-          /* We're about to fill the first sample, make sure that the
-           * buffer is free. If it's not this will pause the thread until
-           * the frontend frees it, effectively synchronizing us with audio
-           */
+          /* Primeiro sample do buffer: aguarda o frontend liberar o slot */
           sem_wait(&buf->free);
      }
 
@@ -650,9 +648,8 @@ static void gb_spu_send_sample_to_frontend(struct gb *gb,
      spu->sample_index++;
      if (spu->sample_index == GB_SPU_SAMPLE_BUFFER_LENGTH)
      {
-          /* We're done with this buffer */
+          /* Buffer cheio: sinaliza o frontend e avança para o próximo slot do anel */
           sem_post(&buf->ready);
-          /* Move on to the next one */
           spu->buffer_index = (spu->buffer_index + 1) % GB_SPU_SAMPLE_BUFFER_COUNT;
           spu->sample_index = 0;
      }
@@ -826,7 +823,7 @@ void gb_spu_sync(struct gb *gb)
 
      spu->sample_period_frac = frac;
 
-     /* Schedule a sync to fill the current buffer */
+     /* Agenda o próximo sync para exatamente quando o buffer atual ficará cheio */
      next_sync = (GB_SPU_SAMPLE_BUFFER_LENGTH - spu->sample_index) *
                  GB_SPU_SAMPLE_RATE_DIVISOR;
      next_sync -= frac;
@@ -862,9 +859,9 @@ void gb_spu_nr3_start(struct gb *gb)
 {
      struct gb_spu *spu = &gb->spu;
 
-     /* DMG corruption: re-triggering while CH3 is playing corrupts wave RAM.
-      * The next byte to be read (at index+1) determines which bytes are
-      * corrupted into the start of wave RAM. Matches blargg DMG-B behavior. */
+     /* DMG quirk: re-trigger enquanto CH3 toca corrompe a Wave RAM.
+      * O próximo byte a ser lido (index+1) determina quais bytes são copiados
+      * para o início da Wave RAM. Comportamento verificado no DMG-B (blargg). */
      if (!gb->gbc && spu->nr3.running && spu->nr3.divider.counter <= 2)
      {
           unsigned offset = ((spu->nr3.index + 1) >> 1) & 0xf;
@@ -877,7 +874,7 @@ void gb_spu_nr3_start(struct gb *gb)
      spu->nr3.index = 0;
      gb_spu_duration_trigger(gb, &spu->nr3.duration, GB_SPU_LENGTH_STEP_NR3);
      gb_spu_frequency_reload(&spu->nr3.divider);
-     /* Hardware: wave timer has 3 extra 2MHz-clock cycles of delay on trigger */
+     /* Hardware: o timer da onda tem 3 ciclos extras de atraso no trigger (comportamento verificado) */
      spu->nr3.divider.counter += 6;
      spu->nr3.access_cycles = 0;
 

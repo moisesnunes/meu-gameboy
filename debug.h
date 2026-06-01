@@ -9,244 +9,253 @@
 
 struct gb;
 
-typedef enum {
-    GB_DEBUG_RUNNING,   /* emulação rodando normalmente */
-    GB_DEBUG_PAUSED,    /* pausado — aguardando comando do usuário */
-    GB_DEBUG_STEPPING,  /* executa exatamente uma instrução e volta a PAUSED */
-    GB_DEBUG_STEP_OVER, /* executa até a próxima linha após uma CALL */
-    GB_DEBUG_STEP_OUT,  /* executa até um RET */
+typedef enum
+{
+     GB_DEBUG_RUNNING,   /* emulação rodando normalmente */
+     GB_DEBUG_PAUSED,    /* pausado — aguardando comando do usuário */
+     GB_DEBUG_STEPPING,  /* executa exatamente uma instrução e volta a PAUSED */
+     GB_DEBUG_STEP_OVER, /* executa até a próxima linha após uma CALL */
+     GB_DEBUG_STEP_OUT,  /* executa até um RET */
 } gb_debug_state;
 
-typedef enum {
-    GB_WATCHPOINT_READ = 1,   /* pausa ao ler o endereço */
-    GB_WATCHPOINT_WRITE = 2,  /* pausa ao escrever o endereço */
-    GB_WATCHPOINT_BOTH = 3,   /* pausa ao ler ou escrever */
+typedef enum
+{
+     GB_WATCHPOINT_READ = 1,  /* pausa ao ler o endereço */
+     GB_WATCHPOINT_WRITE = 2, /* pausa ao escrever o endereço */
+     GB_WATCHPOINT_BOTH = 3,  /* pausa ao ler ou escrever */
 } gb_watchpoint_type;
 
-struct gb_watchpoint {
-    uint16_t        addr;
-    gb_watchpoint_type type;
-    bool            enabled;
+struct gb_watchpoint
+{
+     uint16_t addr;
+     gb_watchpoint_type type;
+     bool enabled;
 };
 
 /* ────────────────────────────────────────────────────────── */
 /* Hardware Visualization — System Diagram (Milestone 2)       */
 /* ────────────────────────────────────────────────────────── */
 
-struct gb_sys_viz {
-    /* Fade timers: set to 1.0 by bus activity, decay at ~8/s in the UI */
-    float fade_cpu_rom;
-    float fade_cpu_wram;
-    float fade_cpu_vram;
-    float fade_cpu_oam;
-    float fade_cpu_io;
-    float fade_dma_oam;
-    float fade_ppu_vram;
-    float fade_irq_cpu;
-    float fade_apu;
-    /* Last bus values (informational) */
-    uint16_t last_bus_addr;
-    uint8_t  last_bus_data;
+struct gb_sys_viz
+{
+     /* Fade timers: set to 1.0 by bus activity, decay at ~8/s in the UI */
+     float fade_cpu_rom;
+     float fade_cpu_wram;
+     float fade_cpu_vram;
+     float fade_cpu_oam;
+     float fade_cpu_io;
+     float fade_dma_oam;
+     float fade_ppu_vram;
+     float fade_irq_cpu;
+     float fade_apu;
+     /* Last bus values (informational) */
+     uint16_t last_bus_addr;
+     uint8_t last_bus_data;
 };
 
 /* ────────────────────────────────────────────────────────── */
 /* Hardware Visualization — CPU Datapath (Milestone 3)         */
 /* ────────────────────────────────────────────────────────── */
 
-struct gb_cpu_viz {
-    uint8_t  stage;        /* 0=fetch 1=decode 2=execute 3=irq */
-    uint8_t  alu_op;       /* GB_VIZ_ALU_* */
-    uint8_t  src;          /* GB_VIZ_REG_* source */
-    uint8_t  dst;          /* GB_VIZ_REG_* destination */
-    uint16_t addr_bus;
-    uint8_t  data_bus;
-    bool     bus_write;
-    uint8_t  opcode;
-    char     mnemonic[24];
-    float    activity_fade;
+struct gb_cpu_viz
+{
+     uint8_t stage;  /* 0=fetch 1=decode 2=execute 3=irq */
+     uint8_t alu_op; /* GB_VIZ_ALU_* */
+     uint8_t src;    /* GB_VIZ_REG_* source */
+     uint8_t dst;    /* GB_VIZ_REG_* destination */
+     uint16_t addr_bus;
+     uint8_t data_bus;
+     bool bus_write;
+     uint8_t opcode;
+     char mnemonic[24];
+     float activity_fade;
 
-    /* Operands and results captured across instruction boundary */
-    uint8_t  alu_a;         /* accumulator value before this instruction */
-    uint8_t  alu_b;         /* source operand value before this instruction */
-    uint8_t  alu_result;    /* accumulator after previous instruction */
-    uint8_t  flags_before;  /* (Z<<3)|(N<<2)|(H<<1)|C before this instruction */
-    uint8_t  flags_after;   /* flags after previous instruction */
-    uint8_t  flags_changed; /* bitmask: which flags changed last instruction */
-    uint8_t  m_cycles;      /* M-cycles consumed by previous instruction */
-    int32_t  timestamp_last;/* gb->timestamp at start of previous instruction */
+     /* Operands and results captured across instruction boundary */
+     uint8_t alu_a;          /* accumulator value before this instruction */
+     uint8_t alu_b;          /* source operand value before this instruction */
+     uint8_t alu_result;     /* accumulator after previous instruction */
+     uint8_t flags_before;   /* (Z<<3)|(N<<2)|(H<<1)|C before this instruction */
+     uint8_t flags_after;    /* flags after previous instruction */
+     uint8_t flags_changed;  /* bitmask: which flags changed last instruction */
+     uint8_t m_cycles;       /* M-cycles consumed by previous instruction */
+     int32_t timestamp_last; /* gb->timestamp at start of previous instruction */
 };
 
 /* ALU operation kinds */
-#define GB_VIZ_ALU_NONE  0
-#define GB_VIZ_ALU_ADD   1
-#define GB_VIZ_ALU_SUB   2
-#define GB_VIZ_ALU_AND   3
-#define GB_VIZ_ALU_OR    4
-#define GB_VIZ_ALU_XOR   5
-#define GB_VIZ_ALU_CP    6
-#define GB_VIZ_ALU_INC   7
-#define GB_VIZ_ALU_DEC   8
+#define GB_VIZ_ALU_NONE 0
+#define GB_VIZ_ALU_ADD 1
+#define GB_VIZ_ALU_SUB 2
+#define GB_VIZ_ALU_AND 3
+#define GB_VIZ_ALU_OR 4
+#define GB_VIZ_ALU_XOR 5
+#define GB_VIZ_ALU_CP 6
+#define GB_VIZ_ALU_INC 7
+#define GB_VIZ_ALU_DEC 8
 #define GB_VIZ_ALU_SHIFT 9
-#define GB_VIZ_ALU_BIT   10
+#define GB_VIZ_ALU_BIT 10
 
 /* Register identifiers */
-#define GB_VIZ_REG_NONE  0
-#define GB_VIZ_REG_A     1
-#define GB_VIZ_REG_B     2
-#define GB_VIZ_REG_C     3
-#define GB_VIZ_REG_D     4
-#define GB_VIZ_REG_E     5
-#define GB_VIZ_REG_H     6
-#define GB_VIZ_REG_L     7
-#define GB_VIZ_REG_HL    8
-#define GB_VIZ_REG_BC    9
-#define GB_VIZ_REG_DE    10
-#define GB_VIZ_REG_SP    11
-#define GB_VIZ_REG_IMM8  12
+#define GB_VIZ_REG_NONE 0
+#define GB_VIZ_REG_A 1
+#define GB_VIZ_REG_B 2
+#define GB_VIZ_REG_C 3
+#define GB_VIZ_REG_D 4
+#define GB_VIZ_REG_E 5
+#define GB_VIZ_REG_H 6
+#define GB_VIZ_REG_L 7
+#define GB_VIZ_REG_HL 8
+#define GB_VIZ_REG_BC 9
+#define GB_VIZ_REG_DE 10
+#define GB_VIZ_REG_SP 11
+#define GB_VIZ_REG_IMM8 12
 #define GB_VIZ_REG_IMM16 13
-#define GB_VIZ_REG_MEM   14
+#define GB_VIZ_REG_MEM 14
 
 /* CPU pipeline stages */
-#define GB_VIZ_STAGE_FETCH   0
-#define GB_VIZ_STAGE_DECODE  1
+#define GB_VIZ_STAGE_FETCH 0
+#define GB_VIZ_STAGE_DECODE 1
 #define GB_VIZ_STAGE_EXECUTE 2
-#define GB_VIZ_STAGE_IRQ     3
+#define GB_VIZ_STAGE_IRQ 3
 
 /* ────────────────────────────────────────────────────────── */
 /* Hardware Trace Ring Buffer (Fase C)                          */
 /* ────────────────────────────────────────────────────────── */
 
-typedef enum {
-    GB_HW_EVT_NONE = 0,
-    GB_HW_EVT_CPU_FETCH,
-    GB_HW_EVT_CPU_READ,
-    GB_HW_EVT_CPU_WRITE,
-    GB_HW_EVT_IRQ_REQUEST,
-    GB_HW_EVT_IRQ_ACK,
-    GB_HW_EVT_CPU_ALU,       /* ALU op: data=result, extra=alu_op, addr=flags_after<<8|flags_before */
-    GB_HW_EVT_CPU_WRITEBACK, /* register writeback: extra=dst reg, data=value8, addr=value16 */
-    GB_HW_EVT_DMA_READ,
-    GB_HW_EVT_DMA_WRITE,
-    GB_HW_EVT_PPU_MODE,
-    GB_HW_EVT_APU_SAMPLE,
-    /* Fase E */
-    GB_HW_EVT_PPU_VBLANK,   /* PPU entrou em VBlank (LY=144)       */
-    GB_HW_EVT_PPU_HBLANK,   /* PPU entrou em HBlank                */
-    GB_HW_EVT_OAM_DMA,      /* OAM DMA copiou 1 byte → OAM        */
-    GB_HW_EVT_TIMER_OVF,    /* TIMA overflow → IRQ timer           */
-    GB_HW_EVT_APU_WRITE,    /* write em registrador APU (0xFF10-3F)*/
-    GB_HW_EVT_JOYPAD,       /* botão pressionado/solto             */
-    GB_HW_EVT_SERIAL_START, /* SC bit7=1: inicia transferência; extra=SC byte */
-    GB_HW_EVT_SERIAL_DONE,  /* transferência serial concluída; data=SB recebido */
-    GB_HW_EVT_MBC_SWITCH,   /* troca de banco ROM/RAM; addr=write addr, data=bank low, extra=bank high */
+typedef enum
+{
+     GB_HW_EVT_NONE = 0,
+     GB_HW_EVT_CPU_FETCH,
+     GB_HW_EVT_CPU_READ,
+     GB_HW_EVT_CPU_WRITE,
+     GB_HW_EVT_IRQ_REQUEST,
+     GB_HW_EVT_IRQ_ACK,
+     GB_HW_EVT_CPU_ALU,       /* ALU op: data=result, extra=alu_op, addr=flags_after<<8|flags_before */
+     GB_HW_EVT_CPU_WRITEBACK, /* register writeback: extra=dst reg, data=value8, addr=value16 */
+     GB_HW_EVT_DMA_READ,
+     GB_HW_EVT_DMA_WRITE,
+     GB_HW_EVT_PPU_MODE,
+     GB_HW_EVT_APU_SAMPLE,
+     /* Fase E */
+     GB_HW_EVT_PPU_VBLANK,   /* PPU entrou em VBlank (LY=144)       */
+     GB_HW_EVT_PPU_HBLANK,   /* PPU entrou em HBlank                */
+     GB_HW_EVT_OAM_DMA,      /* OAM DMA copiou 1 byte → OAM        */
+     GB_HW_EVT_TIMER_OVF,    /* TIMA overflow → IRQ timer           */
+     GB_HW_EVT_APU_WRITE,    /* write em registrador APU (0xFF10-3F)*/
+     GB_HW_EVT_JOYPAD,       /* botão pressionado/solto             */
+     GB_HW_EVT_SERIAL_START, /* SC bit7=1: inicia transferência; extra=SC byte */
+     GB_HW_EVT_SERIAL_DONE,  /* transferência serial concluída; data=SB recebido */
+     GB_HW_EVT_MBC_SWITCH,   /* troca de banco ROM/RAM; addr=write addr, data=bank low, extra=bank high */
 } gb_hw_trace_event_type;
 
-typedef struct {
-    uint64_t               seq;
-    int32_t                timestamp;
-    gb_hw_trace_event_type type;
-    uint16_t               pc;
-    uint8_t                opcode;
-    uint16_t               addr;
-    uint8_t                data;
-    bool                   write;
-    uint8_t                extra;
-    /* CPU snapshot — filled only for GB_HW_EVT_CPU_FETCH */
-    uint8_t                snap_a, snap_b, snap_c, snap_d;
-    uint8_t                snap_e, snap_h, snap_l;
-    uint16_t               snap_sp;
-    uint8_t                snap_flags;   /* (Z<<3)|(N<<2)|(H<<1)|C */
-    uint8_t                snap_ir;      /* instruction register (opcode) */
-    uint8_t                snap_dbus;    /* data bus at fetch time */
-    uint8_t                snap_alu_op;  /* GB_VIZ_ALU_* */
-    uint8_t                snap_src;     /* GB_VIZ_REG_* */
-    uint8_t                snap_dst;     /* GB_VIZ_REG_* */
+typedef struct
+{
+     uint64_t seq;
+     int32_t timestamp;
+     gb_hw_trace_event_type type;
+     uint16_t pc;
+     uint8_t opcode;
+     uint16_t addr;
+     uint8_t data;
+     bool write;
+     uint8_t extra;
+     /* CPU snapshot — filled only for GB_HW_EVT_CPU_FETCH */
+     uint8_t snap_a, snap_b, snap_c, snap_d;
+     uint8_t snap_e, snap_h, snap_l;
+     uint16_t snap_sp;
+     uint8_t snap_flags;  /* (Z<<3)|(N<<2)|(H<<1)|C */
+     uint8_t snap_ir;     /* instruction register (opcode) */
+     uint8_t snap_dbus;   /* data bus at fetch time */
+     uint8_t snap_alu_op; /* GB_VIZ_ALU_* */
+     uint8_t snap_src;    /* GB_VIZ_REG_* */
+     uint8_t snap_dst;    /* GB_VIZ_REG_* */
 } gb_hw_trace_event;
 
 #define GB_HW_TRACE_CAP 4096
 
-struct gb_hw_trace {
-    gb_hw_trace_event events[GB_HW_TRACE_CAP];
-    uint32_t          head;
-    uint32_t          count;
-    uint64_t          next_seq;
-    bool              enabled;
+struct gb_hw_trace
+{
+     gb_hw_trace_event events[GB_HW_TRACE_CAP];
+     uint32_t head;
+     uint32_t count;
+     uint64_t next_seq;
+     bool enabled;
 };
 
-struct gb_debug {
-    bool            enabled;
-    gb_debug_state  state;
-    uint64_t        instruction_count;
-    uint64_t        cycle_count;
+struct gb_debug
+{
+     bool enabled;
+     gb_debug_state state;
+     uint64_t instruction_count;
+     uint64_t cycle_count;
 
-    uint16_t breakpoints[GB_DEBUG_MAX_BREAKPOINTS];
-    bool     bp_enabled [GB_DEBUG_MAX_BREAKPOINTS];
-    unsigned n_breakpoints;
+     uint16_t breakpoints[GB_DEBUG_MAX_BREAKPOINTS];
+     bool bp_enabled[GB_DEBUG_MAX_BREAKPOINTS];
+     unsigned n_breakpoints;
 
-    /* ── Watchpoints (read/write) ── */
-    struct gb_watchpoint watchpoints[GB_DEBUG_MAX_WATCHPOINTS];
-    unsigned n_watchpoints;
+     /* ── Watchpoints (read/write) ── */
+     struct gb_watchpoint watchpoints[GB_DEBUG_MAX_WATCHPOINTS];
+     unsigned n_watchpoints;
 
-    /* ── Step over / step out ── */
-    uint16_t step_return_addr;  /* endereço de retorno para step_over */
-    int      step_depth;        /* profundidade de call stack para step_out */
+     /* ── Step over / step out ── */
+     uint16_t step_return_addr; /* endereço de retorno para step_over */
+     int step_depth;            /* profundidade de call stack para step_out */
 
-    /* ── Profiling ── */
+     /* ── Profiling ── */
 
-    /* Opcode profiler: [0..255] = opcodes normais, [256..511] = CB-prefixados */
-    uint32_t opcode_hits[512];
+     /* Opcode profiler: [0..255] = opcodes normais, [256..511] = CB-prefixados */
+     uint32_t opcode_hits[512];
 
-    /* Heatmap de execução: quantas vezes cada endereço foi o PC */
-    uint32_t exec_heatmap[65536];
+     /* Heatmap de execução: quantas vezes cada endereço foi o PC */
+     uint32_t exec_heatmap[65536];
 
-    /* Coverage: 1 bit por endereço — foi executado alguma vez? (8 KiB) */
-    uint8_t  exec_coverage[8192];
+     /* Coverage: 1 bit por endereço — foi executado alguma vez? (8 KiB) */
+     uint8_t exec_coverage[8192];
 
-    /* ── Hardware visualization data ── */
-    struct gb_sys_viz sys_viz;
-    struct gb_cpu_viz cpu_viz;
+     /* ── Hardware visualization data ── */
+     struct gb_sys_viz sys_viz;
+     struct gb_cpu_viz cpu_viz;
 
-    /* ── Hardware trace ring buffer (Fase C) ── */
-    struct gb_hw_trace hw_trace;
+     /* ── Hardware trace ring buffer (Fase C) ── */
+     struct gb_hw_trace hw_trace;
 };
 
-void     gb_debug_init            (struct gb *gb);
-void     gb_debug_before_instr    (struct gb *gb);   /* chamado antes de cada instrução */
-void     gb_debug_add_breakpoint  (struct gb *gb, uint16_t addr);
-void     gb_debug_remove_breakpoint(struct gb *gb, unsigned index);
-bool     gb_debug_has_breakpoint  (struct gb *gb, uint16_t addr);
-void     gb_debug_reset_profiler  (struct gb *gb);
-bool     gb_debug_trace_enabled   (void);
-bool     gb_debug_trace_set_enabled(struct gb *gb, bool enabled, const char *path);
+void gb_debug_init(struct gb *gb);
+void gb_debug_before_instr(struct gb *gb); /* chamado antes de cada instrução */
+void gb_debug_add_breakpoint(struct gb *gb, uint16_t addr);
+void gb_debug_remove_breakpoint(struct gb *gb, unsigned index);
+bool gb_debug_has_breakpoint(struct gb *gb, uint16_t addr);
+void gb_debug_reset_profiler(struct gb *gb);
+bool gb_debug_trace_enabled(void);
+bool gb_debug_trace_set_enabled(struct gb *gb, bool enabled, const char *path);
 
 /* Watchpoints */
-void     gb_debug_add_watchpoint  (struct gb *gb, uint16_t addr, gb_watchpoint_type type);
-void     gb_debug_remove_watchpoint(struct gb *gb, unsigned index);
-void     gb_debug_check_watchpoint(struct gb *gb, uint16_t addr, gb_watchpoint_type type);
+void gb_debug_add_watchpoint(struct gb *gb, uint16_t addr, gb_watchpoint_type type);
+void gb_debug_remove_watchpoint(struct gb *gb, unsigned index);
+void gb_debug_check_watchpoint(struct gb *gb, uint16_t addr, gb_watchpoint_type type);
 
 /* Step over / step out */
-void     gb_debug_step_over       (struct gb *gb);
-void     gb_debug_step_out        (struct gb *gb);
-uint16_t gb_debug_get_next_instr_addr(struct gb *gb);  /* próximo endereço após a instrução atual */
+void gb_debug_step_over(struct gb *gb);
+void gb_debug_step_out(struct gb *gb);
+uint16_t gb_debug_get_next_instr_addr(struct gb *gb); /* próximo endereço após a instrução atual */
 
 /* Hardware trace helpers — no-ops when hw_trace.enabled == false */
-void gb_debug_hw_trace_cpu_fetch    (struct gb *gb, uint16_t pc, uint8_t opcode);
-void gb_debug_hw_trace_cpu_read     (struct gb *gb, uint16_t addr, uint8_t data);
-void gb_debug_hw_trace_cpu_write    (struct gb *gb, uint16_t addr, uint8_t data);
-void gb_debug_hw_trace_irq          (struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_reg);
-void gb_debug_hw_trace_alu          (struct gb *gb, uint8_t alu_op, uint8_t result,
-                                     uint8_t flags_before, uint8_t flags_after);
-void gb_debug_hw_trace_writeback    (struct gb *gb, uint8_t dst_reg, uint8_t val8, uint16_t val16);
+void gb_debug_hw_trace_cpu_fetch(struct gb *gb, uint16_t pc, uint8_t opcode);
+void gb_debug_hw_trace_cpu_read(struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_cpu_write(struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_irq(struct gb *gb, bool ack, uint8_t if_reg, uint8_t ie_reg);
+void gb_debug_hw_trace_alu(struct gb *gb, uint8_t alu_op, uint8_t result,
+                           uint8_t flags_before, uint8_t flags_after);
+void gb_debug_hw_trace_writeback(struct gb *gb, uint8_t dst_reg, uint8_t val8, uint16_t val16);
 /* Fase E helpers */
 void gb_debug_hw_trace_ppu_vblank(struct gb *gb, uint8_t ly);
 void gb_debug_hw_trace_ppu_hblank(struct gb *gb, uint8_t ly);
-void gb_debug_hw_trace_oam_dma   (struct gb *gb, uint8_t pos, uint8_t data);
-void gb_debug_hw_trace_timer_ovf (struct gb *gb, uint8_t tma);
-void gb_debug_hw_trace_apu_write (struct gb *gb, uint16_t addr, uint8_t data);
-void gb_debug_hw_trace_joypad    (struct gb *gb, uint8_t state, bool pressed);
+void gb_debug_hw_trace_oam_dma(struct gb *gb, uint8_t pos, uint8_t data);
+void gb_debug_hw_trace_timer_ovf(struct gb *gb, uint8_t tma);
+void gb_debug_hw_trace_apu_write(struct gb *gb, uint16_t addr, uint8_t data);
+void gb_debug_hw_trace_joypad(struct gb *gb, uint8_t state, bool pressed);
 void gb_debug_hw_trace_serial_start(struct gb *gb, uint8_t sc);
-void gb_debug_hw_trace_serial_done (struct gb *gb, uint8_t sb_received);
-void gb_debug_hw_trace_mbc_switch  (struct gb *gb, uint16_t write_addr, uint16_t new_rom_bank, uint8_t new_ram_bank);
-void gb_debug_hw_trace_ppu_mode    (struct gb *gb, uint8_t new_mode, uint8_t ly);
+void gb_debug_hw_trace_serial_done(struct gb *gb, uint8_t sb_received);
+void gb_debug_hw_trace_mbc_switch(struct gb *gb, uint16_t write_addr, uint16_t new_rom_bank, uint8_t new_ram_bank);
+void gb_debug_hw_trace_ppu_mode(struct gb *gb, uint8_t new_mode, uint8_t ly);
 
 #endif /* _GB_DEBUG_H_ */

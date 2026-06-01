@@ -52,10 +52,10 @@ struct compat_ctx
 };
 
 static const uint32_t dmg_palette[4] = {
-     0xffffffff,
-     0xffaaaaaa,
-     0xff555555,
-     0xff000000,
+    0xffffffff,
+    0xffaaaaaa,
+    0xff555555,
+    0xff000000,
 };
 
 static void draw_line_dmg(struct gb *gb, unsigned ly,
@@ -139,7 +139,11 @@ static void usage(const char *argv0)
 static void load_bootrom(struct gb *gb, const char *path)
 {
      FILE *f = fopen(path, "rb");
-     if (!f) { perror(path); return; }
+     if (!f)
+     {
+          perror(path);
+          return;
+     }
      fseek(f, 0, SEEK_END);
      long size = ftell(f);
      rewind(f);
@@ -150,14 +154,21 @@ static void load_bootrom(struct gb *gb, const char *path)
           return;
      }
      uint8_t *buf = malloc((size_t)size);
-     if (!buf) { perror("malloc"); fclose(f); return; }
+     if (!buf)
+     {
+          perror("malloc");
+          fclose(f);
+          return;
+     }
      if (fread(buf, 1, (size_t)size, f) != (size_t)size)
      {
-          free(buf); fclose(f); return;
+          free(buf);
+          fclose(f);
+          return;
      }
      fclose(f);
      free(gb->bootrom);
-     gb->bootrom      = buf;
+     gb->bootrom = buf;
      gb->bootrom_size = (uint32_t)size;
 }
 
