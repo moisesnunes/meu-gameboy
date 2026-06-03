@@ -32,6 +32,10 @@ struct gba_irq
      uint16_t if_; /* 0x04000202: Interrupt Request Flags */
      bool ime;     /* 0x04000208: Interrupt Master Enable */
      bool force;   /* IRQ edge already accepted by CPU pipeline */
+     /* Hardware IRQ delay: ARM7TDMI takes ~7 cycles from IF set to CPU entry.
+      * We model this as a countdown in CPU cycles; IRQ is only visible to the
+      * CPU once irq_delay reaches 0.  Reset to GBA_IRQ_DELAY on each new IF. */
+     int32_t irq_delay; /* cycles remaining before IRQ is serviceable */
 };
 
 void gba_irq_reset(struct gba *gba);

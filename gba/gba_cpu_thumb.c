@@ -1,6 +1,15 @@
 #include <string.h>
 #include "gba.h"
 
+/* Signed multiply latency — matches ARM side (see gba_cpu_arm.c) */
+static int mul_cycles_signed(uint32_t rs)
+{
+     if ((rs & 0xFFFFFF00u) == 0xFFFFFF00u || !(rs & 0xFFFFFF00u)) return 1;
+     if ((rs & 0xFFFF0000u) == 0xFFFF0000u || !(rs & 0xFFFF0000u)) return 2;
+     if ((rs & 0xFF000000u) == 0xFF000000u || !(rs & 0xFF000000u)) return 3;
+     return 4;
+}
+
 /* -------------------------------------------------------------------------
  * Flag helpers (shared with ARM side)
  * ---------------------------------------------------------------------- */
@@ -332,11 +341,14 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
                set_nz(cpu, res);
                cpu->r[rd] = res;
                break; /* ORR */
-          case 0xD:
+          case 0xD: /* MUL Rd, Rs — Rd = Rd * Rs, latency based on Rd value */
+          {
+               int mul_lat = mul_cycles_signed(a);
                res = a * b;
                cpu->r[rd] = res;
                set_nz(cpu, res);
-               break; /* MUL */
+               return 1 + mul_lat;
+          }
           case 0xE:
                res = a & ~b;
                set_nz(cpu, res);
@@ -733,16 +745,19 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
           bool hi_part = !((instr >> 11) & 1);
           if (hi_part)
           {
-               /* First half: LR = (instr_addr+4) + sign_ext(imm11)<<12
-                * hardware PC = instr_addr+4 = r[15]-2 */
+               /* First half: LR = PC + sign_ext(imm11 << 12).
+                * At execute time r[15] = instr_addr + 6 (step loop advanced +2).
+                * Hardware PC = instr_addr + 4 = r[15] - 2. */
                int32_t offset = (int32_t)((instr & 0x7FF) << 21) >> 9; /* sign-ext 11-bit << 12 */
                cpu->r[14] = (cpu->r[15] - 2) + (uint32_t)offset;
           }
           else
           {
-               /* Second half: branch to LR + imm11<<1, LR = return_addr | 1 */
+               /* Second half (at instr_addr+2): branch to LR + imm11<<1, LR = return_addr | 1.
+                * At execute time r[15] = (instr_addr+2) + 4 + 2 = instr_addr + 8.
+                * return_addr = instr_addr + 4 (next instruction after full BL).
+                * LR = return_addr | 1 = (r[15] - 4) | 1. */
                uint32_t target = cpu->r[14] + ((uint32_t)(instr & 0x7FF) << 1);
-               /* return addr = instr_addr + 2 (next instruction) */
                cpu->r[14] = (cpu->r[15] - 4) | 1;
                cpu->r[15] = (target & ~1U) + 4; /* THUMB invariant */
                cpu->pipeline_valid = false;

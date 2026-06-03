@@ -22,6 +22,7 @@ enum gba_cpu_mode {
 #define GBA_CPSR_Z  (1U << 30)  /* Zero */
 #define GBA_CPSR_C  (1U << 29)  /* Carry */
 #define GBA_CPSR_V  (1U << 28)  /* oVerflow */
+#define GBA_CPSR_Q  (1U << 27)  /* Sticky saturation (ARMv5E) */
 #define GBA_CPSR_I  (1U << 7)   /* IRQ disable */
 #define GBA_CPSR_F  (1U << 6)   /* FIQ disable */
 #define GBA_CPSR_T  (1U << 5)   /* THUMB state */

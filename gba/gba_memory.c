@@ -315,13 +315,19 @@ static void io_write8(struct gba *gba, uint32_t addr, uint8_t val)
           break;
      case REG_IME:
           gba->irq.ime = val & 1;
+          /* If enabling IME with pending IE&IF, arm the delay */
+          if (gba->irq.ime && (gba->irq.ie & gba->irq.if_) &&
+              gba->irq.irq_delay == 0)
+               gba->irq.irq_delay = 7; /* GBA_IRQ_DELAY */
           break;
 
      case REG_WAITCNT:
           gba->waitcnt = (uint16_t)((gba->waitcnt & 0xFF00) | val);
+          gba->prefetch_en = (gba->waitcnt >> 14) & 1;
           break;
      case REG_WAITCNT + 1:
           gba->waitcnt = (uint16_t)((gba->waitcnt & 0x00FF) | (val << 8));
+          gba->prefetch_en = (gba->waitcnt >> 14) & 1;
           break;
      case REG_POSTFLG:
           gba->postflg |= val & 1;
@@ -468,12 +474,16 @@ static void io_write16(struct gba *gba, uint32_t addr, uint16_t val)
      case REG_IE:
           if (!irq_note_ie_write(gba, val))
                gba->irq.ie = val;
+          if (gba->irq.ime && (gba->irq.ie & gba->irq.if_) &&
+              gba->irq.irq_delay == 0)
+               gba->irq.irq_delay = 7; /* GBA_IRQ_DELAY */
           break;
      case REG_IF:
           gba->irq.if_ &= (uint16_t)~val;
           break;
      case REG_WAITCNT:
           gba->waitcnt = val;
+          gba->prefetch_en = (val >> 14) & 1;
           break;
      case REG_IME:
           if ((val & 1) == 0 && gba->irq.ime && !(gba->cpu.cpsr & GBA_CPSR_I))
@@ -489,6 +499,9 @@ static void io_write16(struct gba *gba, uint32_t addr, uint16_t val)
                     gba->irq.force = true;
           }
           gba->irq.ime = val & 1;
+          if (gba->irq.ime && (gba->irq.ie & gba->irq.if_) &&
+              gba->irq.irq_delay == 0)
+               gba->irq.irq_delay = 7; /* GBA_IRQ_DELAY */
           break;
      case REG_POSTFLG:
           gba->postflg |= val & 1;
@@ -574,7 +587,7 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
           }
           return 0;
      case 0x01:
-          return 0; /* unused */
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* unused region — open bus */
      case 0x02:
           return gba->ewram[addr & (GBA_EWRAM_SIZE - 1)];
      case 0x03:
@@ -582,7 +595,7 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
      case 0x04:
           if (addr < GBA_IO_BASE + 0x400)
                return io_read8(gba, addr);
-          return 0;
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* I/O gap — open bus */
      case 0x05:
           return gba->pram[addr & (GBA_PAL_SIZE - 1)];
      case 0x06:
@@ -605,7 +618,7 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
      case 0x0F:
           return gba_cart_read8(gba, addr);
      default:
-          return 0; /* open bus */
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* open bus */
      }
 }
 
@@ -678,33 +691,61 @@ uint32_t gba_memory_read32(struct gba *gba, uint32_t addr)
 uint16_t gba_memory_fetch16(struct gba *gba, uint32_t addr, bool sequential)
 {
      addr &= ~1U;
+     uint16_t val;
      if ((addr >> 24) >= 0x08 && (addr >> 24) <= 0x0D)
      {
-          gba->mem_cycles += memory_wait_cycles(gba, addr, sequential);
-          return (uint16_t)(gba_cart_read8(gba, addr) |
-                            ((uint16_t)gba_cart_read8(gba, addr + 1) << 8));
+          /* Prefetch buffer: when enabled, a sequential fetch that follows
+           * directly from the previous fetch costs 1 cycle (buffer hit)
+           * instead of the normal sequential wait states. */
+          bool prefetch_hit = gba->prefetch_en && sequential &&
+                              addr == gba->prefetch_last_addr + 2;
+          if (prefetch_hit)
+               gba->mem_cycles += 1;
+          else
+               gba->mem_cycles += memory_wait_cycles(gba, addr, sequential);
+          gba->prefetch_last_addr = addr;
+          val = (uint16_t)(gba_cart_read8(gba, addr) |
+                           ((uint16_t)gba_cart_read8(gba, addr + 1) << 8));
      }
-     return gba_memory_read16(gba, addr);
+     else
+     {
+          val = gba_memory_read16(gba, addr);
+     }
+     /* Update CPU bus with the fetched halfword, replicated to 32 bits */
+     gba->cpu_bus = (uint32_t)val | ((uint32_t)val << 16);
+     return val;
 }
 
 uint32_t gba_memory_fetch32(struct gba *gba, uint32_t addr, bool sequential)
 {
      uint32_t original_addr = addr;
      addr &= ~3U;
+     uint32_t val;
      if ((addr >> 24) >= 0x08 && (addr >> 24) <= 0x0D)
      {
-          gba->mem_cycles += memory_wait_cycles(gba, addr, sequential);
-          gba->mem_cycles += memory_wait_cycles(gba, addr + 2, true);
+          bool prefetch_hit = gba->prefetch_en && sequential &&
+                              addr == gba->prefetch_last_addr + 2;
+          gba->mem_cycles += prefetch_hit ? 1 : memory_wait_cycles(gba, addr, sequential);
+          /* Second halfword of a 32-bit fetch is always sequential */
+          bool prefetch_hit2 = gba->prefetch_en &&
+                               (addr + 2) == gba->prefetch_last_addr + 2;
+          gba->mem_cycles += prefetch_hit2 ? 1 : memory_wait_cycles(gba, addr + 2, true);
           if (!sequential && (addr & 0x1FFFFU) == 0)
                gba->mem_cycles += 2;
-          uint32_t val = (uint32_t)gba_cart_read8(gba, addr) |
-                         ((uint32_t)gba_cart_read8(gba, addr + 1) << 8) |
-                         ((uint32_t)gba_cart_read8(gba, addr + 2) << 16) |
-                         ((uint32_t)gba_cart_read8(gba, addr + 3) << 24);
+          gba->prefetch_last_addr = addr + 2;
+          val = (uint32_t)gba_cart_read8(gba, addr) |
+                ((uint32_t)gba_cart_read8(gba, addr + 1) << 8) |
+                ((uint32_t)gba_cart_read8(gba, addr + 2) << 16) |
+                ((uint32_t)gba_cart_read8(gba, addr + 3) << 24);
           unsigned rot = (original_addr & 3U) * 8;
-          return rot ? ((val >> rot) | (val << (32 - rot))) : val;
+          val = rot ? ((val >> rot) | (val << (32 - rot))) : val;
      }
-     return gba_memory_read32(gba, original_addr);
+     else
+     {
+          val = gba_memory_read32(gba, original_addr);
+     }
+     gba->cpu_bus = val;
+     return val;
 }
 
 uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr)

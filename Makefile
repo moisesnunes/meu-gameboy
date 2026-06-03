@@ -77,6 +77,9 @@ HW_OBJ  = $(BUILD_APP_DIR)/main_hardware.o $(CORE_OBJ)
 VEC_NAME = gameboy-vector
 VEC_OBJ  = $(BUILD_APP_DIR)/main_vector.o $(CORE_OBJ)
 
+GBA_VEC_NAME = gameboy-advance-vector
+GBA_VEC_OBJ  = $(BUILD_APP_DIR)/main_gba_vector.o
+
 TESTER_NAME = rom_tester
 TESTER_OBJ  = $(BUILD_TEST_DIR)/rom_tester.o $(CORE_OBJ)
 
@@ -90,13 +93,14 @@ SM83_VALIDATE_OBJ  = $(BUILD_TEST_DIR)/sm83_netlist_validate.o \
                      $(BUILD_CORE_DIR)/sm83/sm83_semantic_map.o
 SM83_VALIDATE_DEP  = $(SM83_VALIDATE_OBJ:.o=.d)
 
-SIMPLE_DEP = $(SIMPLE_OBJ:.o=.d)
-HW_DEP     = $(HW_OBJ:.o=.d)
-VEC_DEP    = $(VEC_OBJ:.o=.d)
+SIMPLE_DEP  = $(SIMPLE_OBJ:.o=.d)
+HW_DEP      = $(HW_OBJ:.o=.d)
+VEC_DEP     = $(VEC_OBJ:.o=.d)
+GBA_VEC_DEP = $(GBA_VEC_OBJ:.o=.d)
 TESTER_DEP = $(TESTER_OBJ:.o=.d)
 COMPAT_DEP = $(COMPAT_OBJ:.o=.d)
 GBA_DEP    = $(GBA_CORE_DEP) $(GBA_UI_DEP)
-DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(HW_DEP) $(VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP)
+DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(HW_DEP) $(VEC_DEP) $(GBA_VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP)
 
 $(NAME) : $(OBJ)
 	$(info LD $@)
@@ -113,6 +117,10 @@ $(HW_NAME) : $(HW_OBJ)
 $(VEC_NAME) : $(VEC_OBJ)
 	$(info LD $@)
 	$(CC_C) -o $@ $^ `pkg-config --libs sdl3` -lGL -lm
+
+$(GBA_VEC_NAME) : $(GBA_VEC_OBJ)
+	$(info LD $@)
+	$(CC_C) -o $@ $^ `pkg-config --libs sdl3` -lm
 
 $(TESTER_NAME) : $(TESTER_OBJ)
 	$(info LD $@)
@@ -181,7 +189,7 @@ clean:
 	$(info CLEAN $(NAME))
 	rm -rf $(BUILD_DIR)
 	rm -f *.o *.d imgui/*.o imgui/*.d imgui/backends/*.o imgui/backends/*.d
-	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(SM83_VALIDATE_NAME)
+	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(SM83_VALIDATE_NAME)
 
 compat-run: $(COMPAT_NAME)
 	./tests/compat/run.sh

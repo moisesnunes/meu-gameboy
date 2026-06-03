@@ -1,5 +1,8 @@
 #include "gba.h"
 
+/* ARM7TDMI pipeline: ~7 cycles from IF bit set to CPU entering the handler. */
+#define GBA_IRQ_DELAY 7
+
 void gba_irq_reset(struct gba *gba)
 {
      struct gba_irq *irq = &gba->irq;
@@ -7,12 +10,16 @@ void gba_irq_reset(struct gba *gba)
      irq->if_ = 0;
      irq->ime = false;
      irq->force = false;
+     irq->irq_delay = 0;
 }
 
 void gba_irq_trigger(struct gba *gba, enum gba_irq_token which)
 {
      uint16_t bit = (uint16_t)(1U << which);
      gba->irq.if_ |= bit;
+     /* Arm the hardware delay if not already counting down */
+     if (gba->irq.ime && (gba->irq.ie & bit) && gba->irq.irq_delay == 0)
+          gba->irq.irq_delay = GBA_IRQ_DELAY;
      if (gba->bios_intr_wait_active && (gba->bios_intr_wait_mask & bit))
      {
           gba->bios_intr_wait_active = false;
@@ -40,5 +47,9 @@ void gba_irq_trigger(struct gba *gba, enum gba_irq_token which)
 
 bool gba_irq_pending(struct gba *gba)
 {
-     return gba->irq.force || (gba->irq.ime && (gba->irq.ie & gba->irq.if_));
+     if (gba->irq.force)
+          return true;
+     if (!gba->irq.ime || !(gba->irq.ie & gba->irq.if_))
+          return false;
+     return gba->irq.irq_delay == 0;
 }

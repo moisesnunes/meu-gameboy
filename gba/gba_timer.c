@@ -60,10 +60,16 @@ void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val)
                timer_commit_reload(ch);
           ch->counter = ch->reload;
           /*
-           * I/O writes run before the CPU step advances timestamp.  Delay the
-           * first timer tick until the enabling store itself has completed.
+           * Hardware reality: GBA timer prescalers (64/256/1024) are derived
+           * from a free-running clock divider that never resets.  The first
+           * tick happens at the next global multiple of the prescaler *after*
+           * the 2-cycle startup delay.  Align cycles_acc to that boundary so
+           * timers are phase-correct relative to each other and to the clock.
            */
-          ch->cycles_acc = -2;
+          int prescaler = gba_timer_prescaler[ch->prescaler];
+          int32_t effective_start = gba->timestamp + 2;
+          int32_t phase = effective_start % prescaler;
+          ch->cycles_acc = (phase == 0) ? 0 : -(prescaler - phase);
      }
 
      gba_sync_next(gba, GBA_SYNC_TIMER, 1);

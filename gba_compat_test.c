@@ -468,7 +468,8 @@ static void usage(const char *argv0)
 static bool parse_dump_mem(const char *s, uint32_t *addr, uint32_t *len)
 {
      char *end = NULL;
-     unsigned long a = strtoul(s, &end, 0);
+     int addr_base = (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) ? 0 : 16;
+     unsigned long a = strtoul(s, &end, addr_base);
      if (end == s || *end != ':')
           return false;
 

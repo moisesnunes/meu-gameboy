@@ -3,8 +3,12 @@
 #include <stdio.h>
 #include "gba.h"
 
-/* Cycles from start of line to HBlank start (dot 240) */
-#define GBA_CYCLES_HBLANK_START (240 * GBA_CYCLES_PER_DOT) /* 960 */
+/* Cycles from start of line (dot 0) to HBlank trigger.
+ * Hardware measurement: HBlank fires at dot 252, not dot 240.
+ * mGBA uses VIDEO_HDRAW_LENGTH=1008 (=252×4) / VIDEO_HBLANK_LENGTH=224 (=56×4).
+ * Total: 1008+224 = 1232 = 308×4 cycles/line. */
+#define GBA_CYCLES_HDRAW   1008  /* dot 0 → HBlank trigger  (252 dots × 4) */
+#define GBA_CYCLES_HBLANK   224  /* HBlank trigger → next line (56 dots × 4) */
 
 static void latch_affine_line(struct gba_gpu *gpu)
 {
@@ -27,8 +31,8 @@ void gba_gpu_reset(struct gba *gba)
      gpu->vcount = 0;
      gpu->hblank_flag = false;
      latch_affine_line(gpu);
-     /* First event: HBlank start at dot 240 of line 0 */
-     gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HBLANK_START);
+     /* First event: HBlank trigger of line 0 */
+     gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HDRAW);
 }
 
 /* -------------------------------------------------------------------------
@@ -885,9 +889,9 @@ static void render_scanline(struct gba *gba, uint8_t line)
 
 /* -------------------------------------------------------------------------
  * PPU sync — two events per line:
- *   Event A (hblank_flag=false): dot 0 — start of active display, 960 cycles later → B
- *   Event B (hblank_flag=true):  dot 240 — HBlank start; render line, fire IRQ/DMA;
- *                                  272 cycles later advance vcount → back to A
+ *   Event A (hblank_flag=false): dot 0 — active display; 1008 cycles → Event B
+ *   Event B (hblank_flag=true):  dot 252 — HBlank; render, DMA, IRQ; 224 cycles → Event A
+ * Total: 1232 cycles/line = 308 dots × 4. Matches mGBA VIDEO_HDRAW/HBLANK_LENGTH.
  * ---------------------------------------------------------------------- */
 
 void gba_gpu_sync(struct gba *gba)
@@ -911,12 +915,13 @@ void gba_gpu_sync(struct gba *gba)
           }
 
           gba_dma_notify_hblank(gba);
+          gba_dma_notify_display_start(gba, gpu->vcount);
 
           if (gpu->hblank_irq_en)
                gba_irq_trigger(gba, GBA_IRQ_HBLANK);
 
-          /* 68 dots until end-of-line */
-          gba_sync_next(gba, GBA_SYNC_GPU, 68 * GBA_CYCLES_PER_DOT);
+          /* 224 cycles (56 dots) until end-of-HBlank */
+          gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HBLANK);
      }
      else
      {
@@ -961,8 +966,8 @@ void gba_gpu_sync(struct gba *gba)
           if (gpu->vcount_irq_en && gpu->vcount == gpu->vcount_trigger)
                gba_irq_trigger(gba, GBA_IRQ_VCOUNT);
 
-          /* 240 dots until next HBlank start */
-          gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HBLANK_START);
+          /* 1008 cycles (252 dots) until next HBlank trigger */
+          gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HDRAW);
      }
 }
 
@@ -1031,11 +1036,18 @@ void gba_gpu_write16(struct gba *gba, uint32_t addr, uint16_t val)
           gpu->winobj_en = (val >> 15) & 1;
           break;
      case REG_DISPSTAT:
-          gpu->vblank_irq_en = (val >> 3) & 1;
-          gpu->hblank_irq_en = (val >> 4) & 1;
-          gpu->vcount_irq_en = (val >> 5) & 1;
+     {
+          bool old_vcount_irq = gpu->vcount_irq_en;
+          gpu->vblank_irq_en  = (val >> 3) & 1;
+          gpu->hblank_irq_en  = (val >> 4) & 1;
+          gpu->vcount_irq_en  = (val >> 5) & 1;
           gpu->vcount_trigger = val >> 8;
+          /* Edge trigger: if VCount IRQ just enabled and vcount already matches, fire now */
+          if (!old_vcount_irq && gpu->vcount_irq_en &&
+              gpu->vcount == gpu->vcount_trigger)
+               gba_irq_trigger(gba, GBA_IRQ_VCOUNT);
           break;
+     }
      case REG_BG0CNT:
      case REG_BG1CNT:
      case REG_BG2CNT:

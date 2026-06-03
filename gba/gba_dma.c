@@ -214,7 +214,7 @@ static void dma_run(struct gba *gba, int n)
                 {
                     int32_t hblank_start =
                         gba->sync.next_event[GBA_SYNC_GPU] -
-                        (68 * GBA_CYCLES_PER_DOT);
+                        224; /* GBA_CYCLES_HBLANK: next_event is end-of-HBlank */
                     if (!gba->gpu.hblank || gba->timestamp < hblank_start + 42)
                         v &= ~(uint16_t)(1U << GBA_IRQ_HBLANK);
                 }
@@ -361,6 +361,20 @@ static void dma_trigger_timing(struct gba *gba, enum gba_dma_timing timing)
 
 void gba_dma_notify_vblank(struct gba *gba)  { dma_trigger_timing(gba, GBA_DMA_VBLANK); }
 void gba_dma_notify_hblank(struct gba *gba)  { dma_trigger_timing(gba, GBA_DMA_HBLANK); }
+
+/* DMA3 video-capture mode: fires once per HBlank for lines 2-161 (vcount >= 2, < 162).
+ * The GBA uses this for the undocumented video-capture DMA that feeds the
+ * AGB video port.  Very few games use it but some homebrew relies on it. */
+void gba_dma_notify_display_start(struct gba *gba, uint8_t vcount)
+{
+    if (vcount < 2 || vcount >= GBA_LCD_H + 2)
+        return;
+    struct gba_dma_channel *ch = &gba->dma.ch[3];
+    if (ch->enable && ch->timing == GBA_DMA_SPECIAL) {
+        ch->pending = true;
+        gba_sync_next(gba, GBA_SYNC_DMA, 1);
+    }
+}
 
 void gba_dma_notify_fifo(struct gba *gba, int fifo)
 {

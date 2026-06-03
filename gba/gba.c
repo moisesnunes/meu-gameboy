@@ -49,7 +49,7 @@ bool gba_load_bios(struct gba *gba, const char *path)
           fclose(f);
           return false;
      }
-     fread(gba->bios, 1, GBA_BIOS_SIZE, f);
+     gba->bios_size = (uint32_t)fread(gba->bios, 1, GBA_BIOS_SIZE, f);
      fclose(f);
      return true;
 }

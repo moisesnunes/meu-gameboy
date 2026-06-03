@@ -69,6 +69,13 @@ struct gba {
     uint32_t bios_open_bus;
     uint32_t bios_open_bus_after_read;
     bool bios_open_bus_has_after_read;
+    /* Last value on the CPU data bus — returned for unmapped reads (open bus). */
+    uint32_t cpu_bus;
+    /* WAITCNT bit 14: ROM prefetch buffer enable.  When true, sequential ROM
+     * fetches cost 1 cycle instead of the full sequential wait state. */
+    bool prefetch_en;
+    /* Address of the last ROM fetch — used to detect sequential access. */
+    uint32_t prefetch_last_addr;
     bool bios_irq_hle_active;
     uint32_t bios_irq_hle_return_r15;
     uint32_t bios_irq_hle_regs[5];

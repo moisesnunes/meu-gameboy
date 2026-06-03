@@ -645,11 +645,12 @@ static int16_t ch3_sample(struct gba_apu *apu)
     uint8_t byte = ch->wave_ram[byte_idx & 31];
     uint8_t nibble = (ch->wave_pos & 1) ? (byte & 0xF) : (byte >> 4);
     int16_t s = (int16_t)(nibble * 512) - 0x1000; /* centre around 0 */
-    switch (ch->volume_shift & 3) {
-    case 0: return 0;
-    case 1: return s;
-    case 2: return s >> 1;
-    case 3: return s >> 2;
+    switch (ch->volume_shift) {
+    case 0: return 0;          /* mute */
+    case 1: return s;          /* 100% */
+    case 2: return s >> 1;     /* 50%  */
+    case 3: return s >> 2;     /* 25%  */
+    case 4: return s - (s>>2); /* 75%  (GBA-only) */
     default: return 0;
     }
 }
@@ -763,8 +764,9 @@ void gba_apu_sync(struct gba *gba)
         int vol_a = (apu->soundcnt_h >> 2) & 1 ? 1 : 0; /* 0=×1, 1=×2 */
         int vol_b = (apu->soundcnt_h >> 3) & 1 ? 1 : 0;
 
-        int16_t fa = !apu->mute_fifo_a ? apu->fifo_a.sample : 0;
-        int16_t fb = !apu->mute_fifo_b ? apu->fifo_b.sample : 0;
+        /* Hold-last: if FIFO is empty, repeat last sample to avoid clicks */
+        int16_t fa = !apu->mute_fifo_a ? (int16_t)apu->fifo_a.sample : 0;
+        int16_t fb = !apu->mute_fifo_b ? (int16_t)apu->fifo_b.sample : 0;
 
         /* Scale: int8 → int16, ×1 or ×2 */
         int32_t fa_s = (int32_t)fa * 64 * (1 << vol_a);
@@ -778,8 +780,21 @@ void gba_apu_sync(struct gba *gba)
         if (apu->fifo_b.l_en) out_l += fb_s;
         if (apu->fifo_b.r_en) out_r += fb_s;
 
-        /* Clamp */
-        int16_t ol = (int16_t)(out_l > 32767 ? 32767 : out_l < -32768 ? -32768 : out_l);
+        /* SOUNDBIAS: add DC offset (default 0x200=512), clip to [0, 0x3FF],
+         * then subtract bias back so output stays centred around 0.
+         * This replicates the GBA DAC behaviour and avoids DC-offset clicks. */
+        int bias = (apu->soundbias >> 1) & 0x1FF; /* bits 9-1 */
+        int32_t bl = out_l + bias;
+        int32_t br = out_r + bias;
+        if (bl > 0x3FF) bl = 0x3FF;
+        if (bl < 0)     bl = 0;
+        if (br > 0x3FF) br = 0x3FF;
+        if (br < 0)     br = 0;
+        out_l = bl - bias;
+        out_r = br - bias;
+
+        /* Clamp to int16 range */
+        int16_t ol  = (int16_t)(out_l > 32767 ? 32767 : out_l < -32768 ? -32768 : out_l);
         int16_t or_ = (int16_t)(out_r > 32767 ? 32767 : out_r < -32768 ? -32768 : out_r);
 
         apu_push_sample(gba, ol, or_);

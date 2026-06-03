@@ -1318,6 +1318,17 @@ int gba_cpu_step(struct gba *gba)
           }
      }
 
+     /* Drain hardware IRQ delay (ARM7TDMI ~7-cycle pipeline delay from IF to handler) */
+     if (gba->irq.irq_delay > 0) {
+          /* Each step costs at least 1 cycle; we drain by 1 per step for simplicity.
+           * More precise: drain by the cycles of the last instruction, but that
+           * creates a chicken-and-egg problem.  1-per-step is equivalent for ≥1 cycle
+           * instructions and matches the mGBA model (event fires 7 cycles later). */
+          gba->irq.irq_delay--;
+          if (gba->irq.irq_delay < 0)
+               gba->irq.irq_delay = 0;
+     }
+
      /* Service IRQ */
      if (gba_irq_pending(gba) && !(cpu->cpsr & GBA_CPSR_I))
      {
