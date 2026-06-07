@@ -2,9 +2,11 @@
 
 A Game Boy, Game Boy Color, and Game Boy Advance emulator written in C.
 
+![Debug UI — CPU, disassembly, SM83 die view, memory](img/die.png)
+
 ![Vector renderer — GBC and DMG side by side](img/mode-vector.png)
 
-![Debug UI — CPU, disassembly, SM83 die view, memory](img/debug.png)
+
 
 ## Features
 
