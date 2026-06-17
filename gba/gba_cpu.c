@@ -8,14 +8,28 @@
 int gba_arm_execute(struct gba *gba, uint32_t instr);
 int gba_thumb_execute(struct gba *gba, uint16_t instr);
 
+static void gba_cpu_drain_irq_delay(struct gba *gba, int cycles)
+{
+     if (cycles <= 0 || gba->irq.irq_delay <= 0)
+          return;
+
+     if (gba->irq.irq_delay <= cycles && (gba->irq.ie & gba->irq.if_) &&
+         !(gba->cpu.cpsr & GBA_CPSR_I))
+          gba->irq.force = true;
+
+     gba->irq.irq_delay -= cycles;
+     if (gba->irq.irq_delay < 0)
+          gba->irq.irq_delay = 0;
+}
+
 static int gba_no_bios_irq_entry_cycles(uint32_t intr_pc)
 {
      if (intr_pc >= GBA_IWRAM_BASE && intr_pc < GBA_IWRAM_BASE + GBA_IWRAM_SIZE)
-          return 23;
+          return 16;
      if (intr_pc >= GBA_EWRAM_BASE && intr_pc < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
-          return 43;
+          return 36;
      if (intr_pc >= GBA_ROM_BASE && intr_pc < 0x0E000000u)
-          return 45;
+          return 40;
      return 23;
 }
 
@@ -1323,17 +1337,6 @@ int gba_cpu_step(struct gba *gba)
           }
      }
 
-     /* Drain hardware IRQ delay (ARM7TDMI ~7-cycle pipeline delay from IF to handler) */
-     if (gba->irq.irq_delay > 0) {
-          /* Each step costs at least 1 cycle; we drain by 1 per step for simplicity.
-           * More precise: drain by the cycles of the last instruction, but that
-           * creates a chicken-and-egg problem.  1-per-step is equivalent for ≥1 cycle
-           * instructions and matches the mGBA model (event fires 7 cycles later). */
-          gba->irq.irq_delay--;
-          if (gba->irq.irq_delay < 0)
-               gba->irq.irq_delay = 0;
-     }
-
      /* Service IRQ */
      if (gba_irq_pending(gba) && !(cpu->cpsr & GBA_CPSR_I))
      {
@@ -1383,6 +1386,7 @@ int gba_cpu_step(struct gba *gba)
                     cpu->pipeline[1] = fetched;
                }
                gba_debug_after_instr(gba, 1);
+               gba_cpu_drain_irq_delay(gba, 1);
                return 1;
           }
           int cycles = gba_arm_execute(gba, instr);
@@ -1392,6 +1396,7 @@ int gba_cpu_step(struct gba *gba)
                cpu->pipeline[1] = fetched;
           }
           cycles += gba->mem_cycles;
+          gba_cpu_drain_irq_delay(gba, cycles);
           gba_debug_after_instr(gba, cycles);
           return cycles;
      }
@@ -1414,6 +1419,7 @@ int gba_cpu_step(struct gba *gba)
                cpu->pipeline[1] = fetched;
           }
           cycles += gba->mem_cycles;
+          gba_cpu_drain_irq_delay(gba, cycles);
           gba_debug_after_instr(gba, cycles);
           return cycles;
      }

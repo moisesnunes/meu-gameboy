@@ -50,7 +50,7 @@ static ImVec4 color_orange = ImVec4(1.0f, 0.55f, 0.1f, 1.0f);
 static ImVec4 color_white = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 static ImVec4 color_skyblue = ImVec4(0.5f, 0.8f, 1.0f, 1.0f);
 
-/* VRAM Visualization — texturas OpenGL                        */
+/* VRAM Visualization — texturas OpenGL */
 
 static const int TV_COLS = 24;
 static const int TV_ROWS = 16;
@@ -427,7 +427,7 @@ void draw_panel_tilemap_viewer(struct gb *gb)
      }
 }
 
-/* Popup: Informações da ROM                                  */
+/* Popup: Informações da ROM */
 
 static const char *mbc_model_name(enum gb_cart_model m)
 {
@@ -558,7 +558,7 @@ void draw_popup_rom_info(struct gb *gb)
      ImGui::EndPopup();
 }
 
-/* Painel: Call Stack                                         */
+/* Painel: Call Stack */
 
 void draw_panel_call_stack(struct gb *gb)
 {
@@ -625,7 +625,7 @@ void draw_panel_call_stack(struct gb *gb)
      ImGui::EndTable();
 }
 
-/* Painel: Controle de Execução                               */
+/* Painel: Controle de Execução */
 
 static bool cpu_parse_hex_u32(const char *text, uint32_t *out)
 {
@@ -990,7 +990,7 @@ void draw_panel_control(struct gb *gb)
      draw_cpu_toolbar(gb);
 }
 
-/* Painel: Registradores CPU                                  */
+/* Painel: Registradores CPU */
 
 void draw_panel_registers(struct gb *gb)
 {
@@ -1025,7 +1025,7 @@ void draw_panel_cpu_control(struct gb *gb)
      }
 }
 
-/* Painel: Disassembly                                        */
+/* Painel: Disassembly */
 
 static int s_disasm_selected_addr = -1;
 static int s_disasm_scroll_addr = -1;
@@ -1426,7 +1426,7 @@ void draw_panel_gpu(struct gb *gb)
      ImGui::Text("  OBP1: 0x%02X", gpu->obp1);
 }
 
-/* Painel: Memory Viewer                                      */
+/* Painel: Memory Viewer */
 
 enum mem_region_id
 {
@@ -1995,7 +1995,7 @@ void draw_panel_memory(struct gb *gb)
      }
 }
 
-/* Painel: Breakpoints                                        */
+/* Painel: Breakpoints */
 
 void draw_panel_breakpoints(struct gb *gb)
 {
@@ -2087,7 +2087,7 @@ void draw_panel_breakpoints(struct gb *gb)
           gb_debug_remove_breakpoint(gb, to_remove);
 }
 
-/* Painel: Watchpoints                                        */
+/* Painel: Watchpoints */
 
 void draw_panel_watchpoints(struct gb *gb)
 {
@@ -2187,7 +2187,7 @@ void draw_panel_watchpoints(struct gb *gb)
           gb_debug_remove_watchpoint(gb, to_remove);
 }
 
-/* Painel: OAM (sprites)                                      */
+/* Painel: OAM (sprites) */
 
 static void update_oam_texture(struct gb *gb)
 {
@@ -2309,7 +2309,7 @@ void draw_panel_oam(struct gb *gb)
      ImGui::EndTable();
 }
 
-/* Painel: Profiler                                           */
+/* Painel: Profiler */
 
 static void update_heatmap_texture(struct gb *gb)
 {
@@ -2608,7 +2608,7 @@ void draw_panel_profiler(struct gb *gb)
      ImGui::EndTabBar();
 }
 
-/* Helpers internos para draw_panel_hw_viz / cpu_viz           */
+/* Helpers internos para draw_panel_hw_viz / cpu_viz */
 
 static ImU32 viz_col(ImU32 active, float fade)
 {
@@ -2639,7 +2639,7 @@ static void viz_block(ImDrawList *dl, ImVec2 tl, ImVec2 br,
           dl->AddText(ImVec2(tx, ty + 16.0f), IM_COL32(180, 200, 180, 220), body);
 }
 
-/* Painel: Hardware System Diagram                             */
+/* Painel: Hardware System Diagram */
 
 static const char *cart_model_str(enum gb_cart_model m)
 {
@@ -2692,7 +2692,7 @@ void draw_panel_hw_viz(struct gb *gb)
           ImGui::SetWindowSize(ImVec2(win_size.x < 960.0f ? 960.0f : win_size.x,
                                       win_size.y < 660.0f ? 660.0f : win_size.y));
 
-     /* ── Decay dos fade timers ── */
+     /* Decay dos fade timers */
      struct gb_sys_viz *sv = &gb->debug.sys_viz;
      float decay = dt * 8.0f;
      sv->fade_cpu_rom = (sv->fade_cpu_rom > decay) ? sv->fade_cpu_rom - decay : 0.0f;
@@ -3173,9 +3173,7 @@ void draw_panel_cpu_viz(struct gb *gb)
                       vbuf);
      };
 
-     /* ════════════════════════════════════════════════════
-        ROW 1: IR | IDU | pipeline stages
-        ════════════════════════════════════════════════════ */
+     /* ROW 1: IR | IDU | pipeline stages */
 
      /* IR — Instruction Register */
      {
@@ -3245,9 +3243,7 @@ void draw_panel_cpu_viz(struct gb *gb)
           }
      }
 
-     /* ════════════════════════════════════════════════════
-        ROW 2: ALU with live inputs | FLAGS | IME
-        ════════════════════════════════════════════════════ */
+     /* ROW 2: ALU with live inputs | FLAGS | IME */
 
      /* ALU block — shows captured A/src and the current A read-back. */
      {
@@ -3363,9 +3359,7 @@ void draw_panel_cpu_viz(struct gb *gb)
           centered_text(tl, br, ime_str, ime_col, 45.0f);
      }
 
-     /* ════════════════════════════════════════════════════
-        ROW 3: Acc A | TMP W | TMP Z | Register File cells
-        ════════════════════════════════════════════════════ */
+     /* ROW 3: Acc A | TMP W | TMP Z | Register File cells */
 
      label_text(14, 188, "Internal registers");
 
@@ -3418,9 +3412,7 @@ void draw_panel_cpu_viz(struct gb *gb)
           }
      }
 
-     /* ════════════════════════════════════════════════════
-        ROW 4: PC | SP | M-cycles
-        ════════════════════════════════════════════════════ */
+     /* ROW 4: PC | SP | M-cycles*/
 
      label_text(14, 288, "Address registers");
 
@@ -3454,9 +3446,7 @@ void draw_panel_cpu_viz(struct gb *gb)
           centered_text(tl, br, mc_buf, mc_col, 15.0f);
      }
 
-     /* ════════════════════════════════════════════════════
-        ROW 5: Address/Data Bus visual
-        ════════════════════════════════════════════════════ */
+     /* ROW 5: Address/Data Bus visual */
 
      {
           ImU32 bus_col = viz_col(IM_COL32(255, 220, 60, 255), fade);
@@ -3568,18 +3558,18 @@ static bool s_die_view_init = false;
 static int s_drawn_arcs = 0;
 static int s_drawn_trans = 0;
 
-/* ── Netlist Sim state (Fase 6) ── */
+/* Netlist Sim state (Fase 6)  */
 static Sm83NetlistSim s_netlist_sim;
 static bool s_sim_view_init = false;
 
-/* ── Transistor panel UI toggles ── */
+/* Transistor panel UI toggles */
 static bool s_show_func_regions = true;   /* functional region overlays */
 static bool s_show_rails = false;         /* highlight VCC/GND power rail arcs */
 static bool s_show_trans_inspect = false; /* persistent transistor inspector window */
 static bool s_show_ntrans = true;         /* show NMOS transistors */
 static bool s_show_ptrans = true;         /* show PMOS transistors */
 
-/* ── Transistor inspector neighbour cache ── */
+/* Transistor inspector neighbour cache  */
 struct TransNeighbour
 {
      int index;
@@ -3726,7 +3716,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           sm83_semantic_audit(&s_netlist_sim, gb, SM83_CONF_PROBABLE);
      }
 
-     /* ── Layer toggles toolbar ── */
+     /* Layer toggles toolbar */
      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
      for (int i = 0; i < 6; i++)
      {
@@ -3853,7 +3843,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      ImGui::Text("  zoom:%.2fx", s_die_view.zoom);
      ImGui::PopStyleVar();
 
-     /* ── Canvas + Sidebar layout ── */
+     /* Canvas + Sidebar layout  */
      static const float SIDEBAR_W = 160.0f;
      ImVec2 total_avail = ImGui::GetContentRegionAvail();
      if (total_avail.x < 460.0f)
@@ -3861,7 +3851,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      if (total_avail.y < 300.0f)
           total_avail.y = 300.0f;
 
-     /* ── Canvas ── */
+     /*  Canvas  */
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
      ImVec2 canvas_size = ImVec2(total_avail.x - SIDEBAR_W - 6.0f, total_avail.y);
      if (canvas_size.x < 300.0f)
@@ -3944,7 +3934,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      sm83_view_cache_update(&s_die_view, &s_die_cache);
      const Sm83ViewCache *vc = &s_die_cache;
 
-     /* ── Functional region overlays ── */
+     /*  Functional region overlays */
      {
           if (s_show_func_regions)
           {
@@ -3966,7 +3956,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                 * Coordinate convention: nx,ny in [0,1]; ny=0 is die bottom
                 * (high screen-y); rendering flips with (1-ny). */
                static const FuncRegion regions[] = {
-                   /* ── Register file columns (left→right by nx) ───────────────── */
+                   /*  Register file columns (left→right by nx) */
                    /* IR:  reg_ir nx=0.138 */
                    {"IR", 0.118f, 0.035f, 0.150f, 0.456f, IM_COL32(200, 140, 255, 35), IM_COL32(200, 140, 255, 150)},
                    /* A:   reg_a 0.163..0.196, reg_a_out 0.160 */
@@ -3996,13 +3986,13 @@ void draw_panel_transistor_viz(struct gb *gb)
                    /* IRQ: irq_latch/prio 0.804..0.890 (overlaps IDU) */
                    {"IRQ", 0.790f, 0.030f, 0.912f, 0.476f, IM_COL32(200, 60, 60, 22), IM_COL32(200, 80, 80, 100)},
 
-                   /* ── Middle band: Flags + ALU ────────────────────────────── */
+                   /* Middle band: Flags + ALU  */
                    /* Flags: flag_z/n/h/c at ny=0.579, nx=0.111..0.344 — thin strip */
                    {"Flags", 0.100f, 0.568f, 0.356f, 0.592f, IM_COL32(80, 220, 200, 45), IM_COL32(80, 220, 200, 170)},
                    /* ALU:   alu_* nx=0.103..0.352, ny=0.579..0.908 */
                    {"ALU", 0.090f, 0.558f, 0.363f, 0.920f, IM_COL32(220, 80, 80, 28), IM_COL32(255, 100, 100, 130)},
 
-                   /* ── Bottom band: Data bus + 3-stage Decoder ─────────────── */
+                   /*  Bottom band: Data bus + 3-stage Decoder  */
                    /* DBUS:  dbus_bridge/nand/not nx=0.020..0.316, ny=0.608..0.924 */
                    {"DBUS", 0.007f, 0.595f, 0.329f, 0.937f, IM_COL32(255, 160, 40, 32), IM_COL32(255, 160, 40, 140)},
                    /* Dec 1: 107 dynamic columns, ny=0.895..0.971 */
@@ -4059,7 +4049,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      s_drawn_arcs = 0;
      s_drawn_trans = 0;
 
-     /* ── Draw power rail arcs (VCC=red, GND=blue) ── */
+     /* Draw power rail arcs (VCC=red, GND=blue) */
      if (s_show_rails)
      {
           const ImU32 vcc_col = IM_COL32(255, 60, 60, 180);
@@ -4090,7 +4080,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Draw arcs (wire segments) ── */
+     /* Draw arcs (wire segments) */
      for (int i = 0; i < SM83_ARC_COUNT; i++)
      {
           const Sm83Arc *a = &sm83_arcs[i];
@@ -4116,7 +4106,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           s_drawn_arcs++;
      }
 
-     /* ── Draw highlighted arcs (full net BFS from selected node) ── */
+     /* Draw highlighted arcs (full net BFS from selected node) */
      if (s_arc_highlight_flags)
      {
           for (int i = 0; i < SM83_ARC_COUNT; i++)
@@ -4141,7 +4131,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Draw transistors ── */
+     /* Draw transistors */
      float trans_r = 3.5f * s_die_view.zoom;
      if (trans_r < 1.5f)
           trans_r = 1.5f;
@@ -4223,7 +4213,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Draw selected node highlight ── */
+     /* Draw selected node highlight */
      if (s_die_sel.type == SM83_SEL_NODE && s_die_sel.index >= 0)
      {
           const Sm83Node *n = &sm83_nodes[s_die_sel.index];
@@ -4232,7 +4222,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           dl->AddCircle(ImVec2(sx, sy), 6.0f, IM_COL32(255, 255, 80, 255), 0, 2.0f);
      }
 
-     /* ── Draw net nodes (flood-fill from selected node) ── */
+     /* Draw net nodes (flood-fill from selected node) */
      if (s_node_highlight_flags && s_die_sel.type == SM83_SEL_NODE)
      {
           for (int i = 0; i < SM83_NODE_COUNT; i++)
@@ -4248,7 +4238,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Overlay: named signals from emulator state ── */
+     /* Overlay: named signals from emulator state */
      if (s_layer_mask & SM83_VIEW_LAYER_OVERLAY)
      {
           /* Colors mirror CPU Datapath panel: same hue per component so
@@ -4335,7 +4325,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Netlist Sim overlay: color arcs by net state (EXP, separate from Emulator Overlay) ── */
+     /* Netlist Sim overlay: color arcs by net state (EXP, separate from Emulator Overlay) */
      if (s_netlist_sim.enabled && s_netlist_sim.initialized)
      {
           /* Colors indexed by Sm83SimState enum value:
@@ -4374,7 +4364,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), sim_colors[si], sim_widths[si]);
           }
 
-          /* ── Rail highlight: draw VCC and GND arcs in distinct colors ──
+          /* Rail highlight: draw VCC and GND arcs in distinct colors
            * This makes the power distribution network visible on the die and
            * allows visual confirmation that the heuristic rails are correct. */
           int rail_ids[2] = {s_netlist_sim.vcc_net, s_netlist_sim.gnd_net};
@@ -4404,7 +4394,7 @@ void draw_panel_transistor_viz(struct gb *gb)
 
      dl->PopClipRect();
 
-     /* ── Sidebar: cycle info + stage badge ── */
+     /* Sidebar: cycle info + stage badge  */
      /* Position sidebar to the right of the canvas at the same vertical origin */
      ImGui::SetCursorPos(ImVec2(cursor_before_canvas.x + canvas_size.x + 6.0f,
                                 cursor_before_canvas.y));
@@ -4526,7 +4516,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                          ImGui::TextDisabled("conflicts: 0");
                }
 
-               /* ── Mismatch audit ── */
+               /* Mismatch audit */
                ImGui::Separator();
                if (!gb_paused)
                {
@@ -4568,7 +4558,7 @@ void draw_panel_transistor_viz(struct gb *gb)
      }
      ImGui::EndChild();
 
-     /* ── Tooltip on hover ── */
+     /* Tooltip on hover */
      if (hovered)
      {
           ImVec2 mp = ImGui::GetMousePos();
@@ -4637,7 +4627,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Transistor Inspector window (persistent, appears on click) ── */
+     /* Transistor Inspector window (persistent, appears on click) */
      if (s_die_sel.type == SM83_SEL_TRANSISTOR && s_die_sel.index >= 0)
           s_show_trans_inspect = true;
      if (s_die_sel.type == SM83_SEL_NONE)
@@ -4755,7 +4745,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                }
                ImGui::Separator();
 
-               /* ── Helper: draw one net row with sim state + semantic mapping ── */
+               /* Helper: draw one net row with sim state + semantic mapping */
                auto net_row = [&](const char *role, int net_id)
                {
                     if (net_id < 0 || net_id >= SM83_NET_COUNT)
@@ -4794,7 +4784,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                net_row("s1:  ", tr->s1_net);
                net_row("s2:  ", tr->s2_net);
 
-               /* ── Cross-link to schematic ── */
+               /* Cross-link to schematic */
                ImGui::Spacing();
                ImGui::TextDisabled("Jump to schematic net:");
                ImGui::SameLine();
@@ -4825,7 +4815,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                ImGui::NewLine();
                ImGui::Separator();
 
-               /* ── Neighbours: transistors sharing any of gate/s1/s2 ── */
+               /* Neighbours: transistors sharing any of gate/s1/s2 */
                ImGui::Text("Neighbours (shared nets, max 6 each):");
                ImGui::Spacing();
 
@@ -4858,7 +4848,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Trace Timeline: all CPU events with phase-aware sim seeding ── */
+     /* Trace Timeline: all CPU events with phase-aware sim seeding  */
      if (gb && gb->debug.hw_trace.enabled)
      {
           static int s_trace_selected = -1; /* seq of selected event, -1 = live */
@@ -5058,7 +5048,7 @@ void draw_panel_transistor_viz(struct gb *gb)
           }
      }
 
-     /* ── Info bar ── */
+     /* Info bar */
      ImGui::Separator();
      float fps = ImGui::GetIO().Framerate;
      if (s_netlist_sim.enabled && !s_netlist_sim.rails_found)
@@ -5107,13 +5097,13 @@ void draw_panel_transistor_viz(struct gb *gb)
      }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
  * HW Schematic Viewer
  * Renders the actual DMG-CPU-06 KiCad schematic geometry (wires, buses,
  * labels, junctions, component boxes) with live animation driven by
  * emulator bus activity — each net is coloured by its signal group.
  * Source: https://github.com/Gekkio/gb-schematics (CC-BY 4.0, Gekkio)
- * ══════════════════════════════════════════════════════════════════════════*/
+ **/
 
 static HwSchematicView s_sch_view = {};
 static bool s_sch_view_init = false;
@@ -5124,7 +5114,7 @@ static bool s_sch_show_components = true;
 static bool s_sch_show_activity = true;
 static bool s_sch_paper_mode = false;
 
-/* ── Projection activity state (Fase D) ── */
+/* Projection activity state (Fase D) */
 static HwSchematicActivityState s_hw_activity;
 static bool s_hw_activity_init = false;
 static uint64_t s_hw_last_seq = 0; /* highest event seq consumed */
@@ -5185,7 +5175,7 @@ static const ImU32 SCH_KIND_COLOR[16] = {
 static bool s_sch_show_kinds = true;
 static bool s_sch_show_levels = true; /* net 0/1 labels on wires */
 
-/* ── Frozen frame ── */
+/* Frozen frame */
 static bool s_sch_frozen = false;
 static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
 
@@ -5261,7 +5251,7 @@ static void sch_component_reference_body(const HwComponent *comp,
      }
 }
 
-/* ── Cross-link: die transistor net → schematic net ──────────────────────────
+/*  Cross-link: die transistor net → schematic net
  * Converts a sm83 netlist net_id to a hw_schematic net_id by:
  *   1. Looking up the semantic entry (signal + bit)
  *   2. Building the canonical name  (e.g. "A0", "D3", "MA5")
@@ -5383,7 +5373,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 {
      float dt = ImGui::GetIO().DeltaTime;
 
-     /* ── Cross-link flash timer decay ── */
+     /* Cross-link flash timer decay */
      if (s_sch_cross_timer > 0.0f)
      {
           s_sch_cross_timer -= dt;
@@ -5394,7 +5384,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Decay + map emulator fades to anim groups ── */
+     /*  Decay + map emulator fades to anim groups  */
      struct gb_sys_viz *sv = gb ? &gb->debug.sys_viz : nullptr;
      if (sv)
      {
@@ -5431,7 +5421,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           s_sch_anim_fade[HW_ANIM_BUS_CTRL] = f_bus > f_wram ? f_bus : f_wram;
      }
 
-     /* ── Projection activity state init + tick + consume ── */
+     /* Projection activity state init + tick + consume */
      if (!s_hw_activity_init)
      {
           hw_activity_reset(&s_hw_activity);
@@ -5495,7 +5485,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::TextDisabled("zoom:%.0f", s_sch_view.zoom);
      ImGui::PopStyleVar();
 
-     /* ── Canvas child (resizable — drag bottom border to resize) ── */
+     /* Canvas child (resizable — drag bottom border to resize) */
      static float s_canvas_child_h = 420.0f;
      ImVec2 total_avail = ImGui::GetContentRegionAvail();
      if (s_canvas_child_h > total_avail.y - 80.0f)
@@ -5511,7 +5501,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* Sync stored height with the child's actual size after user resizes */
      s_canvas_child_h = ImGui::GetContentRegionAvail().y;
 
-     /* ── Canvas ── */
+     /* Canvas */
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
      ImVec2 canvas_size = ImGui::GetContentRegionAvail();
      if (canvas_size.x < 400)
@@ -5537,7 +5527,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                             ImGuiButtonFlags_MouseButtonLeft);
      bool canvas_active = ImGui::IsItemActive();
 
-     /* ── Zoom & pan ── */
+     /* Zoom & pan  */
      if (ImGui::IsItemHovered())
      {
           float wheel = ImGui::GetIO().MouseWheel;
@@ -5570,7 +5560,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      dl->PushClipRect(canvas_pos,
                       ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), true);
 
-     /* ── Coordinate helpers ── */
+     /*  Coordinate helpers */
      auto SX = [&](float nx) -> float
      { return cache.origin_x + nx * cache.scale_x; };
      auto SY = [&](float ny) -> float
@@ -5580,7 +5570,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      float zoom = s_sch_view.zoom;
 
-     /* ── Background ── */
+     /*  Background  */
      if (s_sch_paper_mode)
      {
           /* outer margin — medium grey */
@@ -5601,7 +5591,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                             IM_COL32(14, 16, 22, 255));
      }
 
-     /* ── Grid lines — two-level adaptive (ref 50mm + fine 10mm) ── */
+     /*  Grid lines — two-level adaptive (ref 50mm + fine 10mm) */
      if (zoom > 300.0f)
      {
           float ref_step_n = 50.0f / 297.0f;
@@ -5651,7 +5641,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Wire thickness — three-level hierarchy ── */
+     /* Wire thickness — three-level hierarchy  */
      float wire_px = zoom * (0.4f / 297.0f); /* 0.4mm wire */
      if (wire_px < 0.8f)
           wire_px = 0.8f;
@@ -5747,7 +5737,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Wires & buses ── */
+     /*  Wires & buses */
      for (int i = 0; i < HW_WIRE_COUNT; i++)
      {
           const HwWire *w = &hw_wires[i];
@@ -5883,7 +5873,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Unconnected markers (× on wires with net_id == -1) ── */
+     /* Unconnected markers (× on wires with net_id == -1) */
      if (s_sch_show_wires && zoom > 400.0f)
      {
           ImU32 unc_col = IM_COL32(200, 50, 50, 200);
@@ -5908,7 +5898,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Wire hover tooltip ── */
+     /* Wire hover tooltip */
      if (s_sch_hover_wire >= 0 && !s_sch_paper_mode)
      {
           const HwWire *hw = &hw_wires[s_sch_hover_wire];
@@ -5940,7 +5930,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::EndTooltip();
      }
 
-     /* ── Junctions (colored by net kind) ── */
+     /* Junctions (colored by net kind)  */
      float jr = wire_px * 1.8f;
      if (jr < 2.5f)
           jr = 2.5f;
@@ -5999,7 +5989,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Labels with semantic shapes (KiCad / IEC 60617) ── */
+     /* Labels with semantic shapes (KiCad / IEC 60617) */
      float lbl_zoom_thresh = s_sch_paper_mode ? 200.0f : 300.0f;
      if (s_sch_show_labels && zoom > lbl_zoom_thresh)
      {
@@ -6146,7 +6136,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Component boxes ── */
+     /* Component boxes */
      if (s_sch_show_components)
      {
           for (int i = 0; i < HW_COMPONENT_COUNT; i++)
@@ -6181,7 +6171,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
                if (s_sch_paper_mode)
                {
-                    /* ── Paper mode: IC-style schematic component ── */
+                    /* Paper mode: IC-style schematic component */
                     bool is_large = (comp_nh >= 0.10f); /* U1/U2/U3/P1/J2 */
                     bool is_resistor = (comp->ref[0] == 'R');
                     bool is_capacitor = (comp->ref[0] == 'C');
@@ -6242,7 +6232,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                          dl->AddRectFilled(tl, br, fill);
                          dl->AddRect(tl, br, outline, 0.0f, 0, bthick);
 
-                         /* ── Real pin labels from net map (IC only, zoomed in) ── */
+                         /* Real pin labels from net map (IC only, zoomed in) */
                          if (is_large && zoom > 400.0f)
                          {
                               float pin_len = 7.0f;

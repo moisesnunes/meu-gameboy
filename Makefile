@@ -58,7 +58,7 @@ GBA_CORE_C_SRC = gba/gba.c gba/gba_cpu.c gba/gba_cpu_arm.c gba/gba_cpu_thumb.c \
 
 GBA_CORE_OBJ = $(GBA_CORE_C_SRC:gba/%.c=$(BUILD_GBA_DIR)/%.o)
 GBA_CORE_DEP = $(GBA_CORE_OBJ:.o=.d)
-GBA_UI_SRC = ui/gba_debug_ui.cpp
+GBA_UI_SRC = ui/gba_debug_ui.cpp ui/gba_debug_ui_config.cpp ui/gba_debug_ui_panels.cpp
 GBA_UI_OBJ = $(GBA_UI_SRC:ui/%.cpp=$(BUILD_UI_DIR)/%.o)
 GBA_UI_DEP = $(GBA_UI_OBJ:.o=.d)
 

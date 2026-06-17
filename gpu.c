@@ -5,9 +5,7 @@
  * é chamado de PPU (Picture Processing Unit) e funciona de forma completamente
  * diferente de uma GPU 3D: ele é orientado a scanlines e baseado em tiles.
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * CONCEITO FUNDAMENTAL: TILES
- * ═══════════════════════════════════════════════════════════════════════════
  *
  * Toda imagem no Game Boy é formada por "tiles" (blocos) de 8×8 pixels.
  * Cada pixel usa 2 bits de cor, portanto há 4 tons possíveis:
@@ -27,9 +25,7 @@
  *   Linha 1: LSB=0x81, MSB=0x81 → pixels das bordas são 11, centro é 00
  *   ...
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * TILE SETS E TILE MAPS
- * ═══════════════════════════════════════════════════════════════════════════
  *
  * A VRAM (0x8000–0x9FFF) armazena dois tipos de dados:
  *
@@ -46,9 +42,7 @@
  * deve ser desenhado naquela célula. O jogo escolhe qual dos dois tile maps
  * usar via registrador LCDC.
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * AS TRÊS CAMADAS DE VÍDEO
- * ═══════════════════════════════════════════════════════════════════════════
  *
  * O Game Boy renderiza a tela em três camadas, compostas nesta ordem:
  *
@@ -69,9 +63,7 @@
  *      prioridade). Pixels transparentes (cor 00) não são desenhados.
  *      Sprites com flag "background" ficam atrás do BG/window não-brancos.
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * TEMPORIZAÇÃO: MODOS DA PPU
- * ═══════════════════════════════════════════════════════════════════════════
  *
  * A PPU roda em sincronia com a CPU (4.194304 MHz).
  * Para cada linha (scanline) são gastos exatamente 456 ciclos:
@@ -97,9 +89,7 @@
  * A linha é produzida progressivamente durante o Modo 3 por um Pixel FIFO.
  * O frontend ainda recebe a scanline inteira no início do HBlank.
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * REGISTRADORES DE CONTROLE (LCDC — 0xFF40)
- * ═══════════════════════════════════════════════════════════════════════════
  *
  *   Bit 7 — LCD/PPU enable: desliga toda a tela quando 0
  *   Bit 6 — Window tile map: 0=usa 0x9800, 1=usa 0x9C00
@@ -110,9 +100,7 @@
  *   Bit 1 — Sprite enable
  *   Bit 0 — BG/Window enable (no DMG); prioridade BG no GBC
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * INTERRUPÇÕES DA PPU (LCD STAT — 0xFF41)
- * ═══════════════════════════════════════════════════════════════════════════
  *
  *   Bit 6 — LYC=LY interrupt: dispara quando LY == LYC (linha configurável)
  *   Bit 5 — Modo 2 interrupt: dispara no início de cada nova scanline
@@ -120,9 +108,7 @@
  *   Bit 3 — Modo 0 interrupt: dispara no início do HBlank
  *   Bits 1–0 — Modo atual (somente leitura)
  *
- * ═══════════════════════════════════════════════════════════════════════════
  * MECANISMO DE SINCRONIZAÇÃO PREGUIÇOSA (LAZY SYNC)
- * ═══════════════════════════════════════════════════════════════════════════
  *
  * Esta implementação não chama a PPU em todo ciclo de CPU. Em vez disso, usa
  * sincronização preguiçosa:

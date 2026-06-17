@@ -11,11 +11,13 @@ extern "C" {
 
 struct gba;
 
-bool gba_debug_ui_init(struct gba *gba, SDL_Window *window);
-void gba_debug_ui_process_event(struct gba *gba, SDL_Event *event);
-void gba_debug_ui_render(struct gba *gba, const uint32_t *pixels);
-void gba_debug_ui_destroy(void);
-float gba_debug_ui_speed_multiplier(void);
+bool        gba_debug_ui_init(struct gba *gba, SDL_Window *window);
+void        gba_debug_ui_process_event(struct gba *gba, SDL_Event *event);
+void        gba_debug_ui_render(struct gba *gba, const uint32_t *pixels);
+void        gba_debug_ui_destroy(void);
+float       gba_debug_ui_speed_multiplier(void);
+const char *gba_debug_ui_pending_rom(void);
+void        gba_debug_ui_clear_pending_rom(const char *loaded_path);
 
 #ifdef __cplusplus
 }

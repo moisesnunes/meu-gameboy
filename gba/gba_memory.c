@@ -490,11 +490,14 @@ static void io_write16(struct gba *gba, uint32_t addr, uint16_t val)
           {
                gba_timer_sync(gba);
                bool pending_now = (gba->irq.ie & gba->irq.if_) != 0;
+               int32_t timer_delta = gba->sync.next_event[GBA_SYNC_TIMER] - gba->timestamp;
                bool timer_edge_now = (gba->irq.ie & (1u << GBA_IRQ_TIMER0)) &&
                                      gba->timer.ch[0].enable &&
                                      !gba->timer.ch[0].cascade &&
                                      gba->timer.ch[0].irq_en &&
-                                     gba->sync.next_event[GBA_SYNC_TIMER] - gba->timestamp <= 1;
+                                     timer_delta <= 1;
+               if (timer_edge_now)
+                    gba->irq.if_ |= (uint16_t)(1u << GBA_IRQ_TIMER0);
                if (pending_now || timer_edge_now)
                     gba->irq.force = true;
           }

@@ -40,9 +40,7 @@ extern "C"
 #include "state.h"
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Estado interno da janela de debug                          */
-/* ────────────────────────────────────────────────────────── */
+/* Estado interno da janela de debug */
 
 /* Janela principal (pertence ao sdl.c — não destruímos ela aqui) */
 static SDL_Window *s_window = nullptr;
@@ -57,7 +55,7 @@ static GLuint s_game_tex = 0;
 static GLuint s_prev_game_tex = 0;
 static bool s_prev_game_valid = false;
 
-/* ── Flags de visibilidade dos painéis (menu Debug) ── */
+/* Flags de visibilidade dos painéis (menu Debug) */
 static bool s_show_screen = true;
 static bool s_show_cpu = true;
 static bool s_show_disasm = true;
@@ -69,44 +67,40 @@ static bool s_show_tilemap = false;
 static bool s_show_profiler = false;
 static bool s_show_status_bar = true;
 
-/* ── Configurações de vídeo ── */
+/* Configurações de vídeo */
 static bool s_vsync = true;
 static bool s_bilinear = false;
 static bool s_fullscreen = false;
 static bool s_show_fps = false;
 
-/* ── Configurações de áudio ── */
+/* Configurações de áudio */
 static bool s_audio_muted = false;
 static float s_audio_volume = 1.0f;
 
-/* ── FPS counter ── */
+/* FPS counter */
 static uint64_t s_fps_last_ns = 0;
 static int s_fps_frames = 0;
 static float s_fps_current = 0.0f;
 
-/* ── About popup ── */
+/* About popup */
 static bool s_show_about = false;
 static char s_status_message[160] = "";
 static uint64_t s_status_message_until_ms = 0;
 
-/* ── File dialog (SDL3 assíncrono) ── */
+/* File dialog (SDL3 assíncrono) */
 static char s_pending_rom[4096] = "";
 static bool s_dialog_active = false;
 
-/* ── ROMs recentes ── */
+/* ROMs recentes */
 static std::vector<std::string> s_recent_roms;
 
-/* ────────────────────────────────────────────────────────── */
-/* Estado: Emulador                                            */
-/* ────────────────────────────────────────────────────────── */
+/* Estado: Emulador */
 static bool s_fast_forward = false;
 static float s_ff_speed_factor = 2.0f; /* multiplicador de velocidade */
 static bool s_start_paused = false;
 static int s_save_slot = 0;
 
-/* ────────────────────────────────────────────────────────── */
-/* Estado: Vídeo avançado                                      */
-/* ────────────────────────────────────────────────────────── */
+/* Estado: Vídeo avançado */
 /* Escala: negativos = modos de ajuste, positivos = escala inteira manual. */
 static const int VIDEO_SCALE_FIT = 0;
 static const int VIDEO_SCALE_INTEGER = -1;
@@ -124,9 +118,7 @@ static bool s_show_cpu_viz = false;
 static bool s_show_transistor_viz = false;
 static bool s_show_hw_schematic = false;
 
-/* ────────────────────────────────────────────────────────── */
-/* Estado: Debug UI — fonte                                    */
-/* ────────────────────────────────────────────────────────── */
+/* Estado: Debug UI — fonte */
 static int s_debug_font_size = 1; /* 0=pequena, 1=normal, 2=grande, 3=enorme */
 
 static const char *UI_CONFIG_PATH = "meu-gameboy_ui.ini";
@@ -344,10 +336,7 @@ static const ImGuiWindowFlags FIXED_WIN_FLAGS =
     ImGuiWindowFlags_NoResize |
     ImGuiWindowFlags_NoCollapse;
 
-/* ────────────────────────────────────────────────────────── */
-/* Cores                                                      */
-/* ────────────────────────────────────────────────────────── */
-
+/* Cores */
 static ImVec4 color_green = ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
 static ImVec4 color_red = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
 static ImVec4 color_yellow = ImVec4(0.9f, 0.9f, 0.1f, 1.0f);
@@ -505,10 +494,7 @@ static const char *gpu_mode_name(int mode)
      return "???";
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* File dialog (SDL3 nativo, assíncrono)                      */
-/* ────────────────────────────────────────────────────────── */
-
+/* File dialog (SDL3 nativo, assíncrono) */
 static void SDLCALL file_dialog_callback(void * /*userdata*/,
                                          const char *const *filelist,
                                          int /*filter*/)
@@ -639,10 +625,7 @@ static void draw_status_bar(struct gb *gb)
      ImGui::End();
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Menu principal                                             */
-/* ────────────────────────────────────────────────────────── */
-
+/* Menu principal */
 static void draw_main_menu(struct gb *gb)
 {
      if (!ImGui::BeginMainMenuBar())
@@ -653,9 +636,7 @@ static void draw_main_menu(struct gb *gb)
      bool paused = gb->debug.enabled && gb->debug.state == GB_DEBUG_PAUSED;
      bool dbg = gb->debug.enabled;
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Arquivo                                             */
-     /* ═══════════════════════════════════════════════════ */
+     /* Arquivo */
      if (ImGui::BeginMenu("Arquivo"))
      {
           if (ImGui::MenuItem("Abrir ROM...", "Ctrl+O"))
@@ -790,12 +771,10 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Emulador  (novo — inspirado no Gearsystem)          */
-     /* ═══════════════════════════════════════════════════ */
+     /* Emulador  (novo — inspirado no Gearsystem) */
      if (ImGui::BeginMenu("Emulador"))
      {
-          /* ── Pausar / Continuar ── */
+          /* Pausar / Continuar */
           if (ImGui::MenuItem("Pausar", "F5", paused, has_rom))
           {
                if (paused)
@@ -812,7 +791,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Avanço Rápido ── */
+          /* Avanço Rápido */
           if (ImGui::MenuItem("Avan\xc3\xa7o R\xc3\xa1"
                               "pido",
                               "Tab", s_fast_forward, has_rom))
@@ -843,7 +822,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Modo do console ── */
+          /* Modo do console */
           if (ImGui::BeginMenu("Modo do Console", has_rom))
           {
                if (ImGui::MenuItem("DMG (Game Boy)", nullptr, !gb->gbc))
@@ -868,7 +847,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Opções de inicialização ── */
+          /*  Opções de inicialização */
           ImGui::MenuItem("Iniciar Pausado", nullptr, &s_start_paused);
           if (ImGui::IsItemHovered())
                ImGui::SetTooltip("Quando ativado, a emula\xc3\xa7\xc3\xa3o inicia em modo pausa ao carregar uma ROM.");
@@ -883,13 +862,11 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Vídeo  (enriquecido)                               */
-     /* ═══════════════════════════════════════════════════ */
+     /* Vídeo  (enriquecido) */
      if (ImGui::BeginMenu("V\xc3\xad"
                           "deo"))
      {
-          /* ── Tela Cheia ── */
+          /* Tela Cheia */
           if (ImGui::MenuItem("Tela Cheia", "F11", s_fullscreen))
           {
                s_fullscreen = !s_fullscreen;
@@ -898,7 +875,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Escala ── */
+          /* Escala */
           if (ImGui::BeginMenu("Escala"))
           {
                if (ImGui::MenuItem("Ajustar \xc3\xa0 janela", nullptr, s_video_scale == VIDEO_SCALE_FIT))
@@ -924,7 +901,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── VSync / FPS ── */
+          /* VSync / FPS */
           if (ImGui::MenuItem("VSync", nullptr, s_vsync))
           {
                s_vsync = !s_vsync;
@@ -936,7 +913,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Filtros de imagem ── */
+          /* Filtros de imagem */
           if (ImGui::MenuItem("Filtro Bilinear", nullptr, s_bilinear))
           {
                s_bilinear = !s_bilinear;
@@ -946,7 +923,7 @@ static void draw_main_menu(struct gb *gb)
                ImGui::SetTooltip("Suaviza a imagem ao escalar (Nearest = pixels n\xc3\xad"
                                  "tidos).");
 
-          /* ── Scanlines ── */
+          /* Scanlines */
           if (ImGui::BeginMenu("Scanlines"))
           {
                ImGui::MenuItem("Ativar Scanlines", nullptr, &s_scanlines);
@@ -956,7 +933,7 @@ static void draw_main_menu(struct gb *gb)
                ImGui::EndMenu();
           }
 
-          /* ── Ghosting de Frame ── */
+          /* Ghosting de Frame */
           if (ImGui::BeginMenu("Persist\xc3\xaa"
                                "ncia de Frame"))
           {
@@ -972,7 +949,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Cor de fundo ── */
+          /* Cor de fundo */
           if (ImGui::BeginMenu("Cor de Fundo"))
           {
                ImGui::ColorEdit3("##bg_col", s_bg_color,
@@ -1011,14 +988,10 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Entrada  (novo — inspirado no Gearsystem)           */
-     /* ═══════════════════════════════════════════════════ */
+     /* Entrada  (novo — inspirado no Gearsystem) */
      draw_input_menu();
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Áudio  (enriquecido)                               */
-     /* ═══════════════════════════════════════════════════ */
+     /* Áudio */
      if (ImGui::BeginMenu("\xc3\x81"
                           "udio"))
      {
@@ -1095,7 +1068,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Canais do SPU ── */
+          /* Canais do SPU */
           ImGui::TextDisabled("Canais SPU (estado atual):");
           auto ch_indicator = [](const char *name, bool active, bool muted)
           {
@@ -1115,9 +1088,7 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Debug  (enriquecido)                               */
-     /* ═══════════════════════════════════════════════════ */
+     /* Debug */
      if (ImGui::BeginMenu("Debug"))
      {
           if (ImGui::MenuItem("Ativar Debug", nullptr, &gb->debug.enabled))
@@ -1136,7 +1107,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Painéis de debug ── */
+          /* Painéis de debug */
           ImGui::MenuItem("CPU / Controle", nullptr, &s_show_cpu, dbg);
           ImGui::MenuItem("Disassembly", nullptr, &s_show_disasm, dbg);
           ImGui::MenuItem("Pilha de Chamadas", nullptr, &s_show_call_stack, dbg);
@@ -1206,7 +1177,7 @@ static void draw_main_menu(struct gb *gb)
 
           ImGui::Separator();
 
-          /* ── Opções avançadas ── */
+          /* Opções avançadas */
           if (ImGui::BeginMenu("Tamanho de Fonte"))
           {
                if (ImGui::MenuItem("Pequena", nullptr, s_debug_font_size == 0))
@@ -1242,9 +1213,7 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ═══════════════════════════════════════════════════ */
-     /* Sobre                                               */
-     /* ═══════════════════════════════════════════════════ */
+     /* Sobre */
      if (ImGui::BeginMenu("Sobre"))
      {
           if (ImGui::MenuItem("Sobre Gaembuoy..."))
@@ -1252,7 +1221,7 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndMenu();
      }
 
-     /* ── FPS no lado direito ── */
+     /* FPS no lado direito */
      if (s_show_fps)
      {
           char fps_str[32];
@@ -1267,7 +1236,7 @@ static void draw_main_menu(struct gb *gb)
 
      ImGui::EndMainMenuBar();
 
-     /* ── Popups ── */
+     /* Popups */
      if (s_show_about)
      {
           ImGui::OpenPopup("Sobre##modal");
@@ -1299,9 +1268,7 @@ static void draw_main_menu(struct gb *gb)
      draw_popup_rom_info(gb);
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Tela de boas-vindas (sem ROM carregada)                   */
-/* ────────────────────────────────────────────────────────── */
+/* Tela de boas-vindas (sem ROM carregada) */
 
 static void draw_launcher(void)
 {
@@ -1349,7 +1316,6 @@ static void draw_launcher(void)
 
 /* ────────────────────────────────────────────────────────── */
 /* Janela de saída do jogo                                    */
-/* ────────────────────────────────────────────────────────── */
 
 static void draw_game_output(void)
 {
@@ -1459,10 +1425,7 @@ static void draw_game_output(void)
      ImGui::End();
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* API pública                                                */
-/* ────────────────────────────────────────────────────────── */
-
+/* API pública */
 extern "C" void debug_ui_init(struct gb *gb)
 {
      /* Usa a janela principal criada pelo sdl.c */
