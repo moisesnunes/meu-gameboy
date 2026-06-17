@@ -21,6 +21,24 @@ struct gba;
 #include "gba_timer.h"
 #include "gba_apu.h"
 
+#define GBA_EVENT_TRACE_SIZE 32
+
+enum gba_event_trace_kind {
+    GBA_EVENT_BRANCH = 1,
+    GBA_EVENT_SWI,
+    GBA_EVENT_IRQ_EDGE,
+    GBA_EVENT_IRQ_ENTER,
+    GBA_EVENT_DMA,
+};
+
+struct gba_event_trace_entry {
+    uint32_t timestamp;
+    uint32_t pc;
+    uint32_t target;
+    uint32_t detail;
+    uint8_t kind;
+};
+
 /* GBA CPU frequency: 16.78 MHz */
 #define GBA_CPU_FREQ_HZ  16777216U
 
@@ -62,6 +80,9 @@ struct gba {
     struct gba_timer    timer;
     struct gba_apu      apu;
     struct gba_frontend frontend;
+
+    struct gba_event_trace_entry event_trace[GBA_EVENT_TRACE_SIZE];
+    uint8_t event_trace_head;
 
     /* BIOS ROM (16KB) — NULL if not loaded, open-bus used instead */
     uint8_t *bios;
@@ -114,5 +135,7 @@ void        gba_destroy(struct gba *gba);
 void        gba_reset(struct gba *gba);
 bool        gba_load_bios(struct gba *gba, const char *path);
 void        gba_run_frame(struct gba *gba);
+void        gba_event_trace(struct gba *gba, enum gba_event_trace_kind kind,
+                            uint32_t pc, uint32_t target, uint32_t detail);
 
 #endif /* _GBA_GBA_H_ */

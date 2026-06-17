@@ -287,6 +287,9 @@ static void dma_run(struct gba *gba, int n)
 
     ch->pending = false;
 
+    gba_event_trace(gba, GBA_EVENT_DMA, ch->src_latch, ch->dst_latch,
+                    ((uint32_t)n << 24) | ((uint32_t)original_count & 0x00FFFFFFu));
+
     if (ch->irq_en)
         gba_irq_trigger(gba, (enum gba_irq_token)(GBA_IRQ_DMA0 + n));
 

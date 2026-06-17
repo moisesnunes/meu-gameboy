@@ -87,6 +87,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Run one explicit .gba or .zip path. Can be passed more than once.",
     )
+    parser.add_argument(
+        "--rom-list",
+        action="append",
+        type=Path,
+        default=None,
+        help="TSV file with explicit ROM paths in the first column. Can be passed more than once.",
+    )
     parser.add_argument("--jobs", type=int, default=1, help="Parallel gba_compat_test jobs.")
     parser.add_argument(
         "--timeout",
@@ -114,6 +121,22 @@ def parse_args() -> argparse.Namespace:
         help="Also scan .gba files inside folders that have a sibling ZIP with the same name.",
     )
     return parser.parse_args()
+
+
+def read_rom_list(path: Path) -> list[Path]:
+    roms: list[Path] = []
+    with path.open() as f:
+        for line_no, raw in enumerate(f, start=1):
+            line = raw.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            rom = Path(fields[0])
+            if not rom.is_file():
+                print(f"missing ROM in {path}:{line_no}: {rom}", file=sys.stderr, flush=True)
+                continue
+            roms.append(rom)
+    return roms
 
 
 def has_sibling_zip_dir(path: Path, root: Path) -> bool:
@@ -627,9 +650,16 @@ def main() -> int:
     if not args.no_build:
         subprocess.run(["make", "gba_compat_test"], check=True)
 
+    explicit_roms: list[Path] = []
+    if args.rom_list:
+        for rom_list in args.rom_list:
+            explicit_roms.extend(read_rom_list(rom_list))
     if args.rom:
-        paths = [rom for rom in args.rom if rom.is_file()]
-        for rom in args.rom:
+        explicit_roms.extend(args.rom)
+
+    if explicit_roms:
+        paths = [rom for rom in explicit_roms if rom.is_file()]
+        for rom in explicit_roms:
             if not rom.is_file():
                 print(f"missing ROM: {rom}", file=sys.stderr, flush=True)
     else:

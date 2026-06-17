@@ -712,6 +712,8 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
                uint32_t target = hw_pc + (uint32_t)(int32_t)(offset * 2);
                cpu->r[15] = target + 4; /* maintain THUMB invariant */
                cpu->pipeline_valid = false;
+               gba_event_trace(gba, GBA_EVENT_BRANCH, hw_pc - 4, target,
+                               0x100u | cond);
                return 3;
           }
           return 1;
@@ -736,6 +738,7 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
           uint32_t target = hw_pc + (uint32_t)offset;
           cpu->r[15] = target + 4;
           cpu->pipeline_valid = false;
+          gba_event_trace(gba, GBA_EVENT_BRANCH, hw_pc - 4, target, 0x200u);
           return 3;
      }
 
@@ -761,6 +764,8 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
                cpu->r[14] = (cpu->r[15] - 4) | 1;
                cpu->r[15] = (target & ~1U) + 4; /* THUMB invariant */
                cpu->pipeline_valid = false;
+               gba_event_trace(gba, GBA_EVENT_BRANCH, cpu->r[14] & ~1U,
+                               target & ~1U, 0x300u | 1u);
                return 3;
           }
           return 1;

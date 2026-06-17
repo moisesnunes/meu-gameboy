@@ -29,6 +29,12 @@ void gba_timer_write_reload(struct gba *gba, int n, uint16_t val)
 
 void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val)
 {
+     gba_timer_write_ctrl_delayed(gba, n, val, 0);
+}
+
+void gba_timer_write_ctrl_delayed(struct gba *gba, int n, uint16_t val,
+                                  int32_t access_delay)
+{
      struct gba_timer_channel *ch = &gba->timer.ch[n];
      bool was_enabled = ch->enable;
      bool new_enable = (val >> 7) & 1;
@@ -67,9 +73,10 @@ void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val)
            * timers are phase-correct relative to each other and to the clock.
            */
           int prescaler = gba_timer_prescaler[ch->prescaler];
-          int32_t effective_start = gba->timestamp + 2;
+          int32_t effective_start = gba->timestamp + access_delay + 2;
           int32_t phase = effective_start % prescaler;
           ch->cycles_acc = (phase == 0) ? 0 : -(prescaler - phase);
+          ch->cycles_acc -= 2;
      }
 
      gba_sync_next(gba, GBA_SYNC_TIMER, 1);

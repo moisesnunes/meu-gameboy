@@ -406,6 +406,7 @@ static int exec_branch(struct gba *gba, uint32_t instr)
 {
      struct gba_cpu *cpu = &gba->cpu;
      bool link = (instr >> 24) & 1;
+     uint32_t pc = cpu->r[15] - 12;
      /*
       * r[15] currently = instr_addr + 8 + 4 (already advanced by step).
       * The branch offset is relative to instr_addr + 8.
@@ -417,8 +418,10 @@ static int exec_branch(struct gba *gba, uint32_t instr)
 
      if (link)
           cpu->r[14] = instr_pc8 - 4; /* = instr_addr + 4 (next instr) */
-     cpu->r[15] = (instr_pc8 + (uint32_t)offset) + 8;
+     uint32_t target = instr_pc8 + (uint32_t)offset;
+     cpu->r[15] = target + 8;
      cpu->pipeline_valid = false;
+     gba_event_trace(gba, GBA_EVENT_BRANCH, pc, target, link ? 1u : 0u);
      return 3;
 }
 
@@ -429,6 +432,7 @@ static int exec_bx(struct gba *gba, uint32_t instr)
      bool link = ((instr >> 4) & 0xF) == 3; /* BLX = lo4==3 */
      uint8_t rm = instr & 0xF;
      uint32_t addr = cpu->r[rm];
+     uint32_t pc = cpu->r[15] - 12;
 
      /* LR = instr_addr + 4 = (r[15] - 4) - 4 */
      if (link)
@@ -447,6 +451,8 @@ static int exec_bx(struct gba *gba, uint32_t instr)
           cpu->r[15] = (addr & ~3U) + 8;
      }
      cpu->pipeline_valid = false;
+     gba_event_trace(gba, GBA_EVENT_BRANCH, pc, addr & ~1U,
+                     (link ? 1u : 0u) | ((addr & 1U) ? 2u : 0u));
      return 3;
 }
 

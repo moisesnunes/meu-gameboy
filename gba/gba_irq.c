@@ -16,6 +16,8 @@ void gba_irq_reset(struct gba *gba)
 void gba_irq_trigger(struct gba *gba, enum gba_irq_token which)
 {
      uint16_t bit = (uint16_t)(1U << which);
+     gba_event_trace(gba, GBA_EVENT_IRQ_EDGE, gba_cpu_current_pc(&gba->cpu),
+                     (uint32_t)which, bit);
      gba->irq.if_ |= bit;
      /* Arm the hardware delay if not already counting down */
      if (gba->irq.ime && (gba->irq.ie & bit) && gba->irq.irq_delay == 0)

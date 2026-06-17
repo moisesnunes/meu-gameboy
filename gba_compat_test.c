@@ -556,6 +556,185 @@ static void apply_input_events(struct gba *gba, struct input_event *events,
      }
 }
 
+static const char *cpu_mode_name(uint32_t cpsr)
+{
+     switch (cpsr & GBA_CPSR_M)
+     {
+     case GBA_MODE_USR: return "USR";
+     case GBA_MODE_FIQ: return "FIQ";
+     case GBA_MODE_IRQ: return "IRQ";
+     case GBA_MODE_SVC: return "SVC";
+     case GBA_MODE_ABT: return "ABT";
+     case GBA_MODE_UND: return "UND";
+     case GBA_MODE_SYS: return "SYS";
+     default: return "???";
+     }
+}
+
+static const char *backup_type_name(enum gba_backup_type type)
+{
+     switch (type)
+     {
+     case GBA_BACKUP_NONE: return "none";
+     case GBA_BACKUP_SRAM: return "sram";
+     case GBA_BACKUP_EEPROM_512: return "eeprom512";
+     case GBA_BACKUP_EEPROM_8K: return "eeprom8k";
+     case GBA_BACKUP_FLASH_512: return "flash512";
+     case GBA_BACKUP_FLASH_1M: return "flash1m";
+     default: return "unknown";
+     }
+}
+
+static const char *event_kind_name(uint8_t kind)
+{
+     switch (kind)
+     {
+     case GBA_EVENT_BRANCH: return "branch";
+     case GBA_EVENT_SWI: return "swi";
+     case GBA_EVENT_IRQ_EDGE: return "irq_edge";
+     case GBA_EVENT_IRQ_ENTER: return "irq_enter";
+     case GBA_EVENT_DMA: return "dma";
+     default: return "empty";
+     }
+}
+
+static void frame_stats(const struct compat_ctx *ctx, uint32_t *hash,
+                        unsigned *unique_bins, unsigned *non_white,
+                        unsigned *non_black)
+{
+     bool bins[256] = {0};
+     uint32_t h = 2166136261u;
+     unsigned uw = 0;
+     unsigned ub = 0;
+
+     for (unsigned i = 0; i < GBA_LCD_W * GBA_LCD_H; i++)
+     {
+          uint32_t p = ctx->pixels[i] & 0x00FFFFFFu;
+          unsigned r = (p >> 16) & 0xFFu;
+          unsigned g = (p >> 8) & 0xFFu;
+          unsigned b = p & 0xFFu;
+          unsigned luma = (r * 3u + g * 6u + b) / 10u;
+          h ^= p;
+          h *= 16777619u;
+          bins[luma] = true;
+          if (p != 0x00FFFFFFu)
+               uw++;
+          if (p != 0x00000000u)
+               ub++;
+     }
+
+     unsigned count = 0;
+     for (unsigned i = 0; i < 256; i++)
+          count += bins[i] ? 1u : 0u;
+
+     *hash = h;
+     *unique_bins = count;
+     *non_white = uw;
+     *non_black = ub;
+}
+
+static uint16_t dispstat_value(const struct gba *gba)
+{
+     uint16_t v = 0;
+     v |= gba->gpu.vblank ? 0x0001u : 0;
+     v |= gba->gpu.hblank ? 0x0002u : 0;
+     v |= (gba->gpu.vcount == gba->gpu.vcount_trigger) ? 0x0004u : 0;
+     v |= gba->gpu.vblank_irq_en ? 0x0008u : 0;
+     v |= gba->gpu.hblank_irq_en ? 0x0010u : 0;
+     v |= gba->gpu.vcount_irq_en ? 0x0020u : 0;
+     v |= (uint16_t)gba->gpu.vcount_trigger << 8;
+     return v;
+}
+
+static void dump_expanded_state(struct gba *gba, const struct compat_ctx *ctx)
+{
+     uint32_t pc = gba_cpu_current_pc(&gba->cpu);
+     uint32_t frame_hash = 0;
+     unsigned unique_bins = 0;
+     unsigned non_white = 0;
+     unsigned non_black = 0;
+     frame_stats(ctx, &frame_hash, &unique_bins, &non_white, &non_black);
+
+     fprintf(stderr,
+             "STATE2 pc=%08x r15=%08x cpsr=%08x mode=%s thumb=%u "
+             "halt_mode=%u cpu_halted=%u stopped=%u timestamp=%d instr=%llu "
+             "bios=%u bios_intr_wait=%u bios_intr_mask=%04x postflg=%02x\n",
+             pc, gba->cpu.r[15], gba->cpu.cpsr, cpu_mode_name(gba->cpu.cpsr),
+             (gba->cpu.cpsr & GBA_CPSR_T) ? 1u : 0u,
+             gba->halt_mode, gba->cpu.halted, gba->cpu.stopped,
+             gba->timestamp, (unsigned long long)gba->debug.instruction_count,
+             gba->bios ? 1u : 0u, gba->bios_intr_wait_active,
+             gba->bios_intr_wait_mask, gba->postflg);
+
+     fprintf(stderr,
+             "IRQ ime=%u ie=%04x if=%04x delay=%d force=%u irq_hle=%u "
+             "irq_ret=%08x irq_cpsr=%08x handler=%08x\n",
+             gba->irq.ime, gba->irq.ie, gba->irq.if_, gba->irq.irq_delay,
+             gba->irq.force, gba->bios_irq_hle_active,
+             gba->bios_irq_hle_return_r15, gba->bios_irq_hle_cpsr,
+             gba_memory_peek32(gba, 0x03007FFC));
+
+     fprintf(stderr,
+             "PPU dispcnt=%04x dispstat=%04x vcount=%u vblank=%u hblank=%u "
+             "hblank_flag=%u forced_blank=%u bg=%u%u%u%u obj=%u win=%u%u%u "
+             "cycles_line=%d waitcnt=%04x prefetch=%u\n",
+             gba_memory_peek16(gba, REG_DISPCNT), dispstat_value(gba),
+             gba->gpu.vcount, gba->gpu.vblank, gba->gpu.hblank,
+             gba->gpu.hblank_flag, gba->gpu.forced_blank,
+             gba->gpu.bg_en[0], gba->gpu.bg_en[1], gba->gpu.bg_en[2],
+             gba->gpu.bg_en[3], gba->gpu.obj_en, gba->gpu.win0_en,
+             gba->gpu.win1_en, gba->gpu.winobj_en, gba->gpu.cycles_line,
+             gba->waitcnt, gba->prefetch_en);
+
+     for (unsigned i = 0; i < GBA_DMA_COUNT; i++)
+     {
+          const struct gba_dma_channel *ch = &gba->dma.ch[i];
+          fprintf(stderr,
+                  "DMA%u enable=%u pending=%u src=%08x dst=%08x "
+                  "src_latch=%08x dst_latch=%08x count=%u count_latch=%u "
+                  "timing=%u repeat=%u irq=%u width=%u\n",
+                  i, ch->enable, ch->pending, ch->src, ch->dst,
+                  ch->src_latch, ch->dst_latch, ch->count, ch->count_latch,
+                  ch->timing, ch->repeat, ch->irq_en, ch->word_32 ? 32u : 16u);
+     }
+
+     for (unsigned i = 0; i < GBA_TIMER_COUNT; i++)
+     {
+          const struct gba_timer_channel *tm = &gba->timer.ch[i];
+          fprintf(stderr,
+                  "TIMER%u counter=%04x reload=%04x enable=%u cascade=%u "
+                  "irq=%u prescaler=%u acc=%d pending_reload=%u reload_delay=%d\n",
+                  i, tm->counter, tm->reload, tm->enable, tm->cascade,
+                  tm->irq_en, tm->prescaler, tm->cycles_acc,
+                  tm->pending_reload, tm->reload_delay);
+     }
+
+     fprintf(stderr,
+             "CART backup=%s dirty=%u has_rtc=%u rtc_state=%u gpio=%04x/%04x/%04x "
+             "rom_size=%u\n",
+             backup_type_name(gba->cart.backup_type), gba->cart.dirty,
+             gba->cart.has_rtc, gba->cart.rtc.state, gba->cart.gpio_data,
+             gba->cart.gpio_direction, gba->cart.gpio_control,
+             gba->cart.rom_size);
+
+     fprintf(stderr,
+             "FRAME hash=%08x unique_luma=%u non_white=%u non_black=%u frames=%u\n",
+             frame_hash, unique_bins, non_white, non_black, ctx->frames);
+
+     fputs("EVENTS\n", stderr);
+     for (unsigned i = 0; i < GBA_EVENT_TRACE_SIZE; i++)
+     {
+          uint8_t idx = (uint8_t)((gba->event_trace_head + i) &
+                                  (GBA_EVENT_TRACE_SIZE - 1));
+          const struct gba_event_trace_entry *ev = &gba->event_trace[idx];
+          if (ev->kind == 0)
+               continue;
+          fprintf(stderr, "  %02u %-9s t=%u pc=%08x target=%08x detail=%08x\n",
+                  i, event_kind_name(ev->kind), ev->timestamp, ev->pc,
+                  ev->target, ev->detail);
+     }
+}
+
 /* ── main ── */
 
 int main(int argc, char **argv)
@@ -815,6 +994,7 @@ int main(int argc, char **argv)
 
      if (dump_state)
      {
+          dump_expanded_state(gba, ctx);
           uint32_t pc = gba_cpu_current_pc(&gba->cpu);
           uint8_t trace_head = gba->cpu.trace_head;
           fprintf(stderr,

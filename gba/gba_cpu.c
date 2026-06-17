@@ -189,6 +189,7 @@ void gba_cpu_exception(struct gba *gba, uint32_t vector, enum gba_cpu_mode mode)
      struct gba_cpu *cpu = &gba->cpu;
      uint32_t old_cpsr = cpu->cpsr;
      bool thumb = old_cpsr & GBA_CPSR_T;
+     uint32_t pc = gba_cpu_current_pc(cpu);
 
      gba_cpu_switch_mode(gba, mode);
 
@@ -212,6 +213,7 @@ void gba_cpu_exception(struct gba *gba, uint32_t vector, enum gba_cpu_mode mode)
      /* r[15] must satisfy invariant: r[15] = dest + 8 (always ARM after exception) */
      cpu->r[15] = vector + 8;
      cpu->pipeline_valid = false;
+     gba_event_trace(gba, GBA_EVENT_BRANCH, pc, vector, (uint32_t)mode);
 }
 
 void gba_cpu_trigger_irq(struct gba *gba)
@@ -235,6 +237,7 @@ void gba_cpu_trigger_irq(struct gba *gba)
 
           /* PC of interrupted instruction */
           uint32_t intr_pc = cpu->r[15] - (thumb ? 4u : 8u);
+          gba_event_trace(gba, GBA_EVENT_IRQ_ENTER, intr_pc, handler, gba->irq.if_);
 
           /*
            * libgba's copied IntrMain returns with BX lr after restoring SPSR_irq.
@@ -281,6 +284,7 @@ void gba_cpu_trigger_irq(struct gba *gba)
       */
      bool thumb = (gba->cpu.cpsr & GBA_CPSR_T) != 0;
      uint32_t intr_pc = gba->cpu.r[15] - (thumb ? 4u : 8u);
+     gba_event_trace(gba, GBA_EVENT_IRQ_ENTER, intr_pc, 0x00000018, gba->irq.if_);
      gba_cpu_exception(gba, 0x00000018, GBA_MODE_IRQ);
      gba->cpu.r[14] += 4;
      gba->timestamp += gba_bios_irq_entry_cycles(intr_pc);
@@ -381,6 +385,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
 {
      struct gba_cpu *cpu = &gba->cpu;
      uint32_t num = comment > 0xFF ? ((comment >> 16) & 0xFF) : (comment & 0xFF);
+     gba_event_trace(gba, GBA_EVENT_SWI, gba_cpu_current_pc(cpu), num, cpu->r[0]);
 
      if (gba->bios && gba_cpu_current_pc(cpu) < GBA_BIOS_SIZE)
           return false;

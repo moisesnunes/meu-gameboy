@@ -1,0 +1,28 @@
+# Fixed 25-ROM GBA commercial probe set for phase-to-phase smoke checks.
+# Format: path<TAB>notes
+# These ROMs are local-only inputs; the repo does not ship them.
+roms/GameboyAdvanceRomCollectionByGhostware/Metroid Fusion (U) [!].gba	action/platformer, save, scrolling
+roms/GameboyAdvanceRomCollectionByGhostware/Metroid - Zero Mission (U) [!].gba	action/platformer, save, scrolling
+roms/GameboyAdvanceRomCollectionByGhostware/Legend of Zelda, The - The Minish Cap (U).gba	action/adventure, EEPROM/save, affine/UI
+roms/GameboyAdvanceRomCollectionByGhostware/Mario Kart Super Circuit (U) [!].gba	racing, mode7-style affine, audio/timers
+roms/GameboyAdvanceRomCollectionByGhostware/Mario & Luigi - Superstar Saga (U).gba	RPG, battle UI, save
+roms/GameboyAdvanceRomCollectionByGhostware/Golden Sun (UE) [!].gba	RPG, text/windowing, save
+roms/GameboyAdvanceRomCollectionByGhostware/Golden Sun - The Lost Age (UE) [!].gba	RPG, text/windowing, save
+roms/GameboyAdvanceRomCollectionByGhostware/Fire Emblem (U) [!].gba	strategy, tilemaps, save
+roms/GameboyAdvanceRomCollectionByGhostware/Fire Emblem - The Sacred Stones (U).gba	strategy, tilemaps, save
+roms/GameboyAdvanceRomCollectionByGhostware/Castlevania - Aria of Sorrow (U) [!].gba	action/RPG, scrolling, save
+roms/GameboyAdvanceRomCollectionByGhostware/Castlevania - Harmony of Dissonance (U) [!].gba	action/RPG, scrolling, save
+roms/GameboyAdvanceRomCollectionByGhostware/Castlevania - Circle of the Moon (U) [!].gba	action/RPG, scrolling, save
+roms/GameboyAdvanceRomCollectionByGhostware/WarioWare Inc. (E) (M5).gba	minigames, fast transitions, timers
+roms/GameboyAdvanceRomCollectionByGhostware/Astro Boy - Omega Factor (U) (M6).gba	action, sprites, scrolling
+roms/GameboyAdvanceRomCollectionByGhostware/Sonic Advance (E) (M5).gba	platformer, high scroll speed, sprites
+roms/GameboyAdvanceRomCollectionByGhostware/Pokemon - Fire Red Version (U) (V1.1).gba	RPG, flash save, RTC-adjacent workflows
+roms/GameboyAdvanceRomCollectionByGhostware/Pokemon - Leaf Green Version (U) (V1.1).gba	RPG, flash save
+roms/GameboyAdvanceRomCollectionByGhostware/Pokemon - Emerald Version (U) [f1] (Save Type).gba	RPG, RTC/save-sensitive
+roms/GameboyAdvanceRomCollectionByGhostware/Super Mario Advance 4 - Super Mario Bros. 3 (E) (M5) (V1.0) [t1].gba	platformer, scrolling, sprites
+roms/GameboyAdvanceRomCollectionByGhostware/Super Mario Advance 2 - Super Mario World (U) [b3][t1][f2] (EEPROM).gba	platformer, EEPROM/save, scrolling
+roms/GameboyAdvanceRomCollectionByGhostware/Klonoa 2 - Dream Champ Tournament (U).gba	platformer, affine/sprites
+roms/GameboyAdvanceRomCollectionByGhostware/Iridion II (U) [!].gba	shooter, affine/background effects
+roms/GameboyAdvanceRomCollectionByGhostware/Tekken Advance (E).gba	fighting, sprites/input
+roms/GameboyAdvanceRomCollectionByGhostware/Dragon Ball GT - Transformation (U).gba	action, sprites, scrolling
+roms/GameboyAdvanceRomCollectionByGhostware/Need for Speed - Underground (UE) (M4) [t1].gba	racing, affine/background effects

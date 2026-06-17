@@ -54,6 +54,20 @@ bool gba_load_bios(struct gba *gba, const char *path)
      return true;
 }
 
+void gba_event_trace(struct gba *gba, enum gba_event_trace_kind kind,
+                     uint32_t pc, uint32_t target, uint32_t detail)
+{
+     struct gba_event_trace_entry *entry =
+         &gba->event_trace[gba->event_trace_head & (GBA_EVENT_TRACE_SIZE - 1)];
+     entry->timestamp = (uint32_t)gba->timestamp;
+     entry->pc = pc;
+     entry->target = target;
+     entry->detail = detail;
+     entry->kind = (uint8_t)kind;
+     gba->event_trace_head =
+         (uint8_t)((gba->event_trace_head + 1) & (GBA_EVENT_TRACE_SIZE - 1));
+}
+
 void gba_reset(struct gba *gba)
 {
      gba->timestamp = 0;
@@ -71,6 +85,8 @@ void gba_reset(struct gba *gba)
      gba->bios_irq_hle_cpsr = 0;
      gba->bios_intr_wait_active = false;
      gba->bios_intr_wait_mask = 0;
+     memset(gba->event_trace, 0, sizeof(gba->event_trace));
+     gba->event_trace_head = 0;
 
      gba_memory_reset(gba);
      gba_sync_reset(gba);

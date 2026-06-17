@@ -958,6 +958,26 @@ void gba_memory_write32(struct gba *gba, uint32_t addr, uint32_t val)
                gba_dma_write_count(gba, 3, val & 0xFFFF);
                gba_dma_write_ctrl(gba, 3, val >> 16);
                break;
+          case REG_TM0CNT_L:
+               gba_timer_write_reload(gba, 0, val & 0xFFFF);
+               gba_timer_write_ctrl_delayed(gba, 0, val >> 16,
+                                            (val & 0x00800000U) ? 2 : 0);
+               break;
+          case REG_TM1CNT_L:
+               gba_timer_write_reload(gba, 1, val & 0xFFFF);
+               gba_timer_write_ctrl_delayed(gba, 1, val >> 16,
+                                            (val & 0x00800000U) ? 2 : 0);
+               break;
+          case REG_TM2CNT_L:
+               gba_timer_write_reload(gba, 2, val & 0xFFFF);
+               gba_timer_write_ctrl_delayed(gba, 2, val >> 16,
+                                            (val & 0x00800000U) ? 2 : 0);
+               break;
+          case REG_TM3CNT_L:
+               gba_timer_write_reload(gba, 3, val & 0xFFFF);
+               gba_timer_write_ctrl_delayed(gba, 3, val >> 16,
+                                            (val & 0x00800000U) ? 2 : 0);
+               break;
           case REG_BG2X:
           case REG_BG2Y:
           case REG_BG3X:

@@ -29,18 +29,18 @@ extern "C"
 
 #include "debug_ui_actions.h"
 
-/* ── Estado compartilhado com debug_ui.cpp ── */
+/* Estado compartilhado com debug_ui.cpp */
 int g_mem_addr = 0xC000;
 int g_mem_mode = 0;
 bool g_show_rom_info = false;
 
-/* ── Estado local dos painéis ── */
+/* Estado local dos painéis */
 static char s_bp_input[8] = "0100";
 static char s_wp_input[8] = "0000";
 static int s_wp_type = GB_WATCHPOINT_BOTH;
 static bool s_show_win_map = false;
 
-/* ── Cores ── */
+/* Cores */
 static ImVec4 color_green = ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
 static ImVec4 color_red = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
 static ImVec4 color_yellow = ImVec4(0.9f, 0.9f, 0.1f, 1.0f);
@@ -50,9 +50,7 @@ static ImVec4 color_orange = ImVec4(1.0f, 0.55f, 0.1f, 1.0f);
 static ImVec4 color_white = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 static ImVec4 color_skyblue = ImVec4(0.5f, 0.8f, 1.0f, 1.0f);
 
-/* ────────────────────────────────────────────────────────── */
 /* VRAM Visualization — texturas OpenGL                        */
-/* ────────────────────────────────────────────────────────── */
 
 static const int TV_COLS = 24;
 static const int TV_ROWS = 16;
@@ -141,9 +139,7 @@ void debug_ui_panels_shutdown(void)
      s_tile_tex = s_tilemap_tex = s_oam_tex = s_heatmap_tex = s_coverage_tex = 0;
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Painel: VRAM – Tile Viewer                                  */
-/* ────────────────────────────────────────────────────────── */
+/* Painel: VRAM – Tile Viewer */
 
 static void update_tile_texture(struct gb *gb)
 {
@@ -208,9 +204,7 @@ void draw_panel_tile_viewer(struct gb *gb)
      }
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Painel: VRAM – Tilemap Viewer                              */
-/* ────────────────────────────────────────────────────────── */
+/* Painel: VRAM – Tilemap Viewer */
 
 static void update_tilemap_texture(struct gb *gb)
 {
@@ -433,9 +427,7 @@ void draw_panel_tilemap_viewer(struct gb *gb)
      }
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Popup: Informações da ROM                                  */
-/* ────────────────────────────────────────────────────────── */
 
 static const char *mbc_model_name(enum gb_cart_model m)
 {
@@ -566,9 +558,7 @@ void draw_popup_rom_info(struct gb *gb)
      ImGui::EndPopup();
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Call Stack                                         */
-/* ────────────────────────────────────────────────────────── */
 
 void draw_panel_call_stack(struct gb *gb)
 {
@@ -635,9 +625,7 @@ void draw_panel_call_stack(struct gb *gb)
      ImGui::EndTable();
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Controle de Execução                               */
-/* ────────────────────────────────────────────────────────── */
 
 static bool cpu_parse_hex_u32(const char *text, uint32_t *out)
 {
@@ -1002,9 +990,7 @@ void draw_panel_control(struct gb *gb)
      draw_cpu_toolbar(gb);
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Registradores CPU                                  */
-/* ────────────────────────────────────────────────────────── */
 
 void draw_panel_registers(struct gb *gb)
 {
@@ -1039,9 +1025,7 @@ void draw_panel_cpu_control(struct gb *gb)
      }
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Disassembly                                        */
-/* ────────────────────────────────────────────────────────── */
 
 static int s_disasm_selected_addr = -1;
 static int s_disasm_scroll_addr = -1;
@@ -1386,9 +1370,7 @@ void draw_panel_disasm(struct gb *gb)
      ImGui::PopStyleVar();
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Estado da GPU                                      */
-/* ────────────────────────────────────────────────────────── */
 
 static const char *gpu_mode_name(int mode)
 {
@@ -1444,9 +1426,7 @@ void draw_panel_gpu(struct gb *gb)
      ImGui::Text("  OBP1: 0x%02X", gpu->obp1);
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Memory Viewer                                      */
-/* ────────────────────────────────────────────────────────── */
 
 enum mem_region_id
 {
@@ -2015,9 +1995,7 @@ void draw_panel_memory(struct gb *gb)
      }
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Breakpoints                                        */
-/* ────────────────────────────────────────────────────────── */
 
 void draw_panel_breakpoints(struct gb *gb)
 {
@@ -2109,9 +2087,7 @@ void draw_panel_breakpoints(struct gb *gb)
           gb_debug_remove_breakpoint(gb, to_remove);
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Watchpoints                                        */
-/* ────────────────────────────────────────────────────────── */
 
 void draw_panel_watchpoints(struct gb *gb)
 {
@@ -2211,9 +2187,7 @@ void draw_panel_watchpoints(struct gb *gb)
           gb_debug_remove_watchpoint(gb, to_remove);
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: OAM (sprites)                                      */
-/* ────────────────────────────────────────────────────────── */
 
 static void update_oam_texture(struct gb *gb)
 {
@@ -2335,9 +2309,7 @@ void draw_panel_oam(struct gb *gb)
      ImGui::EndTable();
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Profiler                                           */
-/* ────────────────────────────────────────────────────────── */
 
 static void update_heatmap_texture(struct gb *gb)
 {
@@ -2636,9 +2608,7 @@ void draw_panel_profiler(struct gb *gb)
      ImGui::EndTabBar();
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Helpers internos para draw_panel_hw_viz / cpu_viz           */
-/* ────────────────────────────────────────────────────────── */
 
 static ImU32 viz_col(ImU32 active, float fade)
 {
@@ -2669,9 +2639,7 @@ static void viz_block(ImDrawList *dl, ImVec2 tl, ImVec2 br,
           dl->AddText(ImVec2(tx, ty + 16.0f), IM_COL32(180, 200, 180, 220), body);
 }
 
-/* ────────────────────────────────────────────────────────── */
 /* Painel: Hardware System Diagram                             */
-/* ────────────────────────────────────────────────────────── */
 
 static const char *cart_model_str(enum gb_cart_model m)
 {
@@ -2741,7 +2709,7 @@ void draw_panel_hw_viz(struct gb *gb)
      { return a > b ? a : b; };
 
      float f_cpu_bus = max2(max2(max2(sv->fade_cpu_rom, sv->fade_cpu_wram),
-                                  max2(sv->fade_cpu_vram, sv->fade_cpu_oam)),
+                                 max2(sv->fade_cpu_vram, sv->fade_cpu_oam)),
                             sv->fade_cpu_io);
      float f_video = max2(max2(sv->fade_cpu_vram, sv->fade_ppu_vram),
                           max2(sv->fade_cpu_oam, sv->fade_dma_oam));
@@ -2802,8 +2770,7 @@ void draw_panel_hw_viz(struct gb *gb)
           dl->AddRect(tl, br, border, 7.0f * sc, 0, (fade > 0.05f ? 2.2f : 1.1f) * sc);
           dl->AddText(P(x + 9, y + 5), IM_COL32(225, 230, 245, 245), title);
           if (body && body[0])
-               dl->AddText(P(x + 9, y + 31), fade > 0.05f ? IM_COL32(230, 245, 220, 245)
-                                                           : IM_COL32(165, 176, 186, 220),
+               dl->AddText(P(x + 9, y + 31), fade > 0.05f ? IM_COL32(230, 245, 220, 245) : IM_COL32(165, 176, 186, 220),
                            body);
           if (fade > 0.01f)
           {
@@ -2844,27 +2811,48 @@ void draw_panel_hw_viz(struct gb *gb)
      {
           switch (type)
           {
-          case GB_HW_EVT_CPU_FETCH: return "FETCH";
-          case GB_HW_EVT_CPU_READ: return "READ";
-          case GB_HW_EVT_CPU_WRITE: return "WRITE";
-          case GB_HW_EVT_IRQ_REQUEST: return "IRQ_REQ";
-          case GB_HW_EVT_IRQ_ACK: return "IRQ_ACK";
-          case GB_HW_EVT_CPU_ALU: return "ALU";
-          case GB_HW_EVT_CPU_WRITEBACK: return "WBACK";
-          case GB_HW_EVT_DMA_READ: return "DMA_RD";
-          case GB_HW_EVT_DMA_WRITE: return "DMA_WR";
-          case GB_HW_EVT_PPU_MODE: return "PPU_MODE";
-          case GB_HW_EVT_APU_SAMPLE: return "APU_SMP";
-          case GB_HW_EVT_PPU_VBLANK: return "VBLANK";
-          case GB_HW_EVT_PPU_HBLANK: return "HBLANK";
-          case GB_HW_EVT_OAM_DMA: return "OAM_DMA";
-          case GB_HW_EVT_TIMER_OVF: return "TMR_OVF";
-          case GB_HW_EVT_APU_WRITE: return "APU_WR";
-          case GB_HW_EVT_JOYPAD: return "JOYPAD";
-          case GB_HW_EVT_SERIAL_START: return "SER_START";
-          case GB_HW_EVT_SERIAL_DONE: return "SER_DONE";
-          case GB_HW_EVT_MBC_SWITCH: return "MBC_SW";
-          default: return "EVENT";
+          case GB_HW_EVT_CPU_FETCH:
+               return "FETCH";
+          case GB_HW_EVT_CPU_READ:
+               return "READ";
+          case GB_HW_EVT_CPU_WRITE:
+               return "WRITE";
+          case GB_HW_EVT_IRQ_REQUEST:
+               return "IRQ_REQ";
+          case GB_HW_EVT_IRQ_ACK:
+               return "IRQ_ACK";
+          case GB_HW_EVT_CPU_ALU:
+               return "ALU";
+          case GB_HW_EVT_CPU_WRITEBACK:
+               return "WBACK";
+          case GB_HW_EVT_DMA_READ:
+               return "DMA_RD";
+          case GB_HW_EVT_DMA_WRITE:
+               return "DMA_WR";
+          case GB_HW_EVT_PPU_MODE:
+               return "PPU_MODE";
+          case GB_HW_EVT_APU_SAMPLE:
+               return "APU_SMP";
+          case GB_HW_EVT_PPU_VBLANK:
+               return "VBLANK";
+          case GB_HW_EVT_PPU_HBLANK:
+               return "HBLANK";
+          case GB_HW_EVT_OAM_DMA:
+               return "OAM_DMA";
+          case GB_HW_EVT_TIMER_OVF:
+               return "TMR_OVF";
+          case GB_HW_EVT_APU_WRITE:
+               return "APU_WR";
+          case GB_HW_EVT_JOYPAD:
+               return "JOYPAD";
+          case GB_HW_EVT_SERIAL_START:
+               return "SER_START";
+          case GB_HW_EVT_SERIAL_DONE:
+               return "SER_DONE";
+          case GB_HW_EVT_MBC_SWITCH:
+               return "MBC_SW";
+          default:
+               return "EVENT";
           }
      };
 
@@ -3011,15 +2999,15 @@ void draw_panel_hw_viz(struct gb *gb)
           /* 154 total scanlines: 0-143 visible, 144-153 VBlank */
           float pct = gb->gpu.ly / 154.0f;
           ImU32 bar_col = gb->gpu.ly < 144
-	                              ? ppu_mode_colors[ppu_mode & 3]
-	                              : IM_COL32(255, 200, 60, 200);
+                              ? ppu_mode_colors[ppu_mode & 3]
+                              : IM_COL32(255, 200, 60, 200);
           dl->AddRectFilled(ImVec2(bar_x, bar_y),
-	                            ImVec2(bar_x + bar_w * pct, bar_y + bar_h),
-	                            bar_col, 4.0f * sc);
+                            ImVec2(bar_x + bar_w * pct, bar_y + bar_h),
+                            bar_col, 4.0f * sc);
           char bar_label[32];
           snprintf(bar_label, sizeof(bar_label), "LY %3d / 154", gb->gpu.ly);
           dl->AddText(ImVec2(bar_x + 4.0f, bar_y - 16.0f * sc),
-	                      IM_COL32(220, 220, 220, 255), bar_label);
+                      IM_COL32(220, 220, 220, 255), bar_label);
      }
 
      /* Activity meters */
@@ -3090,9 +3078,7 @@ void draw_panel_hw_viz(struct gb *gb)
      }
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Painel: CPU Datapath (Ângulo 1)                            */
-/* ────────────────────────────────────────────────────────── */
+/* Painel: CPU Datapath (Ângulo 1) */
 
 void draw_panel_cpu_viz(struct gb *gb)
 {
@@ -3566,8 +3552,8 @@ static const char *s_layer_names[] = {
 };
 
 /* Forward declarations for cross-link helpers (defined near draw_panel_hw_schematic) */
-static int   die_net_to_sch_net_id(int sm83_net_id);
-static void  sch_jump_to_net(int hw_net_id, ImVec2 canvas_size);
+static int die_net_to_sch_net_id(int sm83_net_id);
+static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size);
 extern ImVec2 s_sch_last_canvas_size;
 
 /* Persistent panel state */
@@ -3646,11 +3632,11 @@ static void rebuild_inspect_neighbours(int tr_idx)
 
 /* Flat boolean lookup arrays for net highlight (arc, node, transistor).
  * Allocated once, never freed; zeroed on each rebuild. */
-static uint8_t *s_arc_highlight_flags   = nullptr;
-static uint8_t *s_node_highlight_flags  = nullptr;
+static uint8_t *s_arc_highlight_flags = nullptr;
+static uint8_t *s_node_highlight_flags = nullptr;
 static uint8_t *s_trans_highlight_flags = nullptr;
 static int s_highlight_flags_cap = 0; /* tracks SM83_ARC_COUNT at alloc time */
-static int s_highlight_net_id    = -1; /* net_id currently highlighted, -1 = none */
+static int s_highlight_net_id = -1;   /* net_id currently highlighted, -1 = none */
 
 static void rebuild_highlight(void)
 {
@@ -3659,15 +3645,15 @@ static void rebuild_highlight(void)
           delete[] s_arc_highlight_flags;
           delete[] s_node_highlight_flags;
           delete[] s_trans_highlight_flags;
-          s_arc_highlight_flags   = new uint8_t[SM83_ARC_COUNT]();
-          s_node_highlight_flags  = new uint8_t[SM83_NODE_COUNT]();
+          s_arc_highlight_flags = new uint8_t[SM83_ARC_COUNT]();
+          s_node_highlight_flags = new uint8_t[SM83_NODE_COUNT]();
           s_trans_highlight_flags = new uint8_t[SM83_TRANSISTOR_COUNT]();
-          s_highlight_flags_cap   = SM83_ARC_COUNT;
+          s_highlight_flags_cap = SM83_ARC_COUNT;
      }
      else
      {
-          memset(s_arc_highlight_flags,   0, SM83_ARC_COUNT);
-          memset(s_node_highlight_flags,  0, SM83_NODE_COUNT);
+          memset(s_arc_highlight_flags, 0, SM83_ARC_COUNT);
+          memset(s_node_highlight_flags, 0, SM83_NODE_COUNT);
           memset(s_trans_highlight_flags, 0, SM83_TRANSISTOR_COUNT);
      }
      s_highlight_net_id = -1;
@@ -3683,8 +3669,8 @@ static void rebuild_highlight(void)
            * defaulting to gate. All three nets are shown via s_trans_highlight_flags
            * already; use gate for the arc highlight. */
           const Sm83Transistor *tr = &sm83_transistors[s_die_sel.index];
-          net_id = tr->gate_net >= 0 ? tr->gate_net :
-                   tr->s1_net  >= 0 ? tr->s1_net  : tr->s2_net;
+          net_id = tr->gate_net >= 0 ? tr->gate_net : tr->s1_net >= 0 ? tr->s1_net
+                                                                      : tr->s2_net;
      }
      else if (s_die_sel.type == SM83_SEL_NODE)
      {
@@ -4825,7 +4811,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                              label,
                              sem && sem->canonical_name ? sem->canonical_name : "?",
                              label);
-                    ImGui::PushStyleColor(ImGuiCol_Button,        IM_COL32(40,  80, 160, 220));
+                    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(40, 80, 160, 220));
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(60, 120, 220, 240));
                     if (ImGui::Button(btn_lbl))
                          sch_jump_to_net(sch_id, s_sch_last_canvas_size);
@@ -4834,8 +4820,8 @@ void draw_panel_transistor_viz(struct gb *gb)
                };
 
                cross_btn("gate", tr->gate_net);
-               cross_btn("s1",   tr->s1_net);
-               cross_btn("s2",   tr->s2_net);
+               cross_btn("s1", tr->s1_net);
+               cross_btn("s2", tr->s2_net);
                ImGui::NewLine();
                ImGui::Separator();
 
@@ -5294,15 +5280,31 @@ static int die_net_to_sch_net_id(int sm83_net_id)
 
      /* Build canonical name for the signal bit */
      static const char *const sig_prefix[] = {
-         "PC", "PC", "A", "B", "C", "D", "E", "H", "L",
-         "SP", "SP", "IR",
-         "FZ", "FN", "FH", "FC",
-         "D", "IDU", "VCC", "GND",
+         "PC",
+         "PC",
+         "A",
+         "B",
+         "C",
+         "D",
+         "E",
+         "H",
+         "L",
+         "SP",
+         "SP",
+         "IR",
+         "FZ",
+         "FN",
+         "FH",
+         "FC",
+         "D",
+         "IDU",
+         "VCC",
+         "GND",
      };
      /* Address bus and data bus use different prefix conventions */
      char canon[16];
      int sni = (int)se->signal;
-     if (sni == 0)       /* PCL → PC low byte, not in schematic directly */
+     if (sni == 0) /* PCL → PC low byte, not in schematic directly */
           return -1;
      else if (sni == 16) /* DBUS → D0..D7 */
           snprintf(canon, sizeof(canon), "D%d", se->bit);
@@ -5322,9 +5324,9 @@ static int die_net_to_sch_net_id(int sm83_net_id)
 }
 
 /* Schematic selection & cross-link state (file-scope so die panel can access) */
-int    s_sch_sel_net          = -1;            /* selected net_id, -1 = none */
-int    s_sch_cross_net        = -1;            /* net_id to flash, -1 = none */
-float  s_sch_cross_timer      = 0.0f;          /* seconds remaining */
+int s_sch_sel_net = -1;                           /* selected net_id, -1 = none */
+int s_sch_cross_net = -1;                         /* net_id to flash, -1 = none */
+float s_sch_cross_timer = 0.0f;                   /* seconds remaining */
 ImVec2 s_sch_last_canvas_size = {800.0f, 500.0f}; /* updated each schematic frame */
 
 /* Navigate schematic view to centre on a net and start flash */
@@ -5332,8 +5334,8 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
 {
      if (hw_net_id < 0)
           return;
-     s_sch_sel_net    = hw_net_id;
-     s_sch_cross_net  = hw_net_id;
+     s_sch_sel_net = hw_net_id;
+     s_sch_cross_net = hw_net_id;
      s_sch_cross_timer = 2.0f;
 
      /* Compute bounding box of all wires on this net */
@@ -5343,28 +5345,38 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
           if (hw_wires[i].net_id != hw_net_id)
                continue;
           const HwWire *w = &hw_wires[i];
-          if (w->nx1 < nx0) nx0 = w->nx1;
-          if (w->nx2 < nx0) nx0 = w->nx2;
-          if (w->ny1 < ny0) ny0 = w->ny1;
-          if (w->ny2 < ny0) ny0 = w->ny2;
-          if (w->nx1 > nx1) nx1 = w->nx1;
-          if (w->nx2 > nx1) nx1 = w->nx2;
-          if (w->ny1 > ny1) ny1 = w->ny1;
-          if (w->ny2 > ny1) ny1 = w->ny2;
+          if (w->nx1 < nx0)
+               nx0 = w->nx1;
+          if (w->nx2 < nx0)
+               nx0 = w->nx2;
+          if (w->ny1 < ny0)
+               ny0 = w->ny1;
+          if (w->ny2 < ny0)
+               ny0 = w->ny2;
+          if (w->nx1 > nx1)
+               nx1 = w->nx1;
+          if (w->nx2 > nx1)
+               nx1 = w->nx2;
+          if (w->ny1 > ny1)
+               ny1 = w->ny1;
+          if (w->ny2 > ny1)
+               ny1 = w->ny2;
      }
      if (nx1 <= nx0 || ny1 <= ny0)
           return;
 
      float pad = 0.04f;
-     nx0 -= pad; ny0 -= pad; nx1 += pad; ny1 += pad;
+     nx0 -= pad;
+     ny0 -= pad;
+     nx1 += pad;
+     ny1 += pad;
      float zx = canvas_size.x / (nx1 - nx0);
      float zy = canvas_size.y / ((ny1 - ny0) * HW_SCHEMATIC_ASPECT);
      s_sch_view.zoom = zx < zy ? zx : zy;
-     if (s_sch_view.zoom > 8000.0f) s_sch_view.zoom = 8000.0f;
-     s_sch_view.pan_x = (nx0 + nx1) * 0.5f
-                        - canvas_size.x * 0.5f / s_sch_view.zoom;
-     s_sch_view.pan_y = (ny0 + ny1) * 0.5f
-                        - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+     if (s_sch_view.zoom > 8000.0f)
+          s_sch_view.zoom = 8000.0f;
+     s_sch_view.pan_x = (nx0 + nx1) * 0.5f - canvas_size.x * 0.5f / s_sch_view.zoom;
+     s_sch_view.pan_y = (ny0 + ny1) * 0.5f - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
 }
 
 void draw_panel_hw_schematic(struct gb *gb)
@@ -5378,7 +5390,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           if (s_sch_cross_timer <= 0.0f)
           {
                s_sch_cross_timer = 0.0f;
-               s_sch_cross_net   = -1;
+               s_sch_cross_net = -1;
           }
      }
 
@@ -5820,8 +5832,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                }
 
                /* Cross-link flash: pulse orange→yellow on the jumped-to net */
-               if (s_sch_cross_net >= 0 && w->net_id == s_sch_cross_net
-                   && s_sch_cross_timer > 0.0f)
+               if (s_sch_cross_net >= 0 && w->net_id == s_sch_cross_net && s_sch_cross_timer > 0.0f)
                {
                     float phase = s_sch_cross_timer * 6.0f; /* ~3 pulses over 2s */
                     float pulse = (sinf(phase * 3.14159f) + 1.0f) * 0.5f;

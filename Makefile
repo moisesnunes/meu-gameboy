@@ -192,10 +192,10 @@ clean:
 	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(SM83_VALIDATE_NAME)
 
 compat-run: $(COMPAT_NAME)
-	./tests/compat/run.sh
+	./tests/compat/run_compat.py --no-build $(COMPAT_ARGS)
 
 mooneye-run: $(COMPAT_NAME)
-	COMPAT_MANIFEST=tests/compat/mooneye.tsv ./tests/compat/run.sh
+	./tests/compat/run_compat.py --no-build --manifest tests/compat/mooneye.tsv $(COMPAT_ARGS)
 
 game-smoke: $(TESTER_NAME)
 	./tests/games/run_game_smoke.py --no-build $(GAME_SMOKE_ARGS)
