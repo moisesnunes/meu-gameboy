@@ -23,6 +23,11 @@ static inline int sem_wait(sem_t *s)
     return WaitForSingleObject(*s, INFINITE) == WAIT_OBJECT_0 ? 0 : -1;
 }
 
+static inline int sem_trywait(sem_t *s)
+{
+    return WaitForSingleObject(*s, 0) == WAIT_OBJECT_0 ? 0 : -1;
+}
+
 static inline int sem_post(sem_t *s)
 {
     return ReleaseSemaphore(*s, 1, NULL) ? 0 : -1;
