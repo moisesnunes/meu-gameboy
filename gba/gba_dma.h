@@ -44,7 +44,8 @@ struct gba_dma_channel
      bool irq_en;
      bool enable;
 
-     bool pending; /* transfer triggered, waiting to run */
+     bool pending;       /* transfer triggered, waiting to run */
+     bool video_oneshot; /* DMA3 SPECIAL was enabled with an effective count of 1 */
 };
 
 struct gba_dma
@@ -60,7 +61,7 @@ void gba_dma_write_count(struct gba *gba, int n, uint16_t val);
 void gba_dma_write_ctrl(struct gba *gba, int n, uint16_t val);
 void gba_dma_notify_vblank(struct gba *gba);
 void gba_dma_notify_hblank(struct gba *gba);
-void gba_dma_notify_fifo(struct gba *gba, int fifo);          /* 0=FIFO_A, 1=FIFO_B */
+void gba_dma_notify_fifo(struct gba *gba, int fifo);                /* 0=FIFO_A, 1=FIFO_B */
 void gba_dma_notify_display_start(struct gba *gba, uint8_t vcount); /* DMA3 video capture */
 
 #endif /* _GBA_DMA_H_ */

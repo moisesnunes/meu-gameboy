@@ -8,7 +8,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <semaphore.h>
+#include "compat.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

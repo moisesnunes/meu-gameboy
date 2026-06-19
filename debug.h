@@ -32,9 +32,7 @@ struct gb_watchpoint
      bool enabled;
 };
 
-/* ────────────────────────────────────────────────────────── */
-/* Hardware Visualization — System Diagram (Milestone 2)       */
-/* ────────────────────────────────────────────────────────── */
+/* Hardware Visualization — System Diagram (Milestone 2) */
 
 struct gb_sys_viz
 {
@@ -53,9 +51,7 @@ struct gb_sys_viz
      uint8_t last_bus_data;
 };
 
-/* ────────────────────────────────────────────────────────── */
-/* Hardware Visualization — CPU Datapath (Milestone 3)         */
-/* ────────────────────────────────────────────────────────── */
+/* Hardware Visualization — CPU Datapath (Milestone 3) */
 
 struct gb_cpu_viz
 {
@@ -117,9 +113,7 @@ struct gb_cpu_viz
 #define GB_VIZ_STAGE_EXECUTE 2
 #define GB_VIZ_STAGE_IRQ 3
 
-/* ────────────────────────────────────────────────────────── */
-/* Hardware Trace Ring Buffer (Fase C)                          */
-/* ────────────────────────────────────────────────────────── */
+/* Hardware Trace Ring Buffer (Fase C) */
 
 typedef enum
 {
@@ -192,15 +186,15 @@ struct gb_debug
      bool bp_enabled[GB_DEBUG_MAX_BREAKPOINTS];
      unsigned n_breakpoints;
 
-     /* ── Watchpoints (read/write) ── */
+     /* Watchpoints (read/write) */
      struct gb_watchpoint watchpoints[GB_DEBUG_MAX_WATCHPOINTS];
      unsigned n_watchpoints;
 
-     /* ── Step over / step out ── */
+     /* Step over / step out */
      uint16_t step_return_addr; /* endereço de retorno para step_over */
      int step_depth;            /* profundidade de call stack para step_out */
 
-     /* ── Profiling ── */
+     /* Profiling */
 
      /* Opcode profiler: [0..255] = opcodes normais, [256..511] = CB-prefixados */
      uint32_t opcode_hits[512];
@@ -211,11 +205,11 @@ struct gb_debug
      /* Coverage: 1 bit por endereço — foi executado alguma vez? (8 KiB) */
      uint8_t exec_coverage[8192];
 
-     /* ── Hardware visualization data ── */
+     /* Hardware visualization data */
      struct gb_sys_viz sys_viz;
      struct gb_cpu_viz cpu_viz;
 
-     /* ── Hardware trace ring buffer (Fase C) ── */
+     /* Hardware trace ring buffer (Fase C) */
      struct gb_hw_trace hw_trace;
 };
 

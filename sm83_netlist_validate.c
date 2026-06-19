@@ -46,7 +46,7 @@
 
 static int failures = 0;
 
-/* ── 1. Counts ─────────────────────────────────────────────────────────── */
+/* 1. Counts */
 static void test_counts(void)
 {
      printf("[1] Counts\n");
@@ -62,7 +62,7 @@ static void test_counts(void)
            "nets=%d (expected ~15440)", SM83_NET_COUNT);
 }
 
-/* ── 2. Bounding box ───────────────────────────────────────────────────── */
+/* 2. Bounding box */
 static void test_bbox(void)
 {
      printf("[2] Bounding box\n");
@@ -72,7 +72,7 @@ static void test_bbox(void)
      CHECK(fabsf(SM83_BBOX_Y_MAX - 3383.0f) < 1.0f, "Y_MAX=%.2f (expected 3383)", SM83_BBOX_Y_MAX);
 }
 
-/* ── 3. Per-layer ranges ───────────────────────────────────────────────── */
+/* 3. Per-layer ranges */
 static void test_layer_ranges(void)
 {
      printf("[3] Per-layer index ranges\n");
@@ -96,7 +96,7 @@ static void test_layer_ranges(void)
            "node METAL1 range=%d == SM83_NODE_COUNT=%d", node_sum, SM83_NODE_COUNT);
 }
 
-/* ── 4. Transistor coordinate normalization ────────────────────────────── */
+/* 4. Transistor coordinate normalization */
 static void test_transistor_coords(void)
 {
      printf("[4] Transistor normalized coordinates\n");
@@ -111,7 +111,7 @@ static void test_transistor_coords(void)
            "%d/%d transistors have coords outside [0,1]", out_of_range, SM83_TRANSISTOR_COUNT);
 }
 
-/* ── 5. Transistor net indices ─────────────────────────────────────────── */
+/* 5. Transistor net indices */
 static void test_transistor_nets(void)
 {
      printf("[5] Transistor gate/s1/s2 net indices\n");
@@ -139,7 +139,7 @@ static void test_transistor_nets(void)
            "%d transistors have out-of-range s1/s2 net", bad_s);
 }
 
-/* ── 6. Arc net indices ────────────────────────────────────────────────── */
+/* 6. Arc net indices */
 static void test_arc_nets(void)
 {
      printf("[6] Arc net_id indices\n");
@@ -161,7 +161,7 @@ static void test_arc_nets(void)
            "%d/%d arcs have valid net_id (%d%%)", with_net, SM83_ARC_COUNT, pct);
 }
 
-/* ── 7. VCC/GND rail resolution ────────────────────────────────────────── */
+/* 7. VCC/GND rail resolution */
 static void test_power_nets(void)
 {
      printf("[7] VCC/GND rail resolution\n");
@@ -213,7 +213,7 @@ static void test_power_nets(void)
      sm83_sim_shutdown(&sim);
 }
 
-/* ── 8. Sim init/reset/step smoke test ─────────────────────────────────── */
+/* 8. Sim init/reset/step smoke test */
 static void test_sim_smoke(void)
 {
      printf("[8] Sim init/reset/step smoke\n");
@@ -267,7 +267,7 @@ static void test_sim_smoke(void)
      CHECK(!sim.initialized, "initialized false after shutdown");
 }
 
-/* ── 9. Rail propagation coverage ─────────────────────────────────────── */
+/* 9. Rail propagation coverage */
 static void test_rail_propagation(void)
 {
      printf("[9] Rail propagation coverage\n");
@@ -327,7 +327,7 @@ static void test_rail_propagation(void)
      sm83_sim_shutdown(&sim);
 }
 
-/* ── 10. Semantic map integrity ─────────────────────────────────────────── */
+/* 10. Semantic map integrity */
 static void test_semantic_map(void)
 {
      printf("[10] Semantic map integrity\n");
@@ -432,8 +432,7 @@ static void test_semantic_map(void)
      }
 }
 
-/* ─────────────────────────────────────────────────────────────────────── */
-
+/* Main */
 int main(void)
 {
      printf("SM83 netlist data validation\n");

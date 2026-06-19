@@ -30,8 +30,8 @@ void draw_panel_transistor_viz(struct gb *gb);
 void draw_panel_hw_schematic(struct gb *gb);
 
 /* Estado compartilhado com debug_ui.cpp (memory viewer e popups) */
-extern int  g_mem_addr;
-extern int  g_mem_mode;
+extern int g_mem_addr;
+extern int g_mem_mode;
 extern bool g_show_rom_info;
 
 #endif /* DEBUG_UI_PANELS_H */

@@ -9,9 +9,9 @@
 enum gb_timer_divider
 {
      GB_TIMER_DIV_1024 = 0, /* bit 9  → TIMA a   4096 Hz */
-     GB_TIMER_DIV_16   = 1, /* bit 3  → TIMA a 262144 Hz */
-     GB_TIMER_DIV_64   = 2, /* bit 5  → TIMA a  65536 Hz */
-     GB_TIMER_DIV_256  = 3, /* bit 7  → TIMA a  16384 Hz */
+     GB_TIMER_DIV_16 = 1,   /* bit 3  → TIMA a 262144 Hz */
+     GB_TIMER_DIV_64 = 2,   /* bit 5  → TIMA a  65536 Hz */
+     GB_TIMER_DIV_256 = 3,  /* bit 7  → TIMA a  16384 Hz */
 };
 
 struct gb_timer

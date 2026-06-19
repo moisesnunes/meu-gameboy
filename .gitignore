@@ -21,7 +21,7 @@ sm83_netlist_validate
 # ROM collections (large + copyright)
 roms/
 
-# Documentação interna (não publicar)
+# Documentação interna
 docs/
 
 # Test execution outputs

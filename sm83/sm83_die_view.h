@@ -10,9 +10,9 @@
  * and hit-test for the ImGui panel in debug_ui_panels.cpp.
  */
 
-/* -----------------------------------------------------------------------
+/*
  * Layer flags (bit positions match SM83_LAYER_* in sm83_netlist_data.h)
- * ---------------------------------------------------------------------- */
+ */
 #define SM83_VIEW_LAYER_METAL1 (1u << 0)
 #define SM83_VIEW_LAYER_POLY (1u << 1)
 #define SM83_VIEW_LAYER_NACTIVE (1u << 2)
@@ -22,10 +22,10 @@
 #define SM83_VIEW_LAYER_OVERLAY (1u << 6)
 #define SM83_VIEW_LAYER_ALL (0x7Fu)
 
-/* -----------------------------------------------------------------------
+/*
  * View transform: maps normalized die coords [0,1]x[0,1] -> screen pixels.
  * The mapping preserves the physical SM83 bounding-box aspect ratio.
- * ---------------------------------------------------------------------- */
+ */
 typedef struct
 {
      float canvas_x, canvas_y; /* top-left of canvas in screen pixels */
@@ -34,9 +34,9 @@ typedef struct
      float pan_x, pan_y;       /* offset in die-normalized units */
 } Sm83ViewTransform;
 
-/* -----------------------------------------------------------------------
+/*
  * Selection / hover state
- * ---------------------------------------------------------------------- */
+ */
 typedef enum
 {
      SM83_SEL_NONE = 0,
@@ -51,10 +51,10 @@ typedef struct
      int index; /* index into sm83_transistors[] / sm83_nodes[] / sm83_instances[] */
 } Sm83Selection;
 
-/* -----------------------------------------------------------------------
+/*
  * Cached projection: precomputed once per frame to avoid repeating the
  * aspect-fit calculation inside every die_to_screen / in_viewport call.
- * ---------------------------------------------------------------------- */
+ */
 typedef struct
 {
      float origin_x, origin_y; /* canvas-local top-left of fitted die rect */
@@ -96,9 +96,9 @@ static inline bool sm83_arc_in_viewport_fast(const Sm83ViewCache *c,
             hi_y >= c->vlo_y && lo_y <= c->vhi_y;
 }
 
-/* -----------------------------------------------------------------------
+/*
  * API
- * ---------------------------------------------------------------------- */
+ */
 
 /* Initialize default transform so the die fits the canvas */
 void sm83_view_fit(Sm83ViewTransform *t);

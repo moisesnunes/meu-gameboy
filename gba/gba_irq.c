@@ -1,3 +1,10 @@
+/*
+ * gba_irq.c — GBA interrupt controller (IE/IF/IME) and IRQ delay model.
+ *
+ * gba_irq_trigger() sets the IF bit and wakes the CPU from halt.
+ * gba_irq_pending() is consulted each CPU step to decide whether to enter the handler.
+ */
+
 #include "gba.h"
 
 /* ARM7TDMI pipeline: ~7 cycles from IF bit set to CPU entering the handler. */

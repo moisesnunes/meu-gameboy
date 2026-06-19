@@ -1,32 +1,32 @@
 /*
- * gba_main.c — Frontend SDL3 para o GBA.
+ * gba_main.c — SDL3 frontend for the GBA emulator.
  *
- * Uso: gba [--bios <path>] <rom.gba>
+ * Usage: gba [--bios <path>] <rom.gba>
  *
- * Controles:
- *   Setas              D-Pad
+ * Controls:
+ *   Arrow keys         D-Pad
  *   Z / LCtrl          A
  *   X / LShift         B
  *   A                  L
  *   S                  R
  *   Enter              Start
  *   RShift / Backspace Select
- *   Tab (segurar)      Fast-forward 2x
- *   F11                Fullscreen
- *   Q / Escape         Sair
+ *   Tab (hold)         Fast-forward 2x
+ *   F11                Fullscreen toggle
+ *   Q / Escape         Quit
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <semaphore.h>
+#include "compat.h"
 
 #include <SDL3/SDL.h>
 
 #include "gba/gba.h"
 #include "ui/gba_debug_ui.h"
 
-/* ── Contexto do frontend ── */
+/* Frontend context — owns the SDL window, renderer, audio stream, and pixel buffer */
 
 struct gba_ctx
 {
@@ -43,7 +43,7 @@ struct gba_ctx
      struct gba *gba;
 };
 
-/* ── Callbacks de vídeo ── */
+/* Video callbacks */
 
 /* Convert RGB555 → XRGB8888 */
 static inline uint32_t rgb555_to_xrgb(uint16_t c)
@@ -121,7 +121,7 @@ static void destroy_frontend(void *data)
      free(ctx);
 }
 
-/* ── Callback de áudio ── */
+/* Audio callback — called by SDL when the audio stream needs more samples */
 
 static void SDLCALL audio_callback(void *userdata,
                                    SDL_AudioStream *stream,
@@ -165,7 +165,7 @@ static void SDLCALL audio_callback(void *userdata,
      }
 }
 
-/* ── Tratamento de teclas ── */
+/* Keyboard and gamepad input handlers */
 
 static void handle_key(struct gba *gba, SDL_Keycode key, bool pressed)
 {
@@ -264,7 +264,7 @@ static void handle_gamepad_button(struct gba *gba, SDL_GamepadButton btn, bool p
      }
 }
 
-/* ── Init do frontend ── */
+/* Frontend initialisation — creates window, renderer, texture, and audio stream */
 
 static bool frontend_init(struct gba *gba, bool debug_ui)
 {
@@ -357,7 +357,7 @@ static bool frontend_init(struct gba *gba, bool debug_ui)
      if (ctx->audio_stream)
           SDL_ResumeAudioStreamDevice(ctx->audio_stream);
      else
-          fprintf(stderr, "Aviso: sem áudio — %s\n", SDL_GetError());
+          fprintf(stderr, "Warning: no audio — %s\n", SDL_GetError());
 
      gba->frontend.draw_line = draw_line;
      gba->frontend.flip = flip;
@@ -367,7 +367,7 @@ static bool frontend_init(struct gba *gba, bool debug_ui)
      return true;
 }
 
-/* ── main ── */
+/* Entry point — parses CLI arguments, initialises GBA, and runs the main loop */
 
 int main(int argc, char **argv)
 {
@@ -404,14 +404,14 @@ int main(int argc, char **argv)
                rom_file = argv[i];
           else
           {
-               fprintf(stderr, "Uso: %s [--debug] [--bios <gba_bios.bin>] [--trace [N] [file]] <rom.gba>\n", argv[0]);
+               fprintf(stderr, "Usage: %s [--debug] [--bios <gba_bios.bin>] [--trace [N] [file]] <rom.gba>\n", argv[0]);
                return EXIT_FAILURE;
           }
      }
 
      if (!rom_file)
      {
-          fprintf(stderr, "Uso: %s [--debug] [--bios <gba_bios.bin>] <rom.gba>\n", argv[0]);
+          fprintf(stderr, "Usage: %s [--debug] [--bios <gba_bios.bin>] <rom.gba>\n", argv[0]);
           return EXIT_FAILURE;
      }
 
@@ -432,13 +432,13 @@ int main(int argc, char **argv)
      {
           if (!gba_load_bios(gba, bios_file))
           {
-               fprintf(stderr, "Aviso: falha ao carregar BIOS, usando HLE\n");
+               fprintf(stderr, "Warning: failed to load BIOS, using HLE\n");
           }
      }
 
      if (!gba_cart_load(gba, rom_file))
      {
-          fprintf(stderr, "Erro: não foi possível carregar '%s'\n", rom_file);
+          fprintf(stderr, "Error: could not load '%s'\n", rom_file);
           gba->frontend.destroy(gba->frontend.data);
           gba_destroy(gba);
           return EXIT_FAILURE;
@@ -461,12 +461,12 @@ int main(int argc, char **argv)
                     gba->debug.trace_fp = stderr;
                }
                else
-                    fprintf(stderr, "[trace] Escrevendo em '%s'\n", trace_file);
+                    fprintf(stderr, "[trace] Writing to '%s'\n", trace_file);
           }
           if (!trace_limit)
-               fprintf(stderr, "[trace] Ativo (ilimitado) — Ctrl+C para parar\n");
+               fprintf(stderr, "[trace] Active (unlimited) — Ctrl+C to stop\n");
           else
-               fprintf(stderr, "[trace] Ativo para %llu instruções\n",
+               fprintf(stderr, "[trace] Active for %llu instructions\n",
                        (unsigned long long)trace_limit);
      }
 
@@ -481,6 +481,8 @@ int main(int argc, char **argv)
 
      struct gba_ctx *ctx = gba->frontend.data;
      uint64_t last_ns = SDL_GetTicksNS();
+     double frame_accum_ns = 0.0;
+     const double frame_ns = 1000000000.0 / 59.7275;
 
      while (!gba->quit)
      {
@@ -524,11 +526,12 @@ int main(int argc, char **argv)
                case SDL_EVENT_DROP_FILE:
                     if (debug_ui)
                          gba_debug_ui_process_event(gba, &e);
-                    /* Drag-and-drop: recarrega ROM */
+                    /* Drag-and-drop: reload ROM */
                     gba_cart_unload(gba);
                     if (gba_cart_load(gba, e.drop.data))
                          gba_reset(gba);
                     last_ns = SDL_GetTicksNS();
+                    frame_accum_ns = 0.0;
                     SDL_free((void *)e.drop.data);
                     break;
                default:
@@ -545,6 +548,7 @@ int main(int argc, char **argv)
           {
                SDL_Delay(8);
                last_ns = SDL_GetTicksNS();
+               frame_accum_ns = 0.0;
                continue;
           }
 
@@ -555,17 +559,20 @@ int main(int argc, char **argv)
           uint64_t elapsed = now_ns - last_ns;
           last_ns = now_ns;
 
-          /* Clamp para evitar spiral-of-death */
+          /* Clamp elapsed time to avoid spiral-of-death when the host is slow */
           if (elapsed > 50000000ULL)
                elapsed = 50000000ULL;
 
-          /* Quantos frames caber nesse tempo */
-          uint64_t frame_ns = (uint64_t)(1000000000.0 / 59.7275);
-          uint64_t frames = (uint64_t)((float)elapsed * speed / (float)frame_ns);
-          if (frames < 1)
-               frames = 1;
+          frame_accum_ns += (double)elapsed * (double)speed;
+          uint64_t frames = (uint64_t)(frame_accum_ns / frame_ns);
+          if (frames == 0)
+          {
+               SDL_Delay(1);
+               continue;
+          }
           if (frames > 4)
                frames = 4;
+          frame_accum_ns -= (double)frames * frame_ns;
 
           for (uint64_t f = 0; f < frames && !gba->quit; f++)
                gba_run_frame(gba);

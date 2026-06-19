@@ -1,3 +1,11 @@
+/*
+ * gba_gpu.c — GBA PPU (Picture Processing Unit).
+ *
+ * Implements the scanline-based renderer for all BG modes (0-5) and sprites,
+ * plus alpha blending, brightness effects, and window masking.
+ * Timing is driven by gba_gpu_sync() which is called from the event scheduler.
+ */
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,9 +15,12 @@
  * Hardware measurement: HBlank fires at dot 252, not dot 240.
  * mGBA uses VIDEO_HDRAW_LENGTH=1008 (=252×4) / VIDEO_HBLANK_LENGTH=224 (=56×4).
  * Total: 1008+224 = 1232 = 308×4 cycles/line. */
-#define GBA_CYCLES_HDRAW   1008  /* dot 0 → HBlank trigger  (252 dots × 4) */
-#define GBA_CYCLES_HBLANK   224  /* HBlank trigger → next line (56 dots × 4) */
+#define GBA_CYCLES_HDRAW 1008 /* dot 0 → HBlank trigger  (252 dots × 4) */
+#define GBA_CYCLES_HBLANK 224 /* HBlank trigger → next line (56 dots × 4) */
 
+/* Snapshot affine BG2/BG3 parameters at the start of each scanline.
+ * The hardware latches PA-PD and the reference point once per line so that
+ * mid-scanline writes to those registers don't corrupt the current line. */
 static void latch_affine_line(struct gba_gpu *gpu)
 {
      for (int b = 2; b <= 3; b++)
@@ -35,9 +46,9 @@ void gba_gpu_reset(struct gba *gba)
      gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HDRAW);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Palette helpers
- * ---------------------------------------------------------------------- */
+ */
 
 static uint16_t read_pal16(struct gba *gba, int idx)
 {
@@ -51,9 +62,9 @@ static uint16_t read_obj_pal16(struct gba *gba, int idx)
      return (uint16_t)(gba->pram[idx * 2] | (gba->pram[idx * 2 + 1] << 8));
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Tile rendering helpers
- * ---------------------------------------------------------------------- */
+ */
 
 static uint8_t vram_tile_pixel_256(struct gba *gba, uint32_t tile_addr,
                                    int tx, int ty)
@@ -74,9 +85,9 @@ static uint8_t vram_tile_pixel_16(struct gba *gba, uint32_t tile_addr,
      return (tx & 1) ? (b >> 4) : (b & 0xF);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Window helpers
- * ---------------------------------------------------------------------- */
+ */
 
 /*
  * Returns the effective enable-bits for a given pixel (x) on a given line.
@@ -127,9 +138,9 @@ static uint8_t window_flags(const struct gba_gpu *gpu, int x, uint8_t line)
      return (gpu->winout) & 0x3F;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * BG tile mode rendering (modes 0-2)
- * ---------------------------------------------------------------------- */
+ */
 
 static void render_bg_tile(struct gba *gba, int bg_idx, uint16_t *line_buf,
                            uint8_t *prio_buf, uint8_t line)
@@ -245,9 +256,9 @@ static void render_bg_tile(struct gba *gba, int bg_idx, uint16_t *line_buf,
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * BG affine rendering (BG2/BG3 in modes 1-2, or mode 3/4/5)
- * ---------------------------------------------------------------------- */
+ */
 
 static void render_bg_affine(struct gba *gba, int bg_idx, uint16_t *line_buf,
                              uint8_t *prio_buf, uint8_t line)
@@ -359,9 +370,9 @@ static void render_bg_affine(struct gba *gba, int bg_idx, uint16_t *line_buf,
      bg->ref_y_latch += pd;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Bitmap modes
- * ---------------------------------------------------------------------- */
+ */
 
 static void render_mode3(struct gba *gba, uint16_t *line_buf, uint8_t line)
 {
@@ -458,10 +469,10 @@ static void write_bg_ref16(struct gba_bg_layer *bg, bool y_ref,
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Sprite rendering — fills obj_buf / obj_prio_buf / obj_mode_buf
  * Sprites rendered lowest-priority (127) first so highest (0) wins.
- * ---------------------------------------------------------------------- */
+ */
 
 static void render_sprites(struct gba *gba, uint8_t line)
 {
@@ -670,9 +681,9 @@ static void render_sprites(struct gba *gba, uint8_t line)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Alpha blend / brightness
- * ---------------------------------------------------------------------- */
+ */
 
 static uint16_t blend_alpha(uint16_t a, uint16_t b, int eva, int evb)
 {
@@ -714,9 +725,9 @@ static uint16_t blend_bright(uint16_t c, int evy, bool increase)
      return (uint16_t)(r | (g << 5) | (bl << 10));
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Compositor: merge BG layer + OBJ layer with blending and windows
- * ---------------------------------------------------------------------- */
+ */
 
 static void composite_line(struct gba *gba, uint8_t line)
 {
@@ -815,9 +826,9 @@ static void composite_line(struct gba *gba, uint8_t line)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Scanline rendering
- * ---------------------------------------------------------------------- */
+ */
 
 static void render_scanline(struct gba *gba, uint8_t line)
 {
@@ -887,12 +898,12 @@ static void render_scanline(struct gba *gba, uint8_t line)
      composite_line(gba, line);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * PPU sync — two events per line:
  *   Event A (hblank_flag=false): dot 0 — active display; 1008 cycles → Event B
  *   Event B (hblank_flag=true):  dot 252 — HBlank; render, DMA, IRQ; 224 cycles → Event A
  * Total: 1232 cycles/line = 308 dots × 4. Matches mGBA VIDEO_HDRAW/HBLANK_LENGTH.
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_gpu_sync(struct gba *gba)
 {
@@ -901,7 +912,7 @@ void gba_gpu_sync(struct gba *gba)
 
      if (!gpu->hblank_flag)
      {
-          /* ---- Event B: HBlank start (dot 240) ---- */
+          /* ---- Event B: HBlank start (dot 252) ---- */
           gpu->hblank_flag = true;
           gpu->hblank = true;
 
@@ -915,7 +926,6 @@ void gba_gpu_sync(struct gba *gba)
           }
 
           gba_dma_notify_hblank(gba);
-          gba_dma_notify_display_start(gba, gpu->vcount);
 
           if (gpu->hblank_irq_en)
                gba_irq_trigger(gba, GBA_IRQ_HBLANK);
@@ -963,6 +973,8 @@ void gba_gpu_sync(struct gba *gba)
           if (gpu->vcount < GBA_LCD_H)
                latch_affine_line(gpu);
 
+          gba_dma_notify_display_start(gba, gpu->vcount);
+
           if (gpu->vcount_irq_en && gpu->vcount == gpu->vcount_trigger)
                gba_irq_trigger(gba, GBA_IRQ_VCOUNT);
 
@@ -971,9 +983,9 @@ void gba_gpu_sync(struct gba *gba)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Register I/O
- * ---------------------------------------------------------------------- */
+ */
 
 uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr)
 {
@@ -1038,9 +1050,9 @@ void gba_gpu_write16(struct gba *gba, uint32_t addr, uint16_t val)
      case REG_DISPSTAT:
      {
           bool old_vcount_irq = gpu->vcount_irq_en;
-          gpu->vblank_irq_en  = (val >> 3) & 1;
-          gpu->hblank_irq_en  = (val >> 4) & 1;
-          gpu->vcount_irq_en  = (val >> 5) & 1;
+          gpu->vblank_irq_en = (val >> 3) & 1;
+          gpu->hblank_irq_en = (val >> 4) & 1;
+          gpu->vcount_irq_en = (val >> 5) & 1;
           gpu->vcount_trigger = val >> 8;
           /* Edge trigger: if VCount IRQ just enabled and vcount already matches, fire now */
           if (!old_vcount_irq && gpu->vcount_irq_en &&

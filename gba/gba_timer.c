@@ -1,3 +1,10 @@
+/*
+ * gba_timer.c — GBA hardware timers (TM0–TM3).
+ *
+ * Supports all four prescaler settings (1/64/256/1024 cycles), cascade mode
+ * (TM(n) ticks when TM(n-1) overflows), overflow IRQ, and audio FIFO triggering.
+ */
+
 #include <string.h>
 #include "gba.h"
 

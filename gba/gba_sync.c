@@ -1,3 +1,12 @@
+/*
+ * gba_sync.c — Event scheduler for GBA subsystems.
+ *
+ * Each subsystem (GPU, APU, DMA, Timer, Cart) registers a "next event" timestamp.
+ * gba_sync_check_events() is called after every CPU instruction to dispatch
+ * whichever subsystems have reached or passed their scheduled cycle.
+ * gba_sync_rebase() prevents timestamp overflow by re-anchoring to zero each frame.
+ */
+
 #include <stdio.h>
 #include "gba.h"
 

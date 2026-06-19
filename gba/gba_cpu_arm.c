@@ -1,9 +1,17 @@
+/*
+ * gba_cpu_arm.c — ARM instruction set execution for the ARM7TDMI core.
+ *
+ * Covers: data processing (all ALU opcodes), multiply/MLA/MULL/MLAL,
+ * single/block transfers (LDR/STR/LDM/STM), branch, MRS/MSR, SWP, SWI,
+ * and coprocessor stubs.  Called from gba_cpu_step() when CPSR_T is clear.
+ */
+
 #include <string.h>
 #include "gba.h"
 
-/* -------------------------------------------------------------------------
+/*
  * Barrel shifter
- * ---------------------------------------------------------------------- */
+ */
 
 typedef struct
 {
@@ -170,9 +178,9 @@ static void set_flags_sub(struct gba_cpu *cpu, uint32_t a, uint32_t b, uint32_t 
      set_flags_sub_borrow(cpu, a, b, 0, result);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Data processing instructions
- * ---------------------------------------------------------------------- */
+ */
 
 static int exec_data_proc(struct gba *gba, uint32_t instr)
 {
@@ -184,7 +192,8 @@ static int exec_data_proc(struct gba *gba, uint32_t instr)
      uint8_t rd = (instr >> 12) & 0xF;
 
      uint32_t mrs_pattern = instr & 0x0FBF0FFFU;
-     if (mrs_pattern == 0x010F0000U || mrs_pattern == 0x014F0000U) {
+     if (mrs_pattern == 0x010F0000U || mrs_pattern == 0x014F0000U)
+     {
           bool use_spsr = (instr >> 22) & 1;
           cpu->r[rd] = use_spsr ? cpu->spsr : cpu->cpsr;
           return 1;
@@ -193,20 +202,26 @@ static int exec_data_proc(struct gba *gba, uint32_t instr)
      shift_result_t op2 = decode_op2(gba, instr, is_imm);
 
      uint32_t msr_pattern = instr & 0x0DB0F000U;
-     if (msr_pattern == 0x0120F000U || msr_pattern == 0x0160F000U) {
+     if (msr_pattern == 0x0120F000U || msr_pattern == 0x0160F000U)
+     {
           bool use_spsr = (instr >> 22) & 1;
           uint32_t field = (instr >> 16) & 0xF;
           uint32_t mask = 0;
           uint32_t val = is_imm ? op2.val : cpu->r[instr & 0xF];
 
-          if (field & 1) mask |= 0x000000FFU; /* control */
-          if (field & 2) mask |= 0x0000FF00U; /* extension */
-          if (field & 4) mask |= 0x00FF0000U; /* status */
-          if (field & 8) mask |= 0xFF000000U; /* flags */
+          if (field & 1)
+               mask |= 0x000000FFU; /* control */
+          if (field & 2)
+               mask |= 0x0000FF00U; /* extension */
+          if (field & 4)
+               mask |= 0x00FF0000U; /* status */
+          if (field & 8)
+               mask |= 0xFF000000U; /* flags */
 
           if (use_spsr)
                cpu->spsr = (cpu->spsr & ~mask) | (val & mask);
-          else {
+          else
+          {
                gba_cpu_set_cpsr(gba, (cpu->cpsr & ~mask) | (val & mask));
           }
           return 1;
@@ -398,9 +413,9 @@ mrs_msr:
      return 1;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Branch
- * ---------------------------------------------------------------------- */
+ */
 
 static int exec_branch(struct gba *gba, uint32_t instr)
 {
@@ -456,9 +471,9 @@ static int exec_bx(struct gba *gba, uint32_t instr)
      return 3;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Load/Store single register
- * ---------------------------------------------------------------------- */
+ */
 
 static int exec_ldr_str(struct gba *gba, uint32_t instr)
 {
@@ -598,14 +613,22 @@ static uint32_t get_user_reg(struct gba_cpu *cpu, int reg)
 {
      switch (reg)
      {
-     case 8: return cpu->r8_usr;
-     case 9: return cpu->r9_usr;
-     case 10: return cpu->r10_usr;
-     case 11: return cpu->r11_usr;
-     case 12: return cpu->r12_usr;
-     case 13: return cpu->r13_usr;
-     case 14: return cpu->r14_usr;
-     default: return cpu->r[reg];
+     case 8:
+          return cpu->r8_usr;
+     case 9:
+          return cpu->r9_usr;
+     case 10:
+          return cpu->r10_usr;
+     case 11:
+          return cpu->r11_usr;
+     case 12:
+          return cpu->r12_usr;
+     case 13:
+          return cpu->r13_usr;
+     case 14:
+          return cpu->r14_usr;
+     default:
+          return cpu->r[reg];
      }
 }
 
@@ -613,14 +636,30 @@ static void set_user_reg(struct gba_cpu *cpu, int reg, uint32_t val)
 {
      switch (reg)
      {
-     case 8: cpu->r8_usr = val; break;
-     case 9: cpu->r9_usr = val; break;
-     case 10: cpu->r10_usr = val; break;
-     case 11: cpu->r11_usr = val; break;
-     case 12: cpu->r12_usr = val; break;
-     case 13: cpu->r13_usr = val; break;
-     case 14: cpu->r14_usr = val; break;
-     default: cpu->r[reg] = val; break;
+     case 8:
+          cpu->r8_usr = val;
+          break;
+     case 9:
+          cpu->r9_usr = val;
+          break;
+     case 10:
+          cpu->r10_usr = val;
+          break;
+     case 11:
+          cpu->r11_usr = val;
+          break;
+     case 12:
+          cpu->r12_usr = val;
+          break;
+     case 13:
+          cpu->r13_usr = val;
+          break;
+     case 14:
+          cpu->r14_usr = val;
+          break;
+     default:
+          cpu->r[reg] = val;
+          break;
      }
 }
 
@@ -686,9 +725,11 @@ static int exec_ldm_stm(struct gba *gba, uint32_t instr)
                }
                else
                {
-                    if (psr) {
+                    if (psr)
+                    {
                          set_user_reg(cpu, i, val);
-                    } else
+                    }
+                    else
                          cpu->r[i] = val;
                }
           }
@@ -720,17 +761,23 @@ static int exec_ldm_stm(struct gba *gba, uint32_t instr)
  * Unsigned: checks whether upper bytes are all-0. */
 static int mul_cycles_signed(uint32_t rs)
 {
-     if ((rs & 0xFFFFFF00u) == 0xFFFFFF00u || !(rs & 0xFFFFFF00u)) return 1;
-     if ((rs & 0xFFFF0000u) == 0xFFFF0000u || !(rs & 0xFFFF0000u)) return 2;
-     if ((rs & 0xFF000000u) == 0xFF000000u || !(rs & 0xFF000000u)) return 3;
+     if ((rs & 0xFFFFFF00u) == 0xFFFFFF00u || !(rs & 0xFFFFFF00u))
+          return 1;
+     if ((rs & 0xFFFF0000u) == 0xFFFF0000u || !(rs & 0xFFFF0000u))
+          return 2;
+     if ((rs & 0xFF000000u) == 0xFF000000u || !(rs & 0xFF000000u))
+          return 3;
      return 4;
 }
 
 static int mul_cycles_unsigned(uint32_t rs)
 {
-     if (!(rs & 0xFFFFFF00u)) return 1;
-     if (!(rs & 0xFFFF0000u)) return 2;
-     if (!(rs & 0xFF000000u)) return 3;
+     if (!(rs & 0xFFFFFF00u))
+          return 1;
+     if (!(rs & 0xFFFF0000u))
+          return 2;
+     if (!(rs & 0xFF000000u))
+          return 3;
      return 4;
 }
 
@@ -805,17 +852,21 @@ static int exec_mull(struct gba *gba, uint32_t instr)
  * hi=0x16, lo4=0x1, bits[19:16]=0xF, bits[11:8]=0xF */
 static int exec_clz(struct gba *gba, uint32_t instr)
 {
-    struct gba_cpu *cpu = &gba->cpu;
-    uint8_t rd = (instr >> 12) & 0xF;
-    uint8_t rm = instr & 0xF;
-    uint32_t val = cpu->r[rm];
-    uint32_t count = 0;
-    if (val == 0)
-        count = 32;
-    else
-        while (!(val & 0x80000000U)) { val <<= 1; count++; }
-    cpu->r[rd] = count;
-    return 1;
+     struct gba_cpu *cpu = &gba->cpu;
+     uint8_t rd = (instr >> 12) & 0xF;
+     uint8_t rm = instr & 0xF;
+     uint32_t val = cpu->r[rm];
+     uint32_t count = 0;
+     if (val == 0)
+          count = 32;
+     else
+          while (!(val & 0x80000000U))
+          {
+               val <<= 1;
+               count++;
+          }
+     cpu->r[rd] = count;
+     return 1;
 }
 
 /* SMULxy / SMLAxy — 16-bit signed multiply (ARMv5E)
@@ -824,29 +875,32 @@ static int exec_clz(struct gba *gba, uint32_t instr)
  * Selects top (y=1) or bottom (y=0) halfword of each operand. */
 static int exec_smulxy(struct gba *gba, uint32_t instr)
 {
-    struct gba_cpu *cpu = &gba->cpu;
-    bool y = (instr >> 6) & 1;
-    bool x = (instr >> 5) & 1;
-    uint8_t rd = (instr >> 16) & 0xF;
-    uint8_t rn = (instr >> 12) & 0xF; /* accumulate register (SMLA only) */
-    uint8_t rs = (instr >> 8) & 0xF;
-    uint8_t rm = instr & 0xF;
+     struct gba_cpu *cpu = &gba->cpu;
+     bool y = (instr >> 6) & 1;
+     bool x = (instr >> 5) & 1;
+     uint8_t rd = (instr >> 16) & 0xF;
+     uint8_t rn = (instr >> 12) & 0xF; /* accumulate register (SMLA only) */
+     uint8_t rs = (instr >> 8) & 0xF;
+     uint8_t rm = instr & 0xF;
 
-    int16_t op1 = (int16_t)(x ? (cpu->r[rm] >> 16) : (cpu->r[rm] & 0xFFFF));
-    int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
-    int32_t product = (int32_t)op1 * (int32_t)op2;
+     int16_t op1 = (int16_t)(x ? (cpu->r[rm] >> 16) : (cpu->r[rm] & 0xFFFF));
+     int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
+     int32_t product = (int32_t)op1 * (int32_t)op2;
 
-    bool accumulate = ((instr >> 21) & 0x7) == 0; /* SMLA: bits[23:21]=000 */
-    if (accumulate) {
-        int64_t result = (int64_t)product + (int32_t)cpu->r[rn];
-        cpu->r[rd] = (uint32_t)result;
-        /* set Q flag on overflow */
-        if (result > (int64_t)0x7FFFFFFF || result < (int64_t)(-0x80000000LL))
-            cpu->cpsr |= GBA_CPSR_Q;
-    } else {
-        cpu->r[rd] = (uint32_t)product;
-    }
-    return 1;
+     bool accumulate = ((instr >> 21) & 0x7) == 0; /* SMLA: bits[23:21]=000 */
+     if (accumulate)
+     {
+          int64_t result = (int64_t)product + (int32_t)cpu->r[rn];
+          cpu->r[rd] = (uint32_t)result;
+          /* set Q flag on overflow */
+          if (result > (int64_t)0x7FFFFFFF || result < (int64_t)(-0x80000000LL))
+               cpu->cpsr |= GBA_CPSR_Q;
+     }
+     else
+     {
+          cpu->r[rd] = (uint32_t)product;
+     }
+     return 1;
 }
 
 /* SMULWy / SMLAWy — 32×16 multiply, keep high 32 bits (ARMv5E)
@@ -854,50 +908,53 @@ static int exec_smulxy(struct gba *gba, uint32_t instr)
  * SMLAWy: cond 0001 0010 Rd   Rn Rs   1y00 Rm  (hi=0x12, lo4=0x8 or 0xC) */
 static int exec_smulwy(struct gba *gba, uint32_t instr)
 {
-    struct gba_cpu *cpu = &gba->cpu;
-    bool y           = (instr >> 6) & 1;
-    bool accumulate  = !((instr >> 5) & 1); /* bit5=0 → SMLAW, bit5=1 → SMULW */
-    uint8_t rd = (instr >> 16) & 0xF;
-    uint8_t rn = (instr >> 12) & 0xF;
-    uint8_t rs = (instr >> 8)  & 0xF;
-    uint8_t rm = instr & 0xF;
+     struct gba_cpu *cpu = &gba->cpu;
+     bool y = (instr >> 6) & 1;
+     bool accumulate = !((instr >> 5) & 1); /* bit5=0 → SMLAW, bit5=1 → SMULW */
+     uint8_t rd = (instr >> 16) & 0xF;
+     uint8_t rn = (instr >> 12) & 0xF;
+     uint8_t rs = (instr >> 8) & 0xF;
+     uint8_t rm = instr & 0xF;
 
-    int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
-    int64_t product = (int64_t)(int32_t)cpu->r[rm] * op2;
-    int32_t result  = (int32_t)(product >> 16);
+     int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
+     int64_t product = (int64_t)(int32_t)cpu->r[rm] * op2;
+     int32_t result = (int32_t)(product >> 16);
 
-    if (accumulate) {
-        int64_t acc = (int64_t)result + (int32_t)cpu->r[rn];
-        cpu->r[rd] = (uint32_t)acc;
-        if (acc > (int64_t)0x7FFFFFFF || acc < (int64_t)(-0x80000000LL))
-            cpu->cpsr |= GBA_CPSR_Q;
-    } else {
-        cpu->r[rd] = (uint32_t)result;
-    }
-    return 1;
+     if (accumulate)
+     {
+          int64_t acc = (int64_t)result + (int32_t)cpu->r[rn];
+          cpu->r[rd] = (uint32_t)acc;
+          if (acc > (int64_t)0x7FFFFFFF || acc < (int64_t)(-0x80000000LL))
+               cpu->cpsr |= GBA_CPSR_Q;
+     }
+     else
+     {
+          cpu->r[rd] = (uint32_t)result;
+     }
+     return 1;
 }
 
 /* SMLALxy — 16×16 multiply accumulate into 64-bit pair (ARMv5E)
  * cond 0001 0100..0111 RdHi RdLo Rs 1yx0 Rm  (hi=0x14..0x17, lo4=0x8..0xB) */
 static int exec_smlalxy(struct gba *gba, uint32_t instr)
 {
-    struct gba_cpu *cpu = &gba->cpu;
-    bool y      = (instr >> 6) & 1;
-    bool x      = (instr >> 5) & 1;
-    uint8_t rdhi = (instr >> 16) & 0xF;
-    uint8_t rdlo = (instr >> 12) & 0xF;
-    uint8_t rs   = (instr >> 8)  & 0xF;
-    uint8_t rm   = instr & 0xF;
+     struct gba_cpu *cpu = &gba->cpu;
+     bool y = (instr >> 6) & 1;
+     bool x = (instr >> 5) & 1;
+     uint8_t rdhi = (instr >> 16) & 0xF;
+     uint8_t rdlo = (instr >> 12) & 0xF;
+     uint8_t rs = (instr >> 8) & 0xF;
+     uint8_t rm = instr & 0xF;
 
-    int16_t op1 = (int16_t)(x ? (cpu->r[rm] >> 16) : (cpu->r[rm] & 0xFFFF));
-    int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
-    int64_t product = (int64_t)op1 * op2;
-    int64_t acc     = ((int64_t)cpu->r[rdhi] << 32) | cpu->r[rdlo];
-    int64_t result  = acc + product;
+     int16_t op1 = (int16_t)(x ? (cpu->r[rm] >> 16) : (cpu->r[rm] & 0xFFFF));
+     int16_t op2 = (int16_t)(y ? (cpu->r[rs] >> 16) : (cpu->r[rs] & 0xFFFF));
+     int64_t product = (int64_t)op1 * op2;
+     int64_t acc = ((int64_t)cpu->r[rdhi] << 32) | cpu->r[rdlo];
+     int64_t result = acc + product;
 
-    cpu->r[rdlo] = (uint32_t)(result & 0xFFFFFFFF);
-    cpu->r[rdhi] = (uint32_t)(result >> 32);
-    return 2;
+     cpu->r[rdlo] = (uint32_t)(result & 0xFFFFFFFF);
+     cpu->r[rdhi] = (uint32_t)(result >> 32);
+     return 2;
 }
 
 /* QADD / QSUB / QDADD / QDSUB — saturating add/sub (ARMv5E)
@@ -905,29 +962,46 @@ static int exec_smlalxy(struct gba *gba, uint32_t instr)
  * hi=0x10..0x16 (even), lo4=0x5 */
 static int exec_qadd_qsub(struct gba *gba, uint32_t instr)
 {
-    struct gba_cpu *cpu = &gba->cpu;
-    uint8_t op  = (instr >> 21) & 0x3; /* 00=QADD 01=QSUB 10=QDADD 11=QDSUB */
-    uint8_t rn  = (instr >> 16) & 0xF;
-    uint8_t rd  = (instr >> 12) & 0xF;
-    uint8_t rm  = instr & 0xF;
+     struct gba_cpu *cpu = &gba->cpu;
+     uint8_t op = (instr >> 21) & 0x3; /* 00=QADD 01=QSUB 10=QDADD 11=QDSUB */
+     uint8_t rn = (instr >> 16) & 0xF;
+     uint8_t rd = (instr >> 12) & 0xF;
+     uint8_t rm = instr & 0xF;
 
-    int32_t a = (int32_t)cpu->r[rm];
-    int32_t b = (int32_t)cpu->r[rn];
+     int32_t a = (int32_t)cpu->r[rm];
+     int32_t b = (int32_t)cpu->r[rn];
 
-    /* QDADD/QDSUB double Rn first, saturating */
-    if (op & 2) {
-        int64_t dbl = (int64_t)b * 2;
-        if (dbl > (int64_t)0x7FFFFFFF)  { dbl = 0x7FFFFFFF; cpu->cpsr |= GBA_CPSR_Q; }
-        if (dbl < (int64_t)(-0x80000000LL)) { dbl = -0x80000000LL; cpu->cpsr |= GBA_CPSR_Q; }
-        b = (int32_t)dbl;
-    }
+     /* QDADD/QDSUB double Rn first, saturating */
+     if (op & 2)
+     {
+          int64_t dbl = (int64_t)b * 2;
+          if (dbl > (int64_t)0x7FFFFFFF)
+          {
+               dbl = 0x7FFFFFFF;
+               cpu->cpsr |= GBA_CPSR_Q;
+          }
+          if (dbl < (int64_t)(-0x80000000LL))
+          {
+               dbl = -0x80000000LL;
+               cpu->cpsr |= GBA_CPSR_Q;
+          }
+          b = (int32_t)dbl;
+     }
 
-    int64_t result = (op & 1) ? ((int64_t)a - b) : ((int64_t)a + b);
-    if (result > (int64_t)0x7FFFFFFF)  { result = 0x7FFFFFFF;  cpu->cpsr |= GBA_CPSR_Q; }
-    if (result < (int64_t)(-0x80000000LL)) { result = -0x80000000LL; cpu->cpsr |= GBA_CPSR_Q; }
+     int64_t result = (op & 1) ? ((int64_t)a - b) : ((int64_t)a + b);
+     if (result > (int64_t)0x7FFFFFFF)
+     {
+          result = 0x7FFFFFFF;
+          cpu->cpsr |= GBA_CPSR_Q;
+     }
+     if (result < (int64_t)(-0x80000000LL))
+     {
+          result = -0x80000000LL;
+          cpu->cpsr |= GBA_CPSR_Q;
+     }
 
-    cpu->r[rd] = (uint32_t)result;
-    return 1;
+     cpu->r[rd] = (uint32_t)result;
+     return 1;
 }
 
 /* SWP/SWPB */
@@ -958,18 +1032,18 @@ static int exec_swp(struct gba *gba, uint32_t instr)
 /* SWI */
 static int exec_swi(struct gba *gba, uint32_t instr)
 {
-    uint32_t comment = instr & 0x00FFFFFF;
-    if (gba_cpu_handle_swi(gba, comment))
-        return 3;
-    fprintf(stderr, "[SWI_UNKNOWN_ARM] swi=%02X pc=%08X\n",
-            comment >> 16, gba->cpu.r[GBA_PC] - 8);
-    gba_cpu_exception(gba, 0x00000008, GBA_MODE_SVC);
-    return 3;
+     uint32_t comment = instr & 0x00FFFFFF;
+     if (gba_cpu_handle_swi(gba, comment))
+          return 3;
+     fprintf(stderr, "[SWI_UNKNOWN_ARM] swi=%02X pc=%08X\n",
+             comment >> 16, gba->cpu.r[GBA_PC] - 8);
+     gba_cpu_exception(gba, 0x00000008, GBA_MODE_SVC);
+     return 3;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Main ARM dispatch
- * ---------------------------------------------------------------------- */
+ */
 
 int gba_arm_execute(struct gba *gba, uint32_t instr)
 {
@@ -1013,11 +1087,11 @@ int gba_arm_execute(struct gba *gba, uint32_t instr)
      if ((hi & 0xC0) == 0x40)
           return exec_ldr_str(gba, instr);
 
-    /* Halfword/signed transfer: bits 27-25=000, bit7=1, bit4=1,
-     * and bits 6-5 select H/SB/SH.  This must accept both register and
-     * immediate offset forms; otherwise STRH is mistaken for data processing. */
-    if ((instr & 0x0E000090U) == 0x00000090U && ((instr >> 5) & 0x3) != 0)
-        return exec_ldr_str_h(gba, instr);
+     /* Halfword/signed transfer: bits 27-25=000, bit7=1, bit4=1,
+      * and bits 6-5 select H/SB/SH.  This must accept both register and
+      * immediate offset forms; otherwise STRH is mistaken for data processing. */
+     if ((instr & 0x0E000090U) == 0x00000090U && ((instr >> 5) & 0x3) != 0)
+          return exec_ldr_str_h(gba, instr);
 
      /* Multiply */
      if ((hi & 0xFC) == 0 && lo4 == 9)

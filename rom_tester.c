@@ -20,7 +20,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <semaphore.h>
+#include "compat.h"
 #include <signal.h>
 #include <unistd.h>
 #include <stdatomic.h>
@@ -42,7 +42,7 @@ static void handle_alarm(int sig)
      timed_out = 1;
 }
 
-/* ── Constantes ── */
+/* Constantes */
 
 #define DEFAULT_FRAMES 600
 
@@ -58,7 +58,7 @@ static const uint32_t DMG_PALETTE[4] = {
     0xFF12280B,
 };
 
-/* ── Contexto headless ── */
+/* Contexto headless */
 
 struct headless_ctx
 {
@@ -68,7 +68,7 @@ struct headless_ctx
       * aqui para evitar que sem_wait() bloqueie indefinidamente. */
 };
 
-/* ── Callbacks de vídeo (headless) ── */
+/* Callbacks de vídeo (headless) */
 
 static void draw_line_dmg(struct gb *gb, unsigned ly,
                           union gb_gpu_color line[GB_LCD_WIDTH])
@@ -110,7 +110,7 @@ static void destroy_frontend(struct gb *gb)
      gb->frontend.data = NULL;
 }
 
-/* ── Drena buffers SPU prontos para não travar sem_wait ── */
+/* Drena buffers SPU prontos para não travar sem_wait */
 
 static void drain_spu_buffers(struct gb *gb)
 {
@@ -124,7 +124,7 @@ static void drain_spu_buffers(struct gb *gb)
      }
 }
 
-/* ── Salva PPM ── */
+/* Salva PPM */
 
 static bool save_ppm(const char *path, const uint32_t *pixels)
 {
@@ -186,7 +186,7 @@ static bool mkdir_p(const char *path)
      return true;
 }
 
-/* ── Verifica se o frame é "em branco" ──
+/* Verifica se o frame é "em branco"
  *
  * Critério: o frame é BLANK se todos os pixels têm a mesma cor
  * (tela uniforme — preto puro, branco DMG, etc.).
@@ -206,7 +206,7 @@ static bool frame_is_blank(const uint32_t *pixels)
      return true;
 }
 
-/* ── Reset do emulador ── */
+/* Reset do emulador */
 
 static void reset_gb(struct gb *gb, const char *rom_path)
 {
@@ -259,7 +259,7 @@ static void reset_gb(struct gb *gb, const char *rom_path)
      gb->debug.state = GB_DEBUG_RUNNING;
 }
 
-/* ── main ── */
+/* main */
 
 int main(int argc, char **argv)
 {

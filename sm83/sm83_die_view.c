@@ -42,8 +42,8 @@ void sm83_view_cache_update(const Sm83ViewTransform *t, Sm83ViewCache *c)
      /* The pan is baked into the origin so fast transforms don't need it */
      c->origin_x = origin_x - t->pan_x * scale_x;
      c->origin_y = origin_y - t->pan_y * scale_y;
-     c->scale_x  = scale_x;
-     c->scale_y  = scale_y;
+     c->scale_x = scale_x;
+     c->scale_y = scale_y;
 
      /* Viewport bounds in normalized die coords */
      float canvas_w = t->canvas_w > 1.0f ? t->canvas_w : 1.0f;
@@ -210,12 +210,12 @@ int sm83_node_arcs(int node_idx, int *out_arcs, int max)
      return count;
 }
 
-/* -----------------------------------------------------------------------
+/*
  * Adjacency index for O(degree) BFS instead of O(N_arcs) per node.
  * Built once on first call to sm83_net_flood().
  * adj_head[node] = first index into adj_list[] for that node (-1 = none).
  * adj_list[k] = { arc_index, next_k } singly-linked list.
- * ---------------------------------------------------------------------- */
+ */
 typedef struct
 {
      int arc;

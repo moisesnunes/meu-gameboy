@@ -4,11 +4,11 @@
 
 enum gb_irq_token
 {
-     GB_IRQ_VSYNC    = 0, /* VBlank — fim do último scanline visível (LY 143→144) */
+     GB_IRQ_VSYNC = 0,    /* VBlank — fim do último scanline visível (LY 143→144) */
      GB_IRQ_LCD_STAT = 1, /* LCD STAT — condição configurada em 0xFF41 (LYC, modos) */
-     GB_IRQ_TIMER    = 2, /* Timer — overflow do registrador TIMA (0xFF05) */
-     GB_IRQ_SERIAL   = 3, /* Serial — transferência via link cable concluída */
-     GB_IRQ_INPUT    = 4, /* Joypad — borda descendente em botão selecionado */
+     GB_IRQ_TIMER = 2,    /* Timer — overflow do registrador TIMA (0xFF05) */
+     GB_IRQ_SERIAL = 3,   /* Serial — transferência via link cable concluída */
+     GB_IRQ_INPUT = 4,    /* Joypad — borda descendente em botão selecionado */
 };
 
 struct gb_irq

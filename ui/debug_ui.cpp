@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <stdlib.h>
+#include "compat.h"
 #include <string>
 #include <vector>
 
@@ -247,7 +248,7 @@ static void capture_ui_config(debug_ui_config *cfg)
 
 static void rewind_slot_path(int slot, char *path, size_t path_len)
 {
-     snprintf(path, path_len, "/tmp/meu-gameboy-rewind-%02d.gbst", slot);
+     snprintf(path, path_len, "%s/meu-gameboy-rewind-%02d.gbst", compat_tmpdir(), slot);
 }
 
 static void rewind_reset(void)
@@ -359,7 +360,7 @@ static void set_style(void)
 {
      ImGuiStyle &style = ImGui::GetStyle();
 
-     // --- Layout & Shape ---
+     // Layout & Shape
      style.Alpha = 1.0f;
      style.DisabledAlpha = 0.45f;
      style.WindowPadding = ImVec2(12.0f, 10.0f);
@@ -390,7 +391,7 @@ static void set_style(void)
      style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
      style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
 
-     // --- Palette ---
+     // Palette
      // Backgrounds: escala de cinza fria, característica de IDEs
      const ImVec4 bg = ImVec4(0.122f, 0.125f, 0.133f, 1.0f);       // editor bg
      const ImVec4 chrome = ImVec4(0.098f, 0.101f, 0.109f, 1.0f);   // titlebar / menubar
@@ -406,7 +407,7 @@ static void set_style(void)
      const ImVec4 accent_light = ImVec4(0.380f, 0.635f, 0.940f, 1.0f); // hover mais claro
      const ImVec4 accent_dim = ImVec4(0.239f, 0.525f, 0.878f, 0.35f);  // accent transparente
 
-     // --- Colors ---
+     // Colors
      style.Colors[ImGuiCol_Text] = text;
      style.Colors[ImGuiCol_TextDisabled] = text_dim;
 
@@ -1264,7 +1265,7 @@ static void draw_main_menu(struct gb *gb)
           ImGui::EndPopup();
      }
 
-     /* ── Popup de ROM info ── */
+     /* Popup de ROM info */
      draw_popup_rom_info(gb);
 }
 
@@ -1314,8 +1315,7 @@ static void draw_launcher(void)
      ImGui::End();
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* Janela de saída do jogo                                    */
+/* Janela de saída do jogo */
 
 static void draw_game_output(void)
 {

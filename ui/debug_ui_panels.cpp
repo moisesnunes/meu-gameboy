@@ -25,6 +25,8 @@ extern "C"
 #include "hw_schematic_view.h"
 #include "hw_schematic_map.h"
 #include "hw_schematic_trace.h"
+#include "hw_schematic_pins.h"
+#include "hw_schematic_graph.h"
 }
 
 #include "debug_ui_actions.h"
@@ -5425,6 +5427,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (!s_hw_activity_init)
      {
           hw_activity_reset(&s_hw_activity);
+          hw_graph_build(); /* build wire connectivity graph once */
           s_hw_activity_init = true;
      }
      hw_activity_tick(&s_hw_activity, dt, 3.0f);
@@ -6326,7 +6329,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                }
                else
                {
-                    /* ── Dark mode component ── */
+                    /* Dark mode component */
                     static const ImU32 kind_comp_col[] = {
                         IM_COL32(80, 140, 255, 220),  /* CPU         — blue */
                         IM_COL32(220, 200, 60, 220),  /* CART        — gold */
@@ -6413,7 +6416,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                     dl->AddRectFilled(tl, br, fill, 3.0f);
                     dl->AddRect(tl, br, border, 3.0f, 0, bthick);
 
-                    /* ── Pin grouping stripes for U1/U2/U3 (zoom > 300) ── */
+                    /*  Pin grouping stripes for U1/U2/U3 (zoom > 300)  */
                     if (zoom > 300.0f && comp_nh >= 0.10f)
                     {
                          struct PinGroup
@@ -6478,6 +6481,82 @@ void draw_panel_hw_schematic(struct gb *gb)
                          }
                     }
 
+                    /* ── U1 pin stubs from hw_u1_pins table (zoom > 400) ── */
+                    if (strcmp(comp->ref, "U1") == 0 && zoom > 400.0f)
+                    {
+                         float box_w = br.x - tl.x;
+                         float box_h = br.y - tl.y;
+                         float pin_len = (zoom > 800.0f) ? 9.0f : 5.0f;
+                         float fsz_pin = ImGui::GetFontSize() * 0.55f;
+                         bool show_labels = zoom > 700.0f;
+
+                         for (int pi = 0; pi < HW_U1_PIN_COUNT; pi++)
+                         {
+                              const HwU1Pin *p = &hw_u1_pins[pi];
+                              /* Activity colour: use net fade if trace active */
+                              ImU32 pcol = IM_COL32(160, 20, 20, 180);
+                              if (gb && gb->debug.hw_trace.enabled &&
+                                  p->net_id >= 0 && p->net_id < HW_NET_COUNT &&
+                                  act->net_fade[p->net_id] > 0.01f)
+                              {
+                                   float fade = act->net_fade[p->net_id];
+                                   float t = fade > 1.0f ? 1.0f : fade;
+                                   uint8_t r = (uint8_t)(160 + t * 95);
+                                   uint8_t g2 = (uint8_t)(20 + t * 200);
+                                   uint8_t b2 = (uint8_t)(20 + t * 40);
+                                   pcol = IM_COL32(r, g2, b2, 220);
+                              }
+
+                              float px_s, py_s; /* stub start (on box edge) */
+                              float px_e, py_e; /* stub end (outside box)   */
+                              float lx, ly;     /* label position            */
+
+                              switch (p->side)
+                              {
+                              case 0: /* left */
+                                   px_s = tl.x;
+                                   py_s = tl.y + p->pos * box_h;
+                                   px_e = tl.x - pin_len;
+                                   py_e = py_s;
+                                   lx = tl.x + 2;
+                                   ly = py_s - fsz_pin * 0.5f;
+                                   break;
+                              case 1: /* right */
+                                   px_s = br.x;
+                                   py_s = tl.y + p->pos * box_h;
+                                   px_e = br.x + pin_len;
+                                   py_e = py_s;
+                                   lx = show_labels
+                                            ? br.x - 2 - ImGui::CalcTextSize(p->name).x * (fsz_pin / ImGui::GetFontSize())
+                                            : br.x + pin_len + 2;
+                                   ly = py_s - fsz_pin * 0.5f;
+                                   break;
+                              case 2: /* top */
+                                   px_s = tl.x + p->pos * box_w;
+                                   py_s = tl.y;
+                                   px_e = px_s;
+                                   py_e = tl.y - pin_len;
+                                   lx = px_s + 2;
+                                   ly = tl.y + 2;
+                                   break;
+                              default: /* bottom */
+                                   px_s = tl.x + p->pos * box_w;
+                                   py_s = br.y;
+                                   px_e = px_s;
+                                   py_e = br.y + pin_len;
+                                   lx = px_s + 2;
+                                   ly = br.y - fsz_pin - 2;
+                                   break;
+                              }
+
+                              dl->AddLine(ImVec2(px_s, py_s), ImVec2(px_e, py_e), pcol, 1.0f);
+
+                              if (show_labels && p->name && p->name[0])
+                                   dl->AddText(nullptr, fsz_pin, ImVec2(lx, ly),
+                                               IM_COL32(200, 210, 240, 200), p->name);
+                         }
+                    }
+
                     if (zoom > 80.0f)
                     {
                          dl->AddText(ImVec2(tl.x + 4, tl.y + 3), IM_COL32(230, 235, 255, 240), comp->ref);
@@ -6491,7 +6570,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Paper title block (bottom-right of schematic sheet) ── */
+     /* Paper title block (bottom-right of schematic sheet) */
      if (s_sch_paper_mode)
      {
           ImVec2 br_paper = SP(1.0f, 1.0f);
@@ -6509,7 +6588,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Minimap (bottom-left corner of canvas, dark mode only) ── */
+     /* Minimap (bottom-left corner of canvas, dark mode only) */
      if (!s_sch_paper_mode)
      {
           float mm_w = 90.0f, mm_h = mm_w * HW_SCHEMATIC_ASPECT / canvas_size.x * canvas_size.y;
@@ -6564,7 +6643,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      dl->PopClipRect();
 
-     /* ── Live HW activity status strip (top-left corner of canvas) ── */
+     /* Live HW activity status strip (top-left corner of canvas)  */
      if (gb && !s_sch_paper_mode)
      {
           struct
@@ -6634,7 +6713,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* ── Hover tooltip ── */
+     /* Hover tooltip */
      if (s_sch_show_components && hover_comp >= 0)
      {
           const HwComponent *comp = &hw_components[hover_comp];
@@ -6649,10 +6728,70 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (csem->emulator_owner && csem->emulator_owner[0])
                     ImGui::TextDisabled("owner: %s", csem->emulator_owner);
           }
+          /* For U1: show closest pin to mouse cursor */
+          if (strcmp(comp->ref, "U1") == 0 && zoom > 400.0f)
+          {
+               float mnx = (mouse.x - cache.origin_x) / cache.scale_x;
+               float mny = (mouse.y - cache.origin_y) / cache.scale_y;
+               float comp_nx2, comp_ny2, comp_nw2, comp_nh2;
+               sch_component_reference_body(comp, &comp_nx2, &comp_ny2, &comp_nw2, &comp_nh2);
+               float half_w = comp_nw2 * 0.5f;
+               float half_h = comp_nh2 * 0.5f;
+
+               const HwU1Pin *best_pin = NULL;
+               float best_d2 = 1e9f;
+               for (int pi = 0; pi < HW_U1_PIN_COUNT; pi++)
+               {
+                    const HwU1Pin *p = &hw_u1_pins[pi];
+                    float px2, py2;
+                    switch (p->side)
+                    {
+                    case 0:
+                         px2 = comp_nx2 - half_w;
+                         py2 = comp_ny2 - half_h + p->pos * comp_nh2;
+                         break;
+                    case 1:
+                         px2 = comp_nx2 + half_w;
+                         py2 = comp_ny2 - half_h + p->pos * comp_nh2;
+                         break;
+                    case 2:
+                         px2 = comp_nx2 - half_w + p->pos * comp_nw2;
+                         py2 = comp_ny2 - half_h;
+                         break;
+                    default:
+                         px2 = comp_nx2 - half_w + p->pos * comp_nw2;
+                         py2 = comp_ny2 + half_h;
+                         break;
+                    }
+                    float dx2 = px2 - mnx, dy2 = py2 - mny;
+                    float d2 = dx2 * dx2 + dy2 * dy2;
+                    if (d2 < best_d2)
+                    {
+                         best_d2 = d2;
+                         best_pin = p;
+                    }
+               }
+               if (best_pin)
+               {
+                    ImGui::Separator();
+                    ImGui::Text("Pin %d: %s", best_pin->pin, best_pin->name);
+                    if (best_pin->net_id >= 0 && best_pin->net_id < HW_NET_COUNT)
+                    {
+                         const HwNet *pnet = &hw_nets[best_pin->net_id];
+                         ImGui::TextDisabled("net: %s (#%d)", pnet->name, best_pin->net_id);
+                         if (gb && gb->debug.hw_trace.enabled &&
+                             act->net_fade[best_pin->net_id] > 0.01f)
+                              ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.5f, 1.0f),
+                                                 "active  fade=%.2f", act->net_fade[best_pin->net_id]);
+                    }
+                    static const char *side_names[] = {"left", "right", "top", "bottom"};
+                    ImGui::TextDisabled("side: %s  pos: %.2f", side_names[best_pin->side], best_pin->pos);
+               }
+          }
           ImGui::EndTooltip();
      }
 
-     /* ── Legend + info bar ── */
+     /* Legend + info bar */
      ImGui::Separator();
      if (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
      {
@@ -6720,7 +6859,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      ImGui::EndChild(); /* ##sch_canvas_child */
 
-     /* ── Net timeline: last N events for the selected net ── */
+     /* Net timeline: last N events for the selected net */
      if (gb && s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
      {
           const HwNet *sel_net = &hw_nets[s_sch_sel_net];
@@ -6917,7 +7056,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::Separator();
      }
 
-     /* ── HW Trace + Audit panel (scrollable, fills remaining space) ── */
+     /* HW Trace + Audit panel (scrollable, fills remaining space) */
      if (!gb)
           return;
 
@@ -6926,7 +7065,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      struct gb_hw_trace *tr = &gb->debug.hw_trace;
 
-     /* ── Metadata per event type (must match gb_hw_trace_event_type order) ── */
+     /*  Metadata per event type (must match gb_hw_trace_event_type order)  */
      struct EvtMeta
      {
           const char *name;
@@ -6954,7 +7093,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      };
      static const int s_evt_meta_count = (int)(sizeof(s_evt_meta) / sizeof(s_evt_meta[0]));
 
-     /* ── Controls row ── */
+     /*  Controls row */
      ImGui::Separator();
      bool trace_on = tr->enabled;
      if (ImGui::Checkbox("HW Trace", &trace_on))
@@ -6969,7 +7108,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           tr->count = 0;
      }
 
-     /* ── Subsystem filter toggles ── */
+     /* Subsystem filter toggles */
      static uint8_t s_filter_mask = 0x3F; /* all on */
      static bool s_filter_open = false;
      ImGui::SameLine();
@@ -7017,13 +7156,13 @@ void draw_panel_hw_schematic(struct gb *gb)
           return;
      }
 
-     /* ── Selected event index (ring-buffer position from newest=0) ── */
+     /* Selected event index (ring-buffer position from newest=0) */
      static int s_selected_ev = -1;
      /* Reset selection if it goes out of range after Clear */
      if (s_selected_ev >= (int)n_total)
           s_selected_ev = -1;
 
-     /* ── Event list (scrollable, newest first) ── */
+     /* Event list (scrollable, newest first) */
      float list_h = s_selected_ev >= 0 ? 140.0f : 180.0f;
      ImGui::BeginChild("##hw_trace_list", ImVec2(0, list_h), true,
                        ImGuiWindowFlags_HorizontalScrollbar);
@@ -7124,7 +7263,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::PopStyleVar();
      ImGui::EndChild();
 
-     /* ── Detail panel for selected event ── */
+     /* Detail panel for selected event */
      if (s_selected_ev >= 0 && s_selected_ev < (int)n_total)
      {
           uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - (uint32_t)s_selected_ev) & (GB_HW_TRACE_CAP - 1);
@@ -7242,7 +7381,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::PopStyleColor();
      }
 
-     /* ── Fase G: Audit panel ── */
+     /* Fase G: Audit panel */
      ImGui::Separator();
 
      static bool s_audit_open = false;

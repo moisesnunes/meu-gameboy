@@ -3,10 +3,12 @@
 
 #include <stdint.h>
 
+/* Sentinel value: "this subsystem has no pending event" */
 #define GBA_SYNC_NEVER 20000000
 
 struct gba;
 
+/* Subsystem identifiers for the event scheduler */
 enum gba_sync_token
 {
      GBA_SYNC_GPU = 0,
@@ -20,9 +22,9 @@ enum gba_sync_token
 
 struct gba_sync
 {
-     int32_t first_event;
-     int32_t last_sync[GBA_SYNC_NUM];
-     int32_t next_event[GBA_SYNC_NUM];
+     int32_t first_event;                  /* cycle of the nearest pending event (across all tokens) */
+     int32_t last_sync[GBA_SYNC_NUM];     /* cycle at which each subsystem was last synced */
+     int32_t next_event[GBA_SYNC_NUM];    /* cycle at which each subsystem needs its next sync */
 };
 
 void gba_sync_reset(struct gba *gba);

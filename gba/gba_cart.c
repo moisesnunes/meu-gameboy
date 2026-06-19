@@ -1,3 +1,10 @@
+/*
+ * gba_cart.c — GBA cartridge: ROM loading, backup media (SRAM/Flash/EEPROM), GPIO/RTC.
+ *
+ * Backup type is detected by scanning the ROM for Nintendo SDK marker strings.
+ * Save data is persisted to a .sav file alongside the ROM.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -63,9 +70,9 @@ static void eeprom_ensure_size(struct gba_cart *cart, uint32_t byte_addr)
           cart->backup_type = GBA_BACKUP_EEPROM_8K;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * RTC helpers
- * ---------------------------------------------------------------------- */
+ */
 
 static uint8_t rtc_to_bcd(uint8_t v)
 {
@@ -474,7 +481,7 @@ void gba_cart_eeprom_write(struct gba *gba, uint16_t value, uint32_t write_size)
      }
 }
 
-/* --- ROM reads --- */
+/* ROM reads */
 
 uint8_t gba_cart_read8(struct gba *gba, uint32_t addr)
 {
@@ -555,7 +562,7 @@ uint32_t gba_cart_read32(struct gba *gba, uint32_t addr)
                        ((uint32_t)gba_cart_read16(gba, addr + 2) << 16));
 }
 
-/* --- Backup writes --- */
+/* Backup writes */
 
 static void flash_write(struct gba_cart *cart, uint32_t offset, uint8_t val)
 {

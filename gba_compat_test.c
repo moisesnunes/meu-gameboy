@@ -25,7 +25,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <semaphore.h>
+#include "compat.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -36,11 +36,11 @@
 #include "gba/gba.h"
 #include "gba/gba_disasm.h"
 
-/* ── Configuração padrão ── */
+/* Configuração padrão */
 
 #define DEFAULT_MAX_CYCLES 500000000ULL /* ~30 s de tempo de jogo */
 
-/* ── Tipo de expectativa ── */
+/* Tipo de expectativa */
 
 enum gba_expect
 {
@@ -49,7 +49,7 @@ enum gba_expect
      EXPECT_VISUAL,
 };
 
-/* ── Contexto do frontend headless ── */
+/* Contexto do frontend headless */
 
 struct compat_ctx
 {
@@ -67,7 +67,7 @@ struct input_event
      bool active;
 };
 
-/* ── Frontend callbacks headless ── */
+/* Frontend callbacks headless */
 
 static void draw_line(void *data, uint8_t line, const uint16_t *src)
 {
@@ -94,7 +94,7 @@ static void flip(void *data)
 static void refresh_input(void *data) { (void)data; }
 static void destroy_frontend(void *data) { free(data); }
 
-/* ── Drena buffers APU para não bloquear semáforos ── */
+/* Drena buffers APU para não bloquear semáforos */
 
 static void drain_apu(struct gba *gba)
 {
@@ -125,7 +125,7 @@ static void reset_volatile_backup(struct gba *gba)
      cart->dirty = false;
 }
 
-/* ── Detecção de resultado (endrift/gba-tests) ── */
+/* Detecção de resultado (endrift/gba-tests) */
 
 /*
  * endrift/gba-tests escreve o resultado em EWRAM 0x02000000:
@@ -143,7 +143,7 @@ static bool endrift_passed(struct gba *gba)
      return gba->ewram[4] == 0x01;
 }
 
-/* ── Detecção visual dos gba-tests-master ── */
+/* Detecção visual dos gba-tests-master */
 
 struct visual_result
 {
@@ -425,7 +425,7 @@ static struct visual_result classify_visual_result(const struct compat_ctx *ctx)
      return out;
 }
 
-/* ── PPM screenshot ── */
+/* PPM screenshot */
 
 static bool save_ppm(const char *path, const uint32_t *pixels)
 {
@@ -451,7 +451,7 @@ static bool save_ppm(const char *path, const uint32_t *pixels)
      return true;
 }
 
-/* ── Uso ── */
+/* Uso */
 
 static void usage(const char *argv0)
 {
@@ -560,14 +560,22 @@ static const char *cpu_mode_name(uint32_t cpsr)
 {
      switch (cpsr & GBA_CPSR_M)
      {
-     case GBA_MODE_USR: return "USR";
-     case GBA_MODE_FIQ: return "FIQ";
-     case GBA_MODE_IRQ: return "IRQ";
-     case GBA_MODE_SVC: return "SVC";
-     case GBA_MODE_ABT: return "ABT";
-     case GBA_MODE_UND: return "UND";
-     case GBA_MODE_SYS: return "SYS";
-     default: return "???";
+     case GBA_MODE_USR:
+          return "USR";
+     case GBA_MODE_FIQ:
+          return "FIQ";
+     case GBA_MODE_IRQ:
+          return "IRQ";
+     case GBA_MODE_SVC:
+          return "SVC";
+     case GBA_MODE_ABT:
+          return "ABT";
+     case GBA_MODE_UND:
+          return "UND";
+     case GBA_MODE_SYS:
+          return "SYS";
+     default:
+          return "???";
      }
 }
 
@@ -575,13 +583,20 @@ static const char *backup_type_name(enum gba_backup_type type)
 {
      switch (type)
      {
-     case GBA_BACKUP_NONE: return "none";
-     case GBA_BACKUP_SRAM: return "sram";
-     case GBA_BACKUP_EEPROM_512: return "eeprom512";
-     case GBA_BACKUP_EEPROM_8K: return "eeprom8k";
-     case GBA_BACKUP_FLASH_512: return "flash512";
-     case GBA_BACKUP_FLASH_1M: return "flash1m";
-     default: return "unknown";
+     case GBA_BACKUP_NONE:
+          return "none";
+     case GBA_BACKUP_SRAM:
+          return "sram";
+     case GBA_BACKUP_EEPROM_512:
+          return "eeprom512";
+     case GBA_BACKUP_EEPROM_8K:
+          return "eeprom8k";
+     case GBA_BACKUP_FLASH_512:
+          return "flash512";
+     case GBA_BACKUP_FLASH_1M:
+          return "flash1m";
+     default:
+          return "unknown";
      }
 }
 
@@ -589,12 +604,18 @@ static const char *event_kind_name(uint8_t kind)
 {
      switch (kind)
      {
-     case GBA_EVENT_BRANCH: return "branch";
-     case GBA_EVENT_SWI: return "swi";
-     case GBA_EVENT_IRQ_EDGE: return "irq_edge";
-     case GBA_EVENT_IRQ_ENTER: return "irq_enter";
-     case GBA_EVENT_DMA: return "dma";
-     default: return "empty";
+     case GBA_EVENT_BRANCH:
+          return "branch";
+     case GBA_EVENT_SWI:
+          return "swi";
+     case GBA_EVENT_IRQ_EDGE:
+          return "irq_edge";
+     case GBA_EVENT_IRQ_ENTER:
+          return "irq_enter";
+     case GBA_EVENT_DMA:
+          return "dma";
+     default:
+          return "empty";
      }
 }
 
@@ -735,7 +756,7 @@ static void dump_expanded_state(struct gba *gba, const struct compat_ctx *ctx)
      }
 }
 
-/* ── main ── */
+/* main */
 
 int main(int argc, char **argv)
 {
@@ -855,7 +876,7 @@ int main(int argc, char **argv)
           }
      }
 
-     /* ── Cria e inicializa GBA ── */
+     /* Cria e inicializa GBA */
 
      struct gba *gba = gba_create();
      if (!gba)
@@ -914,7 +935,7 @@ int main(int argc, char **argv)
           }
      }
 
-     /* ── Loop principal ── */
+     /* Loop principal */
 
      uint64_t cycles = 0;
      const char *result = NULL;
@@ -969,7 +990,7 @@ int main(int argc, char **argv)
           gba->debug.trace_fp = NULL;
      }
 
-     /* ── Gera PPM se pedido ── */
+     /* Gera PPM se pedido */
 
      if (ppm_path && !save_ppm(ppm_path, ctx->pixels) &&
          strcmp(result, "PASS") == 0)
@@ -1096,7 +1117,7 @@ int main(int argc, char **argv)
           }
      }
 
-     /* ── Cleanup ── */
+     /* Cleanup */
 
      gba_cart_unload(gba);
      destroy_frontend(ctx);

@@ -1,3 +1,10 @@
+/*
+ * gba_debug.c — Debugger support: breakpoints, instruction count, and CPU execution tracer.
+ *
+ * gba_debug_before_instr() / gba_debug_after_instr() are called every CPU step.
+ * gba_trace_step() logs disassembly to a file or stderr when tracing is enabled.
+ */
+
 #include <string.h>
 #include <stdio.h>
 #include "gba.h"
@@ -134,9 +141,9 @@ void gba_debug_toggle_breakpoint(struct gba *gba, uint32_t addr)
      gba_debug_add_breakpoint(gba, addr);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * CPU execution tracer
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_trace_step(struct gba *gba)
 {

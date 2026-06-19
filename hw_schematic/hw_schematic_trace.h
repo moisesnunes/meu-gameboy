@@ -23,20 +23,21 @@
  * Activity state — one float per net/component, 0..1
  * Allocated statically; safe to zero-init.
  * ------------------------------------------------------------------------- */
-typedef struct {
-    float    net_fade[HW_NET_COUNT];
-    float    comp_fade[HW_COMPONENT_COUNT];
+typedef struct
+{
+     float net_fade[HW_NET_COUNT];
+     float comp_fade[HW_COMPONENT_COUNT];
 
-    /* seq of the last event that touched each net/component */
-    uint64_t net_event_seq[HW_NET_COUNT];
-    uint64_t comp_event_seq[HW_COMPONENT_COUNT];
+     /* seq of the last event that touched each net/component */
+     uint64_t net_event_seq[HW_NET_COUNT];
+     uint64_t comp_event_seq[HW_COMPONENT_COUNT];
 
-    /* type of the last event (for colouring) */
-    gb_hw_trace_event_type net_last_type[HW_NET_COUNT];
-    gb_hw_trace_event_type comp_last_type[HW_COMPONENT_COUNT];
+     /* type of the last event (for colouring) */
+     gb_hw_trace_event_type net_last_type[HW_NET_COUNT];
+     gb_hw_trace_event_type comp_last_type[HW_COMPONENT_COUNT];
 
-    /* logic level inferred from the last event (0/1/-1=unknown) */
-    int8_t   net_level[HW_NET_COUNT];
+     /* logic level inferred from the last event (0/1/-1=unknown) */
+     int8_t net_level[HW_NET_COUNT];
 } HwSchematicActivityState;
 
 /* -------------------------------------------------------------------------
@@ -69,24 +70,25 @@ void hw_project_event(HwSchematicActivityState *st, const gb_hw_trace_event *ev)
  * Returns number of events projected.
  * ------------------------------------------------------------------------- */
 int hw_activity_consume_trace(HwSchematicActivityState *st,
-                               const struct gb_hw_trace *trace,
-                               uint64_t *last_seq);
+                              const struct gb_hw_trace *trace,
+                              uint64_t *last_seq);
 
-/* =========================================================================
+/*
  * Fase G — Audit mode
  *
  * hw_audit_trace() scans the ring buffer and classifies anomalies into
  * five categories.  Results are stable across calls (no allocation).
- * ========================================================================= */
+ */
 
 #define HW_AUDIT_MAX_FINDINGS 64
 
-typedef enum {
-    HW_AUDIT_UNMAPPED_NET = 0, /* net_id referenced but not in hw_net_map     */
-    HW_AUDIT_NO_BUS_PROJ,      /* event type touches no net at all            */
-    HW_AUDIT_BAD_ADDR,         /* address out of valid DMG range for this type */
-    HW_AUDIT_BUS_CONFLICT,     /* READ and WRITE at the same timestamp        */
-    HW_AUDIT_SEQ_GAP,          /* seq jumped by more than expected            */
+typedef enum
+{
+     HW_AUDIT_UNMAPPED_NET = 0, /* net_id referenced but not in hw_net_map     */
+     HW_AUDIT_NO_BUS_PROJ,      /* event type touches no net at all            */
+     HW_AUDIT_BAD_ADDR,         /* address out of valid DMG range for this type */
+     HW_AUDIT_BUS_CONFLICT,     /* READ and WRITE at the same timestamp        */
+     HW_AUDIT_SEQ_GAP,          /* seq jumped by more than expected            */
 } HwAuditCategory;
 
 static const char *const HW_AUDIT_CAT_NAMES[] = {
@@ -97,30 +99,32 @@ static const char *const HW_AUDIT_CAT_NAMES[] = {
     "SEQ_GAP",
 };
 
-typedef struct {
-    HwAuditCategory category;
-    uint64_t        seq;       /* sequence number of offending event          */
-    int32_t         timestamp; /* emulator timestamp                          */
-    gb_hw_trace_event_type type; /* event type                               */
-    uint16_t        addr;      /* address (if applicable)                     */
-    int             net_id;    /* unmapped net_id (HW_AUDIT_UNMAPPED_NET)     */
-    char            detail[48];/* human-readable detail string                */
+typedef struct
+{
+     HwAuditCategory category;
+     uint64_t seq;                /* sequence number of offending event          */
+     int32_t timestamp;           /* emulator timestamp                          */
+     gb_hw_trace_event_type type; /* event type                               */
+     uint16_t addr;               /* address (if applicable)                     */
+     int net_id;                  /* unmapped net_id (HW_AUDIT_UNMAPPED_NET)     */
+     char detail[48];             /* human-readable detail string                */
 } HwAuditFinding;
 
-typedef struct {
-    HwAuditFinding findings[HW_AUDIT_MAX_FINDINGS];
-    int            count;
-    int            total_events_scanned;
-    /* per-category counts (same order as HwAuditCategory) */
-    int            cat_count[5];
+typedef struct
+{
+     HwAuditFinding findings[HW_AUDIT_MAX_FINDINGS];
+     int count;
+     int total_events_scanned;
+     /* per-category counts (same order as HwAuditCategory) */
+     int cat_count[5];
 } HwAuditResult;
 
 /* Scan the ring buffer and populate *out.
  * Pass last_seq_audited to avoid re-auditing old events; updated on return.
  * Pass NULL for last_seq_audited to audit everything. */
 void hw_audit_trace(const struct gb_hw_trace *trace,
-                    HwAuditResult            *out,
-                    uint64_t                 *last_seq_audited);
+                    HwAuditResult *out,
+                    uint64_t *last_seq_audited);
 
 /* Clear a result struct (zero findings). */
 void hw_audit_reset(HwAuditResult *out);

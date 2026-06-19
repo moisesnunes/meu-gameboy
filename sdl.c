@@ -36,8 +36,7 @@ static const SDL_Keycode s_default_key_map[8] = {
     [GB_INPUT_START] = SDLK_RETURN,
 };
 
-/* ── Callbacks de desenho ── */
-
+/* Callbacks de desenho */
 static void gb_sdl_draw_line_dmg(struct gb *gb, unsigned ly,
                                  union gb_gpu_color line[GB_LCD_WIDTH])
 {
@@ -76,8 +75,7 @@ static void gb_sdl_draw_line_gbc(struct gb *gb, unsigned ly,
 /* flip: pixels já estão em ctx->pixels; apresentação feita pelo debug_ui */
 static void gb_sdl_flip(struct gb *gb) { (void)gb; }
 
-/* ── Input ── */
-
+/* Input */
 static void gb_sdl_handle_key(struct gb *gb, SDL_Keycode key, bool pressed)
 {
      if (key == SDLK_Q || key == SDLK_ESCAPE)
@@ -187,8 +185,7 @@ static void gb_sdl_refresh_input(struct gb *gb)
           gb_sdl_process_event(gb, &e);
 }
 
-/* ── Áudio (SDL3 AudioStream) ── */
-
+/* Áudio (SDL3 AudioStream) */
 static void SDLCALL gb_sdl_audio_callback(void *userdata,
                                           SDL_AudioStream *stream,
                                           int additional_amount,
@@ -239,8 +236,7 @@ static void SDLCALL gb_sdl_audio_callback(void *userdata,
      }
 }
 
-/* ── Destroy ── */
-
+/* Destroy */
 static void gb_sdl_destroy(struct gb *gb)
 {
      struct gb_sdl_context *ctx = gb->frontend.data;
@@ -256,8 +252,7 @@ static void gb_sdl_destroy(struct gb *gb)
      gb->frontend.data = NULL;
 }
 
-/* ── Init ── */
-
+/* Init */
 void gb_sdl_frontend_init(struct gb *gb)
 {
      struct gb_sdl_context *ctx = malloc(sizeof(*ctx));
@@ -327,8 +322,7 @@ void gb_sdl_reset_audio_buffer(struct gb *gb)
      ctx->audio_buffer_offset = 0;
 }
 
-/* ── Getters para o debug_ui ── */
-
+/* Getters para o debug_ui */
 SDL_Window *gb_sdl_get_window(struct gb *gb)
 {
      return ((struct gb_sdl_context *)gb->frontend.data)->window;

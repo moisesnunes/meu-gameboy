@@ -29,8 +29,8 @@ struct gba_debug
 
      /* CPU execution tracer */
      bool trace_enabled;
-     uint64_t trace_limit;   /* stop tracing after this many instructions (0 = unlimited) */
-     FILE *trace_fp;         /* output file (NULL = stderr) */
+     uint64_t trace_limit; /* stop tracing after this many instructions (0 = unlimited) */
+     FILE *trace_fp;       /* output file (NULL = stderr) */
 };
 
 void gba_debug_reset(struct gba *gba);

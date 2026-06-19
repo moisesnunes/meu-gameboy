@@ -140,22 +140,22 @@ struct gb_gpu
      bool stat_mode0_early_fired;
 
      /* ── Estado da transferência de pixels (Pixel FIFO) para a scanline atual ── */
-     bool line_started;    /* true após iniciar a transferência da linha atual */
-     bool line_complete;   /* true após os 160 pixels serem emitidos */
-     bool line_sent;       /* true após enviar a linha ao frontend via draw_line_* */
-     bool window_active;   /* true enquanto o fetcher está buscando tiles da window */
-     bool window_rendered; /* true se a window foi renderizada em algum pixel desta linha */
-     uint8_t screen_x;     /* Próxima coluna a ser escrita (0–159) */
-     uint8_t fifo_discard; /* Pixels a descartar no início da linha por causa do SCX & 7 */
-     uint8_t fifo_len;     /* Quantidade de pixels atualmente no FIFO */
-     uint8_t sprite_stall; /* T-cycles restantes de penalidade por fetch de sprite */
+     bool line_started;      /* true após iniciar a transferência da linha atual */
+     bool line_complete;     /* true após os 160 pixels serem emitidos */
+     bool line_sent;         /* true após enviar a linha ao frontend via draw_line_* */
+     bool window_active;     /* true enquanto o fetcher está buscando tiles da window */
+     bool window_rendered;   /* true se a window foi renderizada em algum pixel desta linha */
+     uint8_t screen_x;       /* Próxima coluna a ser escrita (0–159) */
+     uint8_t fifo_discard;   /* Pixels a descartar no início da linha por causa do SCX & 7 */
+     uint8_t fifo_len;       /* Quantidade de pixels atualmente no FIFO */
+     uint8_t sprite_stall;   /* T-cycles restantes de penalidade por fetch de sprite */
      uint16_t mode3_min_end; /* Posição mínima dentro da scanline para sair do Modo 3 */
 
-     union gb_gpu_color line[GB_LCD_WIDTH];          /* Buffer da scanline atual */
-     struct gb_gpu_pixel fifo[GB_GPU_FIFO_CAPACITY]; /* FIFO de pixels BG/window */
-     struct gb_gpu_fetcher fetcher;                  /* Estado do tile fetcher */
+     union gb_gpu_color line[GB_LCD_WIDTH];                  /* Buffer da scanline atual */
+     struct gb_gpu_pixel fifo[GB_GPU_FIFO_CAPACITY];         /* FIFO de pixels BG/window */
+     struct gb_gpu_fetcher fetcher;                          /* Estado do tile fetcher */
      struct gb_sprite line_sprites[GB_GPU_LINE_SPRITES + 1]; /* Sprites da scanline (+1 sentinela) */
-     bool line_sprite_stalled[GB_GPU_LINE_SPRITES];  /* Marca sprites já processados pelo stall */
+     bool line_sprite_stalled[GB_GPU_LINE_SPRITES];          /* Marca sprites já processados pelo stall */
 
      /* OAM — Object Attribute Memory: configuração dos 40 sprites (4 bytes cada) */
      uint8_t oam[GB_GPU_MAX_SPRITES * 4];

@@ -1,3 +1,11 @@
+/*
+ * gba_cpu.c — ARM7TDMI core: mode switching, exception entry, BIOS HLE, main step loop.
+ *
+ * Instruction execution is split across gba_cpu_arm.c (ARM) and gba_cpu_thumb.c (Thumb).
+ * This file contains shared logic: banked register save/restore, IRQ injection,
+ * BIOS SWI emulation, and the top-level gba_cpu_step() dispatch.
+ */
+
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -44,9 +52,9 @@ static int gba_bios_irq_entry_cycles(uint32_t intr_pc)
      return 8;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Mode switching / banked register save/restore
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_cpu_switch_mode(struct gba *gba, enum gba_cpu_mode new_mode)
 {
@@ -194,9 +202,9 @@ void gba_cpu_set_spsr(struct gba *gba, uint32_t val)
      gba->cpu.spsr = val;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Exception entry
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_cpu_exception(struct gba *gba, uint32_t vector, enum gba_cpu_mode mode)
 {
@@ -274,8 +282,8 @@ void gba_cpu_trigger_irq(struct gba *gba)
 
           /* Step 1: Enter IRQ mode */
           gba_cpu_switch_mode(gba, GBA_MODE_IRQ);
-          cpu->spsr = saved_cpsr;   /* SPSR_irq */
-          cpu->r[14] = hle_lr;      /* LR_irq for no-BIOS HLE return marker */
+          cpu->spsr = saved_cpsr; /* SPSR_irq */
+          cpu->r[14] = hle_lr;    /* LR_irq for no-BIOS HLE return marker */
           cpu->cpsr = (cpu->cpsr & ~(GBA_CPSR_T | GBA_CPSR_M)) |
                       (uint32_t)GBA_MODE_IRQ | GBA_CPSR_I;
 
@@ -304,9 +312,9 @@ void gba_cpu_trigger_irq(struct gba *gba)
      gba->timestamp += gba_bios_irq_entry_cycles(intr_pc);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * BIOS HLE sine table (used by BgAffineSet / ObjAffineSet)
- * ---------------------------------------------------------------------- */
+ */
 static const int16_t bios_sine_table[256] = {
     (int16_t)0x0000, (int16_t)0x0192, (int16_t)0x0323, (int16_t)0x04B5,
     (int16_t)0x0645, (int16_t)0x07D5, (int16_t)0x0964, (int16_t)0x0AF1,
@@ -373,9 +381,9 @@ static const int16_t bios_sine_table[256] = {
     (int16_t)0xF384, (int16_t)0xF50F, (int16_t)0xF69C, (int16_t)0xF82B,
     (int16_t)0xF9BB, (int16_t)0xFB4B, (int16_t)0xFCDD, (int16_t)0xFE6E};
 
-/* -------------------------------------------------------------------------
+/*
  * BIOS HLE helper: ArcTan (used internally by ArcTan2)
- * ---------------------------------------------------------------------- */
+ */
 static void bios_arctan(struct gba_cpu *cpu)
 {
      int32_t i = (int32_t)cpu->r[0];
@@ -392,9 +400,9 @@ static void bios_arctan(struct gba_cpu *cpu)
      cpu->r[3] = (uint32_t)b;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * BIOS HLE — SWI dispatcher
- * ---------------------------------------------------------------------- */
+ */
 bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
 {
      struct gba_cpu *cpu = &gba->cpu;
@@ -407,7 +415,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
      switch (num)
      {
 
-     /* ---- 0x00 SoftReset ---- */
+     /* 0x00 SoftReset */
      case 0x00:
      {
           /* Reset stacks / registers and jump to ROM or EWRAM depending on flag */
@@ -428,7 +436,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x01 RegisterRamReset ---- */
+     /* 0x01 RegisterRamReset */
      case 0x01:
      {
           uint32_t flags = cpu->r[0];
@@ -486,19 +494,19 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x02 Halt ---- */
+     /* 0x02 Halt */
      case 0x02:
           cpu->halted = true;
           gba->halt_mode = 1;
           return true;
 
-     /* ---- 0x03 Stop ---- */
+     /* 0x03 Stop */
      case 0x03:
           cpu->halted = true;
           gba->halt_mode = 2;
           return true;
 
-     /* ---- 0x04 IntrWait ---- */
+     /* 0x04 IntrWait */
      case 0x04:
      {
           uint32_t discard = cpu->r[0];
@@ -512,7 +520,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x05 VBlankIntrWait ---- */
+     /* 0x05 VBlankIntrWait */
      case 0x05:
           cpu->r[0] = 1;
           cpu->r[1] = 1; /* VBLANK flag */
@@ -523,7 +531,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           gba->halt_mode = 1;
           return true;
 
-     /* ---- 0x06 Div ---- */
+     /* 0x06 Div */
      case 0x06:
      {
           int32_t numer = (int32_t)cpu->r[0];
@@ -545,7 +553,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x07 DivARM (swapped args) ---- */
+     /* 0x07 DivARM (swapped args) */
      case 0x07:
      {
           uint32_t tmp = cpu->r[0];
@@ -571,7 +579,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x08 Sqrt ---- */
+     /* 0x08 Sqrt */
      case 0x08:
      {
           uint32_t n = cpu->r[0];
@@ -597,12 +605,12 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x09 ArcTan ---- */
+     /* 0x09 ArcTan */
      case 0x09:
           bios_arctan(cpu);
           return true;
 
-     /* ---- 0x0A ArcTan2 ---- */
+     /* 0x0A ArcTan2 */
      case 0x0A:
      {
           int32_t x = (int32_t)cpu->r[0];
@@ -652,7 +660,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x0B CpuSet ---- */
+     /* 0x0B CpuSet */
      case 0x0B:
      {
           uint32_t src = cpu->r[0];
@@ -667,7 +675,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           {
                if (gba->irq.ie & gba->irq.if_)
                     gba->halt_resume_cycles =
-                         ((cpu->r[15] >> 24) == 0x03) ? 107 : 179;
+                        ((cpu->r[15] >> 24) == 0x03) ? 107 : 179;
                else
                     gba->halt_resume_cycles = 50;
           }
@@ -703,7 +711,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x0C CpuFastSet ---- */
+     /* 0x0C CpuFastSet */
      case 0x0C:
      {
           uint32_t src = cpu->r[0] & ~3u;
@@ -727,12 +735,12 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x0D GetBiosChecksum ---- */
+     /* 0x0D GetBiosChecksum */
      case 0x0D:
           cpu->r[0] = 0xBAAE187F;
           return true;
 
-     /* ---- 0x0E BgAffineSet ---- */
+     /* 0x0E BgAffineSet */
      case 0x0E:
      {
           uint32_t src = cpu->r[0];
@@ -778,7 +786,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x0F ObjAffineSet ---- */
+     /* 0x0F ObjAffineSet */
      case 0x0F:
      {
           uint32_t src = cpu->r[0];
@@ -807,7 +815,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x10 BitUnPack ---- */
+     /* 0x10 BitUnPack */
      case 0x10:
      {
           uint32_t src = cpu->r[0];
@@ -850,7 +858,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x11 LZ77UnCompWram ---- */
+     /* 0x11 LZ77UnCompWram */
      case 0x11:
      {
           uint32_t src = cpu->r[0];
@@ -886,7 +894,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x12 LZ77UnCompVram (halfword writes) ---- */
+     /* 0x12 LZ77UnCompVram (halfword writes) */
      case 0x12:
      {
           uint32_t src = cpu->r[0];
@@ -946,7 +954,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x13 HuffUnComp ---- */
+     /* 0x13 HuffUnComp */
      case 0x13:
      {
           uint32_t src = cpu->r[0];
@@ -1075,7 +1083,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x14 RLUnCompWram ---- */
+     /* 0x14 RLUnCompWram */
      case 0x14:
      {
           uint32_t src = cpu->r[0];
@@ -1104,7 +1112,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x15 RLUnCompVram (halfword writes) ---- */
+     /* 0x15 RLUnCompVram (halfword writes) */
      case 0x15:
      {
           uint32_t src = cpu->r[0];
@@ -1147,7 +1155,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x16 Diff8bitUnFilterWram ---- */
+     /* 0x16 Diff8bitUnFilterWram */
      case 0x16:
      {
           uint32_t src = cpu->r[0];
@@ -1166,7 +1174,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x17 Diff8bitUnFilterVram (halfword writes) ---- */
+     /* 0x17 Diff8bitUnFilterVram (halfword writes) */
      case 0x17:
      {
           uint32_t src = cpu->r[0];
@@ -1196,7 +1204,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x18 Diff16bitUnFilter ---- */
+     /* 0x18 Diff16bitUnFilter */
      case 0x18:
      {
           uint32_t src = cpu->r[0];
@@ -1220,7 +1228,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x19 SoundBias ---- */
+     /* 0x19 SoundBias */
      case 0x19:
      {
           /* Set SOUNDBIAS to r0 value (bias level in bits 1-9) */
@@ -1229,7 +1237,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- 0x1F MidiKey2Freq ---- */
+     /* 0x1F MidiKey2Freq */
      case 0x1F:
      {
           uint32_t wavedata = cpu->r[0];
@@ -1242,7 +1250,7 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
           return true;
      }
 
-     /* ---- Sound driver stubs (SWI 0x28-0x2D) ---- */
+     /* Sound driver stubs (SWI 0x28-0x2D) */
      case 0x28: /* SndDriverInit */
      case 0x29: /* SndDriverMode */
      case 0x2A: /* SndDriverMain */
@@ -1258,9 +1266,9 @@ bool gba_cpu_handle_swi(struct gba *gba, uint32_t comment)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Reset
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_cpu_reset(struct gba *gba)
 {
@@ -1283,9 +1291,9 @@ void gba_cpu_reset(struct gba *gba)
      cpu->halted = false;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Main step loop
- * ---------------------------------------------------------------------- */
+ */
 
 int gba_cpu_step(struct gba *gba)
 {

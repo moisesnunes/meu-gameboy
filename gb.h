@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <semaphore.h>
+#include "compat.h"
 
 struct gb;
 

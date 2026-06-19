@@ -80,10 +80,10 @@ void debug_ui_config_defaults(debug_ui_config *cfg)
      cfg->show_profiler = false;
      cfg->show_call_stack = false;
      cfg->show_status_bar = true;
-     cfg->show_hw_viz          = false;
-     cfg->show_cpu_viz         = false;
-     cfg->show_transistor_viz  = false;
-     cfg->show_hw_schematic    = false;
+     cfg->show_hw_viz = false;
+     cfg->show_cpu_viz = false;
+     cfg->show_transistor_viz = false;
+     cfg->show_hw_schematic = false;
 
      cfg->vsync = true;
      cfg->bilinear = false;

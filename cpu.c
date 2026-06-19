@@ -101,38 +101,86 @@ void gb_cpu_reset(struct gb *gb)
           {
           case GB_HW_DMG0:
                /* DMG revision 0: F=0x00 (no flags set), B=0xFF */
-               cpu->a = 0x01; cpu->b = 0xff; cpu->c = 0x13;
-               cpu->d = 0x00; cpu->e = 0xc1; cpu->h = 0x84; cpu->l = 0x03;
-               cpu->f_z = false; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
+               cpu->a = 0x01;
+               cpu->b = 0xff;
+               cpu->c = 0x13;
+               cpu->d = 0x00;
+               cpu->e = 0xc1;
+               cpu->h = 0x84;
+               cpu->l = 0x03;
+               cpu->f_z = false;
+               cpu->f_n = false;
+               cpu->f_h = false;
+               cpu->f_c = false;
                break;
           case GB_HW_MGB:
                /* Game Boy Pocket: A=0xFF F=0xB0 */
-               cpu->a = 0xff; cpu->b = 0x00; cpu->c = 0x13;
-               cpu->d = 0x00; cpu->e = 0xd8; cpu->h = 0x01; cpu->l = 0x4d;
-               cpu->f_z = true; cpu->f_n = false; cpu->f_h = true; cpu->f_c = true;
+               cpu->a = 0xff;
+               cpu->b = 0x00;
+               cpu->c = 0x13;
+               cpu->d = 0x00;
+               cpu->e = 0xd8;
+               cpu->h = 0x01;
+               cpu->l = 0x4d;
+               cpu->f_z = true;
+               cpu->f_n = false;
+               cpu->f_h = true;
+               cpu->f_c = true;
                break;
           case GB_HW_SGB:
                /* Super Game Boy: C=0x14, no flags */
-               cpu->a = 0x01; cpu->b = 0x00; cpu->c = 0x14;
-               cpu->d = 0x00; cpu->e = 0x00; cpu->h = 0xc0; cpu->l = 0x60;
-               cpu->f_z = false; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
+               cpu->a = 0x01;
+               cpu->b = 0x00;
+               cpu->c = 0x14;
+               cpu->d = 0x00;
+               cpu->e = 0x00;
+               cpu->h = 0xc0;
+               cpu->l = 0x60;
+               cpu->f_z = false;
+               cpu->f_n = false;
+               cpu->f_h = false;
+               cpu->f_c = false;
                break;
           case GB_HW_SGB2:
                /* Super Game Boy 2: A=0xFF C=0x14, no flags */
-               cpu->a = 0xff; cpu->b = 0x00; cpu->c = 0x14;
-               cpu->d = 0x00; cpu->e = 0x00; cpu->h = 0xc0; cpu->l = 0x60;
-               cpu->f_z = false; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
+               cpu->a = 0xff;
+               cpu->b = 0x00;
+               cpu->c = 0x14;
+               cpu->d = 0x00;
+               cpu->e = 0x00;
+               cpu->h = 0xc0;
+               cpu->l = 0x60;
+               cpu->f_z = false;
+               cpu->f_n = false;
+               cpu->f_h = false;
+               cpu->f_c = false;
                break;
           case GB_HW_CGB0:
           case GB_HW_CGB:
-               cpu->a = 0x11; cpu->b = 0x00; cpu->c = 0x00;
-               cpu->d = 0x00; cpu->e = 0x08; cpu->h = 0x00; cpu->l = 0x7c;
-               cpu->f_z = true; cpu->f_n = false; cpu->f_h = false; cpu->f_c = false;
+               cpu->a = 0x11;
+               cpu->b = 0x00;
+               cpu->c = 0x00;
+               cpu->d = 0x00;
+               cpu->e = 0x08;
+               cpu->h = 0x00;
+               cpu->l = 0x7c;
+               cpu->f_z = true;
+               cpu->f_n = false;
+               cpu->f_h = false;
+               cpu->f_c = false;
                break;
           default: /* GB_HW_DMG */
-               cpu->a = 0x01; cpu->b = 0x00; cpu->c = 0x13;
-               cpu->d = 0x00; cpu->e = 0xd8; cpu->h = 0x01; cpu->l = 0x4d;
-               cpu->f_z = true; cpu->f_n = false; cpu->f_h = true; cpu->f_c = true;
+               cpu->a = 0x01;
+               cpu->b = 0x00;
+               cpu->c = 0x13;
+               cpu->d = 0x00;
+               cpu->e = 0xd8;
+               cpu->h = 0x01;
+               cpu->l = 0x4d;
+               cpu->f_z = true;
+               cpu->f_n = false;
+               cpu->f_h = true;
+               cpu->f_c = true;
                break;
           }
           cpu->pc = 0x0100;
@@ -161,9 +209,9 @@ static uint8_t gb_cpu_readb(struct gb *gb, uint16_t addr)
 {
      uint8_t b = gb_memory_readb(gb, addr);
 
-     gb->debug.cpu_viz.addr_bus      = addr;
-     gb->debug.cpu_viz.data_bus      = b;
-     gb->debug.cpu_viz.bus_write     = false;
+     gb->debug.cpu_viz.addr_bus = addr;
+     gb->debug.cpu_viz.data_bus = b;
+     gb->debug.cpu_viz.bus_write = false;
      gb->debug.cpu_viz.activity_fade = 1.0f;
      gb_debug_hw_trace_cpu_read(gb, addr, b);
 
@@ -181,9 +229,9 @@ static void gb_cpu_writeb(struct gb *gb, uint16_t addr, uint8_t val)
 {
      gb_memory_writeb(gb, addr, val);
 
-     gb->debug.cpu_viz.addr_bus      = addr;
-     gb->debug.cpu_viz.data_bus      = val;
-     gb->debug.cpu_viz.bus_write     = true;
+     gb->debug.cpu_viz.addr_bus = addr;
+     gb->debug.cpu_viz.data_bus = val;
+     gb->debug.cpu_viz.bus_write = true;
      gb->debug.cpu_viz.activity_fade = 1.0f;
 
      gb_debug_hw_trace_cpu_write(gb, addr, val);
@@ -492,7 +540,7 @@ static void gb_i_undefined(struct gb *gb)
      fprintf(stderr, "  %04X  *** 0x%02x (undefined) ***\n", instruction_pc, instruction);
      fprintf(stderr, "  PC=%04X SP=%04X AF=%02X%02X BC=%02X%02X DE=%02X%02X HL=%02X%02X\n",
              cpu->pc, cpu->sp,
-             cpu->a, (cpu->f_z<<7)|(cpu->f_n<<6)|(cpu->f_h<<5)|(cpu->f_c<<4),
+             cpu->a, (cpu->f_z << 7) | (cpu->f_n << 6) | (cpu->f_h << 5) | (cpu->f_c << 4),
              cpu->b, cpu->c, cpu->d, cpu->e, cpu->h, cpu->l);
      die();
 }

@@ -36,19 +36,19 @@ struct gb_state_cart
 {
      unsigned rom_length;
      unsigned rom_banks;
-     unsigned cur_rom_bank;      /* banco de ROM selecionado atualmente */
+     unsigned cur_rom_bank; /* banco de ROM selecionado atualmente */
      unsigned ram_length;
      unsigned ram_banks;
-     unsigned cur_ram_bank;      /* banco de RAM selecionado atualmente */
-     bool ram_write_protected;   /* RAM desabilitada para escrita pelo MBC */
-     enum gb_cart_model model;   /* tipo de MBC (MBC1, MBC3, MBC5, etc.) */
-     bool mbc1_bank_ram;         /* MBC1: modo de banking (ROM ou RAM) */
-     bool dirty_ram;             /* RAM foi escrita desde o último save de SRAM */
+     unsigned cur_ram_bank;    /* banco de RAM selecionado atualmente */
+     bool ram_write_protected; /* RAM desabilitada para escrita pelo MBC */
+     enum gb_cart_model model; /* tipo de MBC (MBC1, MBC3, MBC5, etc.) */
+     bool mbc1_bank_ram;       /* MBC1: modo de banking (ROM ou RAM) */
+     bool dirty_ram;           /* RAM foi escrita desde o último save de SRAM */
      bool has_rtc;
      bool has_rumble;
      bool has_eeprom;
-     struct gb_rtc rtc;          /* estado completo do RTC (base, halt, latched) */
-     struct gb_mbc7 mbc7;        /* estado do acelerômetro/EEPROM do MBC7 */
+     struct gb_rtc rtc;   /* estado completo do RTC (base, halt, latched) */
+     struct gb_mbc7 mbc7; /* estado do acelerômetro/EEPROM do MBC7 */
 };
 
 /*

@@ -16,15 +16,20 @@ A Game Boy, Game Boy Color, and Game Boy Advance emulator written in C.
 
 ## Dependencies
 
-- GCC or Clang
+- GCC or Clang (or MinGW-w64 on Windows)
 - [SDL3](https://github.com/libsdl-org/SDL/releases)
 - OpenGL (for the debug UI)
 - `pkg-config`
 
-On Ubuntu/Debian:
+**Linux (Ubuntu/Debian):**
 ```sh
 apt install build-essential pkg-config libgl-dev
 # SDL3 must be built from source: https://github.com/libsdl-org/SDL
+```
+
+**Windows (MSYS2 MinGW64):**
+```sh
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL3 mingw-w64-x86_64-pkg-config
 ```
 
 ## Build
@@ -43,6 +48,14 @@ make meu-gba
 # Minimal Game Boy (no UI, SDL only)
 make gameboy-simple
 make gameboy-vector
+```
+
+**Windows:** the Makefile detects MinGW automatically (`OS=Windows_NT` or a `mingw`/`w64` compiler prefix). Targets produce `.exe` files and link against `-lopengl32` instead of `-lGL`.
+
+```sh
+# In an MSYS2 MinGW64 terminal
+make gameboy.exe
+make meu-gba.exe
 ```
 
 ## Make targets

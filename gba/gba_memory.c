@@ -1,3 +1,10 @@
+/*
+ * gba_memory.c — GBA memory bus: read/write/fetch for all regions.
+ *
+ * Handles BIOS protection, open-bus, wait-state accounting (WAITCNT),
+ * I/O register dispatch, DMA/IRQ/timer writes, and the ROM prefetch buffer.
+ */
+
 #include <string.h>
 #include "gba.h"
 
@@ -9,6 +16,8 @@ void gba_memory_reset(struct gba *gba)
      memset(gba->vram, 0, sizeof(gba->vram));
      memset(gba->oam, 0, sizeof(gba->oam));
 }
+
+static uint16_t dma_ctrl_read16(struct gba *gba, int n);
 
 static bool timer0_irq_edge_accepted(struct gba *gba, uint16_t ie)
 {
@@ -40,9 +49,9 @@ static bool irq_note_ie_write(struct gba *gba, uint16_t new_ie)
      return false;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * I/O register reads
- * ---------------------------------------------------------------------- */
+ */
 
 static uint8_t io_read8(struct gba *gba, uint32_t addr)
 {
@@ -96,6 +105,22 @@ static uint8_t io_read8(struct gba *gba, uint32_t addr)
                            (gba->timer.ch[3].cascade << 2) |
                            (gba->timer.ch[3].irq_en << 6) |
                            (gba->timer.ch[3].enable << 7));
+     case REG_DMA0CNT_H:
+          return dma_ctrl_read16(gba, 0) & 0xFF;
+     case REG_DMA0CNT_H + 1:
+          return dma_ctrl_read16(gba, 0) >> 8;
+     case REG_DMA1CNT_H:
+          return dma_ctrl_read16(gba, 1) & 0xFF;
+     case REG_DMA1CNT_H + 1:
+          return dma_ctrl_read16(gba, 1) >> 8;
+     case REG_DMA2CNT_H:
+          return dma_ctrl_read16(gba, 2) & 0xFF;
+     case REG_DMA2CNT_H + 1:
+          return dma_ctrl_read16(gba, 2) >> 8;
+     case REG_DMA3CNT_H:
+          return dma_ctrl_read16(gba, 3) & 0xFF;
+     case REG_DMA3CNT_H + 1:
+          return dma_ctrl_read16(gba, 3) >> 8;
 
      /* Input */
      case REG_KEYINPUT:
@@ -211,9 +236,13 @@ static uint16_t io_read16(struct gba *gba, uint32_t addr)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * I/O register writes
- * ---------------------------------------------------------------------- */
+ */
+
+static void dma_write_src8(struct gba *gba, int n, uint32_t addr, uint8_t val);
+static void dma_write_dst8(struct gba *gba, int n, uint32_t addr, uint8_t val);
+static void dma_write_count8(struct gba *gba, int n, uint32_t addr, uint8_t val);
 
 static void io_write8(struct gba *gba, uint32_t addr, uint8_t val)
 {
@@ -264,7 +293,47 @@ static void io_write8(struct gba *gba, uint32_t addr, uint8_t val)
           gba_timer_write_ctrl(gba, 3, val);
           break;
 
-     /* DMA — handled via 32-bit writes but stub 8-bit too */
+     /* DMA */
+     case REG_DMA0SAD ... REG_DMA0SAD + 3:
+          dma_write_src8(gba, 0, addr, val);
+          break;
+     case REG_DMA1SAD ... REG_DMA1SAD + 3:
+          dma_write_src8(gba, 1, addr, val);
+          break;
+     case REG_DMA2SAD ... REG_DMA2SAD + 3:
+          dma_write_src8(gba, 2, addr, val);
+          break;
+     case REG_DMA3SAD ... REG_DMA3SAD + 3:
+          dma_write_src8(gba, 3, addr, val);
+          break;
+     case REG_DMA0DAD ... REG_DMA0DAD + 3:
+          dma_write_dst8(gba, 0, addr, val);
+          break;
+     case REG_DMA1DAD ... REG_DMA1DAD + 3:
+          dma_write_dst8(gba, 1, addr, val);
+          break;
+     case REG_DMA2DAD ... REG_DMA2DAD + 3:
+          dma_write_dst8(gba, 2, addr, val);
+          break;
+     case REG_DMA3DAD ... REG_DMA3DAD + 3:
+          dma_write_dst8(gba, 3, addr, val);
+          break;
+     case REG_DMA0CNT_L:
+     case REG_DMA0CNT_L + 1:
+          dma_write_count8(gba, 0, addr, val);
+          break;
+     case REG_DMA1CNT_L:
+     case REG_DMA1CNT_L + 1:
+          dma_write_count8(gba, 1, addr, val);
+          break;
+     case REG_DMA2CNT_L:
+     case REG_DMA2CNT_L + 1:
+          dma_write_count8(gba, 2, addr, val);
+          break;
+     case REG_DMA3CNT_L:
+     case REG_DMA3CNT_L + 1:
+          dma_write_count8(gba, 3, addr, val);
+          break;
      case REG_DMA0CNT_H:
      case REG_DMA0CNT_H + 1:
      case REG_DMA1CNT_H:
@@ -368,6 +437,32 @@ static void dma_write_dst16(struct gba *gba, int n, uint32_t addr, uint16_t val)
      else
           cur = (cur & 0xFFFF0000U) | val;
      gba_dma_write_dst(gba, n, cur);
+}
+
+static void dma_write_src8(struct gba *gba, int n, uint32_t addr, uint8_t val)
+{
+     uint32_t cur = gba->dma.ch[n].src_latch;
+     unsigned shift = (addr & 3U) * 8U;
+     cur = (cur & ~(0xFFU << shift)) | ((uint32_t)val << shift);
+     gba_dma_write_src(gba, n, cur);
+}
+
+static void dma_write_dst8(struct gba *gba, int n, uint32_t addr, uint8_t val)
+{
+     uint32_t cur = gba->dma.ch[n].dst_latch;
+     unsigned shift = (addr & 3U) * 8U;
+     cur = (cur & ~(0xFFU << shift)) | ((uint32_t)val << shift);
+     gba_dma_write_dst(gba, n, cur);
+}
+
+static void dma_write_count8(struct gba *gba, int n, uint32_t addr, uint8_t val)
+{
+     uint16_t cur = gba->dma.ch[n].count_latch;
+     if (addr & 1U)
+          cur = (uint16_t)((cur & 0x00FFU) | ((uint16_t)val << 8));
+     else
+          cur = (uint16_t)((cur & 0xFF00U) | val);
+     gba_dma_write_count(gba, n, cur);
 }
 
 static void io_write16(struct gba *gba, uint32_t addr, uint16_t val)
@@ -518,12 +613,12 @@ static void io_write16(struct gba *gba, uint32_t addr, uint16_t val)
      }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * WAITCNT wait-state helper
  *
  * Returns extra cycles (on top of the 1 base cycle) for ROM/SRAM accesses.
  * sequential: true when fetching consecutive halfwords (pipeline fetch).
- * ---------------------------------------------------------------------- */
+ */
 
 static const int waitcnt_sram_table[4] = {4, 3, 2, 8};
 static const int waitcnt_ws_first[4] = {4, 3, 2, 8};
@@ -557,6 +652,9 @@ static int memory_wait_cycles(struct gba *gba, uint32_t addr, bool sequential)
      }
 }
 
+/* Map a VRAM address to its physical offset, handling the 96KB→128KB mirror.
+ * Addresses in 0x6000000–0x6017FFF mirror based on BG mode:
+ * modes 3-5 reserve 0x10000–0x17FFF for BMP frame buffer (not remapped). */
 static bool vram_map_addr(struct gba *gba, uint32_t addr, uint32_t *mapped)
 {
      uint32_t off = addr & 0x1FFFFU;
@@ -572,9 +670,9 @@ static bool vram_map_addr(struct gba *gba, uint32_t addr, uint32_t *mapped)
      return true;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Public read interface
- * ---------------------------------------------------------------------- */
+ */
 
 uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
 {
@@ -753,8 +851,124 @@ uint32_t gba_memory_fetch32(struct gba *gba, uint32_t addr, bool sequential)
 
 uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr)
 {
-     /* Simplified: same as read8 but bypasses some protections */
-     return gba_memory_read8(gba, addr);
+     switch (addr >> 24)
+     {
+     case 0x00:
+          if (addr < GBA_BIOS_SIZE && gba->bios)
+               return gba->bios[addr];
+          return (uint8_t)(gba->bios_open_bus >> ((addr & 3U) * 8));
+     case 0x02:
+          return gba->ewram[addr & (GBA_EWRAM_SIZE - 1)];
+     case 0x03:
+          return gba->iwram[addr & (GBA_IWRAM_SIZE - 1)];
+     case 0x04:
+          if (addr < GBA_IO_BASE + GBA_IO_SIZE)
+          {
+               uint32_t aligned = addr & ~1U;
+               uint16_t v = 0;
+               switch (aligned)
+               {
+               case REG_DISPCNT ... REG_BLDY:
+                    v = gba_gpu_read16(gba, aligned);
+                    break;
+               case REG_TM0CNT_L:
+                    v = gba->timer.ch[0].counter;
+                    break;
+               case REG_TM1CNT_L:
+                    v = gba->timer.ch[1].counter;
+                    break;
+               case REG_TM2CNT_L:
+                    v = gba->timer.ch[2].counter;
+                    break;
+               case REG_TM3CNT_L:
+                    v = gba->timer.ch[3].counter;
+                    break;
+               case REG_TM0CNT_H:
+                    v = (uint16_t)(gba->timer.ch[0].prescaler |
+                                   (gba->timer.ch[0].irq_en << 6) |
+                                   (gba->timer.ch[0].enable << 7));
+                    break;
+               case REG_TM1CNT_H:
+                    v = (uint16_t)(gba->timer.ch[1].prescaler |
+                                   (gba->timer.ch[1].cascade << 2) |
+                                   (gba->timer.ch[1].irq_en << 6) |
+                                   (gba->timer.ch[1].enable << 7));
+                    break;
+               case REG_TM2CNT_H:
+                    v = (uint16_t)(gba->timer.ch[2].prescaler |
+                                   (gba->timer.ch[2].cascade << 2) |
+                                   (gba->timer.ch[2].irq_en << 6) |
+                                   (gba->timer.ch[2].enable << 7));
+                    break;
+               case REG_TM3CNT_H:
+                    v = (uint16_t)(gba->timer.ch[3].prescaler |
+                                   (gba->timer.ch[3].cascade << 2) |
+                                   (gba->timer.ch[3].irq_en << 6) |
+                                   (gba->timer.ch[3].enable << 7));
+                    break;
+               case REG_DMA0CNT_H:
+                    v = dma_ctrl_read16(gba, 0);
+                    break;
+               case REG_DMA1CNT_H:
+                    v = dma_ctrl_read16(gba, 1);
+                    break;
+               case REG_DMA2CNT_H:
+                    v = dma_ctrl_read16(gba, 2);
+                    break;
+               case REG_DMA3CNT_H:
+                    v = dma_ctrl_read16(gba, 3);
+                    break;
+               case REG_KEYINPUT:
+                    v = gba->input.keyinput;
+                    break;
+               case REG_KEYCNT:
+                    v = gba->input.keycnt;
+                    break;
+               case REG_IE:
+                    v = gba->irq.ie;
+                    break;
+               case REG_IF:
+                    v = gba->irq.if_;
+                    break;
+               case REG_WAITCNT:
+                    v = gba->waitcnt;
+                    break;
+               case REG_IME:
+                    v = gba->irq.ime ? 1 : 0;
+                    break;
+               case REG_POSTFLG:
+                    v = gba->postflg;
+                    break;
+               default:
+                    v = 0;
+                    break;
+               }
+               return (uint8_t)(v >> ((addr & 1U) * 8));
+          }
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8));
+     case 0x05:
+          return gba->pram[addr & (GBA_PAL_SIZE - 1)];
+     case 0x06:
+     {
+          uint32_t off;
+          if (!vram_map_addr(gba, addr, &off))
+               return 0;
+          return gba->vram[off];
+     }
+     case 0x07:
+          return gba->oam[addr & (GBA_OAM_SIZE - 1)];
+     case 0x08:
+     case 0x09:
+     case 0x0A:
+     case 0x0B:
+     case 0x0C:
+     case 0x0D:
+     case 0x0E:
+     case 0x0F:
+          return gba_cart_read8(gba, addr);
+     default:
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8));
+     }
 }
 
 uint16_t gba_memory_peek16(struct gba *gba, uint32_t addr)
@@ -771,9 +985,9 @@ uint32_t gba_memory_peek32(struct gba *gba, uint32_t addr)
                        ((uint32_t)gba_memory_peek16(gba, addr + 2) << 16));
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Public write interface
- * ---------------------------------------------------------------------- */
+ */
 
 void gba_memory_write8(struct gba *gba, uint32_t addr, uint8_t val)
 {

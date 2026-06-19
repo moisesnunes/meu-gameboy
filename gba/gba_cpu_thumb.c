@@ -1,18 +1,30 @@
+/*
+ * gba_cpu_thumb.c — Thumb instruction set execution for the ARM7TDMI core.
+ *
+ * All 16-bit Thumb opcodes: shifted moves, ALU, hi-register ops, PC-relative load,
+ * load/store (register/immediate/halfword/byte/SP-relative), stack push/pop,
+ * block load/store, conditional/unconditional branch, BL (long branch with link), SWI.
+ * Called from gba_cpu_step() when CPSR_T is set.
+ */
+
 #include <string.h>
 #include "gba.h"
 
 /* Signed multiply latency — matches ARM side (see gba_cpu_arm.c) */
 static int mul_cycles_signed(uint32_t rs)
 {
-     if ((rs & 0xFFFFFF00u) == 0xFFFFFF00u || !(rs & 0xFFFFFF00u)) return 1;
-     if ((rs & 0xFFFF0000u) == 0xFFFF0000u || !(rs & 0xFFFF0000u)) return 2;
-     if ((rs & 0xFF000000u) == 0xFF000000u || !(rs & 0xFF000000u)) return 3;
+     if ((rs & 0xFFFFFF00u) == 0xFFFFFF00u || !(rs & 0xFFFFFF00u))
+          return 1;
+     if ((rs & 0xFFFF0000u) == 0xFFFF0000u || !(rs & 0xFFFF0000u))
+          return 2;
+     if ((rs & 0xFF000000u) == 0xFF000000u || !(rs & 0xFF000000u))
+          return 3;
      return 4;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Flag helpers (shared with ARM side)
- * ---------------------------------------------------------------------- */
+ */
 
 static void set_nz(struct gba_cpu *cpu, uint32_t result)
 {
@@ -63,9 +75,9 @@ static void set_flags_sub(struct gba_cpu *cpu, uint32_t a, uint32_t b, uint32_t 
      set_flags_sub_borrow(cpu, a, b, 0, result);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * THUMB instruction execution
- * ---------------------------------------------------------------------- */
+ */
 
 int gba_thumb_execute(struct gba *gba, uint16_t instr)
 {
@@ -300,16 +312,22 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
           case 0x7:
           {
                uint8_t amount = b & 0xFF; /* ROR */
-               if (amount == 0) {
+               if (amount == 0)
+               {
                     res = a;
-               } else {
+               }
+               else
+               {
                     uint8_t s = amount & 31;
                     cpu->cpsr &= ~GBA_CPSR_C;
-                    if (s == 0) {
+                    if (s == 0)
+                    {
                          res = a;
                          if (a >> 31)
                               cpu->cpsr |= GBA_CPSR_C;
-                    } else {
+                    }
+                    else
+                    {
                          res = (a >> s) | (a << (32 - s));
                          if ((a >> (s - 1)) & 1)
                               cpu->cpsr |= GBA_CPSR_C;
@@ -341,7 +359,7 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
                set_nz(cpu, res);
                cpu->r[rd] = res;
                break; /* ORR */
-          case 0xD: /* MUL Rd, Rs — Rd = Rd * Rs, latency based on Rd value */
+          case 0xD:   /* MUL Rd, Rs — Rd = Rd * Rs, latency based on Rd value */
           {
                int mul_lat = mul_cycles_signed(a);
                res = a * b;
@@ -523,7 +541,8 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
           uint8_t rb = (instr >> 3) & 0x7;
           uint8_t rd = instr & 0x7;
           uint32_t addr = cpu->r[rb] + off * 2;
-          if (load) {
+          if (load)
+          {
                uint32_t half = gba_memory_read16(gba, addr & ~1U);
                cpu->r[rd] = (addr & 1U) ? ((half >> 8) | (half << 24)) : half;
           }
