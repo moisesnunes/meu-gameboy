@@ -2,7 +2,11 @@
 #include "hw_schematic_view.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <SDL3/SDL_opengl.h>
+#else
 #include <GL/gl.h>
+#endif
 
 /* Keep stb_image private to this translation unit so other frontends may also
  * define STB_IMAGE_IMPLEMENTATION without link-time symbol collisions. */
