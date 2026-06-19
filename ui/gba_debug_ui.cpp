@@ -887,8 +887,25 @@ bool gba_debug_ui_init(struct gba *gba, SDL_Window *window)
      ImGui::StyleColorsDark();
      set_style();
 
-     ImGui_ImplSDL3_InitForOpenGL(window, s_gl_context);
-     ImGui_ImplOpenGL3_Init("#version 330 core");
+     if (!ImGui_ImplSDL3_InitForOpenGL(window, s_gl_context))
+     {
+          fprintf(stderr, "gba_debug_ui: ImGui_ImplSDL3_InitForOpenGL falhou\n");
+          ImGui::DestroyContext();
+          SDL_GL_DestroyContext(s_gl_context);
+          s_gl_context = nullptr;
+          s_window = nullptr;
+          return false;
+     }
+     if (!ImGui_ImplOpenGL3_Init("#version 330 core"))
+     {
+          fprintf(stderr, "gba_debug_ui: ImGui_ImplOpenGL3_Init falhou (OpenGL 3.3 nao suportado?)\n");
+          ImGui_ImplSDL3_Shutdown();
+          ImGui::DestroyContext();
+          SDL_GL_DestroyContext(s_gl_context);
+          s_gl_context = nullptr;
+          s_window = nullptr;
+          return false;
+     }
 
      glGenTextures(1, &s_game_tex);
      glBindTexture(GL_TEXTURE_2D, s_game_tex);

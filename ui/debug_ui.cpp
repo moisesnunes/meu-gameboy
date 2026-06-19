@@ -1468,8 +1468,25 @@ extern "C" void debug_ui_init(struct gb *gb)
      ImGui::StyleColorsDark();
      set_style();
 
-     ImGui_ImplSDL3_InitForOpenGL(s_window, s_gl_context);
-     ImGui_ImplOpenGL3_Init("#version 330 core");
+     if (!ImGui_ImplSDL3_InitForOpenGL(s_window, s_gl_context))
+     {
+          fprintf(stderr, "debug_ui: ImGui_ImplSDL3_InitForOpenGL falhou\n");
+          ImGui::DestroyContext();
+          SDL_GL_DestroyContext(s_gl_context);
+          s_gl_context = nullptr;
+          s_window = nullptr;
+          return;
+     }
+     if (!ImGui_ImplOpenGL3_Init("#version 330 core"))
+     {
+          fprintf(stderr, "debug_ui: ImGui_ImplOpenGL3_Init falhou (OpenGL 3.3 nao suportado?)\n");
+          ImGui_ImplSDL3_Shutdown();
+          ImGui::DestroyContext();
+          SDL_GL_DestroyContext(s_gl_context);
+          s_gl_context = nullptr;
+          s_window = nullptr;
+          return;
+     }
 
      /* Cria textura do frame do jogo (160×144) */
      auto make_tex = [](GLuint *id, int w, int h)
