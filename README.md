@@ -29,7 +29,7 @@ apt install build-essential pkg-config libgl-dev
 
 **Windows (MSYS2 MinGW64):**
 ```sh
-pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL3 mingw-w64-x86_64-pkg-config
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-sdl3 mingw-w64-x86_64-pkg-config
 ```
 
 ## Build
