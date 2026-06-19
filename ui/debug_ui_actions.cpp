@@ -10,6 +10,15 @@
 #include <sys/types.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir_compat(path) _mkdir(path)
+static inline void localtime_compat(struct tm *tm_out, const time_t *t) { localtime_s(tm_out, t); }
+#else
+#define mkdir_compat(path) mkdir(path, 0755)
+static inline void localtime_compat(struct tm *tm_out, const time_t *t) { localtime_r(t, tm_out); }
+#endif
+
 extern "C"
 {
 #include "debug.h"
@@ -82,7 +91,7 @@ bool debug_ui_action_save_screenshot(struct gb *gb, char *message, size_t messag
           return false;
      }
 
-     if (mkdir("screenshots", 0755) != 0 && errno != EEXIST)
+     if (mkdir_compat("screenshots") != 0 && errno != EEXIST)
      {
           write_message(message, message_len, "Falha ao criar screenshots/: %s", strerror(errno));
           fprintf(stderr, "screenshot: failed to create screenshots directory: %s\n", strerror(errno));
@@ -91,7 +100,7 @@ bool debug_ui_action_save_screenshot(struct gb *gb, char *message, size_t messag
 
      time_t now = time(nullptr);
      struct tm tm_now;
-     localtime_r(&now, &tm_now);
+     localtime_compat(&tm_now, &now);
 
      char timestamp[32];
      strftime(timestamp, sizeof(timestamp), "%Y%m%d-%H%M%S", &tm_now);
@@ -151,7 +160,7 @@ bool debug_ui_action_state_slot_exists(struct gb *gb, int slot)
 
 bool debug_ui_action_save_state_slot(struct gb *gb, int slot, char *message, size_t message_len)
 {
-     if (mkdir("states", 0755) != 0 && errno != EEXIST)
+     if (mkdir_compat("states") != 0 && errno != EEXIST)
      {
           write_message(message, message_len, "Falha ao criar diret\xc3\xb3rio states/");
           fprintf(stderr, "save state: failed to create states directory: %s\n", strerror(errno));
