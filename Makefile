@@ -14,11 +14,16 @@ else ifneq ($(findstring w64,$(CC_C)),)
 endif
 
 BUILD_DIR        = build
-BUILD_CORE_DIR   = $(BUILD_DIR)/core   # objetos do núcleo GB/GBC compartilhados entre frontends
-BUILD_APP_DIR    = $(BUILD_DIR)/app    # objetos dos frontends (main, sdl, state)
-BUILD_TEST_DIR   = $(BUILD_DIR)/test   # binários de teste/compat isolados do app principal
-BUILD_UI_DIR     = $(BUILD_DIR)/ui     # ImGui + painéis de debug (C++ — compilador separado)
-BUILD_GBA_DIR    = $(BUILD_DIR)/gba    # núcleo GBA (inclui próprio subdiretório gba/)
+# objetos do núcleo GB/GBC compartilhados entre frontends
+BUILD_CORE_DIR   = $(BUILD_DIR)/core
+# objetos dos frontends (main, sdl, state)
+BUILD_APP_DIR    = $(BUILD_DIR)/app
+# binários de teste/compat isolados do app principal
+BUILD_TEST_DIR   = $(BUILD_DIR)/test
+# ImGui + painéis de debug (C++ — compilador separado)
+BUILD_UI_DIR     = $(BUILD_DIR)/ui
+# núcleo GBA (inclui próprio subdiretório gba/)
+BUILD_GBA_DIR    = $(BUILD_DIR)/gba
 
 # -MMD -MP: gera arquivos .d de dependências automáticas para headers;
 # sem isso, mudar um .h não recompila os .c que o incluem
