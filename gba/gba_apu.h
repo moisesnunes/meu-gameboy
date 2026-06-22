@@ -142,9 +142,11 @@ struct gba_apu
      sem_t buf_free;
      sem_t buf_ready;
 
-     /* Mute flags (frontend only) */
+     /* Mute/volume flags (frontend only) */
      bool mute_ch1, mute_ch2, mute_ch3, mute_ch4;
      bool mute_fifo_a, mute_fifo_b;
+     bool frontend_muted;
+     float frontend_volume; /* 0.0 = mudo, 1.0 = 100%, >1.0 = amplificado */
 
      int32_t next_sample_cycles;
 };

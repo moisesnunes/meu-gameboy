@@ -22,11 +22,17 @@ struct gba_debug_ui_config
      int video_scale;
      bool scanlines;
      float scanlines_intensity;
+     bool mix_frames;
+     float mix_frames_intensity;
      float background_color[3];
+
+     bool audio_muted;
+     float audio_volume;
 
      float fast_forward_speed;
      int debug_font_size;
      bool start_paused;
+     int save_slot;
 
      std::vector<std::string> recent_roms;
 };

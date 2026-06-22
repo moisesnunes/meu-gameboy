@@ -108,6 +108,8 @@ make meu-gba.exe
 For normal use, build once and launch a ROM directly:
 
 ```sh
+./gameboy 
+or
 ./gameboy path/to/rom.gb
 ./meu-gba path/to/rom.gba
 ```

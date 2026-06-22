@@ -71,10 +71,15 @@ CORE_C_SRC = cpu.c memory.c cart.c gpu.c sync.c input.c irq.c dma.c \
              hdma.c timer.c spu.c debug.c disasm.c rtc.c \
              $(SM83_C_SRC) $(HW_SCH_C_SRC)
 
+# Núcleo headless: exclui hw_schematic_view.c (único módulo com chamadas OpenGL)
+# Usado por compat_test e rom_tester que rodam sem janela/GPU
+HEADLESS_CORE_C_SRC = $(filter-out hw_schematic/hw_schematic_view.c,$(CORE_C_SRC))
+
 FRONTENDS_DIR = frontends
 
 # Substituição de sufixo: mapeia cada .c/.cpp para o .o no diretório de build correto
-CORE_OBJ = $(CORE_C_SRC:%.c=$(BUILD_CORE_DIR)/%.o)
+CORE_OBJ         = $(CORE_C_SRC:%.c=$(BUILD_CORE_DIR)/%.o)
+HEADLESS_CORE_OBJ = $(HEADLESS_CORE_C_SRC:%.c=$(BUILD_CORE_DIR)/%.o)
 APP_OBJ  = $(BUILD_APP_DIR)/main.o $(BUILD_APP_DIR)/sdl.o $(BUILD_APP_DIR)/state.o
 UI_FRONTEND_OBJ = $(UI_SRC:ui/%.cpp=$(BUILD_UI_DIR)/%.o)
 IMGUI_OBJ       = $(IMGUI_SRC:%.cpp=$(BUILD_UI_DIR)/%.o)
@@ -132,11 +137,11 @@ GBA_VEC_OBJ  = $(BUILD_APP_DIR)/main_gba_vector.o
 
 # rom_tester: executa ROMs em lote e verifica saída esperada (CI/automação)
 TESTER_NAME = rom_tester
-TESTER_OBJ  = $(BUILD_TEST_DIR)/rom_tester.o $(CORE_OBJ)
+TESTER_OBJ  = $(BUILD_TEST_DIR)/rom_tester.o $(HEADLESS_CORE_OBJ)
 
 # compat_test: suite de compatibilidade GB/GBC (blargg, mooneye, etc.)
 COMPAT_NAME = compat_test
-COMPAT_OBJ  = $(BUILD_TEST_DIR)/compat_test.o $(CORE_OBJ)
+COMPAT_OBJ  = $(BUILD_TEST_DIR)/compat_test.o $(HEADLESS_CORE_OBJ)
 
 # sm83_netlist_validate: compara netlist simulada contra comportamento esperado do SM83
 # usa apenas os módulos de simulação, sem GPU/APU/SDL
@@ -163,15 +168,15 @@ $(NAME) : $(OBJ)
 
 $(SIMPLE_NAME) : $(SIMPLE_OBJ)
 	$(info LD $@)
-	$(CC_C) -o $@ $^ `pkg-config --libs sdl3` -lGL -lm
+	$(CC_C) -o $@ $^ $(LDFLAGS) -lm
 
 $(HW_NAME) : $(HW_OBJ)
 	$(info LD $@)
-	$(CC_C) -o $@ $^ `pkg-config --libs sdl3` -lGL -lm
+	$(CC_C) -o $@ $^ $(LDFLAGS) -lm
 
 $(VEC_NAME) : $(VEC_OBJ)
 	$(info LD $@)
-	$(CC_C) -o $@ $^ `pkg-config --libs sdl3` -lGL -lm
+	$(CC_C) -o $@ $^ $(LDFLAGS) -lm
 
 $(GBA_VEC_NAME) : $(GBA_VEC_OBJ)
 	$(info LD $@)
@@ -179,11 +184,11 @@ $(GBA_VEC_NAME) : $(GBA_VEC_OBJ)
 
 $(TESTER_NAME) : $(TESTER_OBJ)
 	$(info LD $@)
-	$(CC_C) -o $@ $^ -lpthread -lGL -lm
+	$(CC_C) -o $@ $^ -lpthread -lm
 
 $(COMPAT_NAME) : $(COMPAT_OBJ)
 	$(info LD $@)
-	$(CC_C) -o $@ $^ -lpthread -lGL -lm
+	$(CC_C) -o $@ $^ -lpthread -lm
 
 $(SM83_VALIDATE_NAME) : $(SM83_VALIDATE_OBJ)
 	$(info LD $@)

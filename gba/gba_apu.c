@@ -42,7 +42,21 @@ static inline uint32_t ch4_period(uint8_t clk_shift, uint8_t div_ratio)
 void gba_apu_reset(struct gba *gba)
 {
      struct gba_apu *apu = &gba->apu;
+
+     /* Preserve frontend-only state across resets */
+     bool mute_ch1 = apu->mute_ch1, mute_ch2 = apu->mute_ch2;
+     bool mute_ch3 = apu->mute_ch3, mute_ch4 = apu->mute_ch4;
+     bool mute_fifo_a = apu->mute_fifo_a, mute_fifo_b = apu->mute_fifo_b;
+     bool frontend_muted = apu->frontend_muted;
+     float frontend_volume = apu->frontend_volume;
+
      memset(apu, 0, sizeof(*apu));
+
+     apu->mute_ch1 = mute_ch1; apu->mute_ch2 = mute_ch2;
+     apu->mute_ch3 = mute_ch3; apu->mute_ch4 = mute_ch4;
+     apu->mute_fifo_a = mute_fifo_a; apu->mute_fifo_b = mute_fifo_b;
+     apu->frontend_muted = frontend_muted;
+     apu->frontend_volume = frontend_volume != 0.0f ? frontend_volume : 1.0f;
 
      apu->soundbias = 0x200;
      apu->soundcnt_x = 0x80; /* master enable on by default */
@@ -725,6 +739,19 @@ static void apu_push_sample(struct gba *gba, int16_t left, int16_t right)
      struct gba_apu *apu = &gba->apu;
      int w = apu->buf_write;
      int pos = apu->buf_pos;
+
+     if (apu->frontend_muted)
+     {
+          left = 0;
+          right = 0;
+     }
+     else if (apu->frontend_volume != 1.0f && apu->frontend_volume >= 0.0f)
+     {
+          int32_t l = (int32_t)((float)left * apu->frontend_volume);
+          int32_t r = (int32_t)((float)right * apu->frontend_volume);
+          left = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
+          right = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
+     }
 
      apu->buf[w][pos * 2 + 0] = left;
      apu->buf[w][pos * 2 + 1] = right;

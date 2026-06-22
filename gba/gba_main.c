@@ -374,7 +374,7 @@ int main(int argc, char **argv)
      const char *rom_file = NULL;
      const char *bios_file = NULL;
      const char *trace_file = NULL;
-     bool debug_ui = false;
+     bool debug_ui = true;
      uint64_t trace_limit = 0;
 
      for (int i = 1; i < argc; i++)

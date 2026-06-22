@@ -22,13 +22,19 @@ void gba_debug_ui_config_defaults(gba_debug_ui_config *cfg)
      cfg->video_scale = 0; /* fit */
      cfg->scanlines = false;
      cfg->scanlines_intensity = 0.5f;
+     cfg->mix_frames = false;
+     cfg->mix_frames_intensity = 0.3f;
      cfg->background_color[0] = 0.10f;
      cfg->background_color[1] = 0.10f;
      cfg->background_color[2] = 0.10f;
 
+     cfg->audio_muted = false;
+     cfg->audio_volume = 1.0f;
+
      cfg->fast_forward_speed = 2.0f;
      cfg->debug_font_size = 1;
      cfg->start_paused = false;
+     cfg->save_slot = 0;
 
      cfg->recent_roms.clear();
 }
@@ -79,18 +85,28 @@ bool gba_debug_ui_config_load(gba_debug_ui_config *cfg, const char *path)
                cfg->scanlines = ival;
           else if (sscanf(line, "scanlines_intensity=%f", &fval) == 1)
                cfg->scanlines_intensity = fval;
+          else if (sscanf(line, "mix_frames=%d", &ival) == 1)
+               cfg->mix_frames = ival;
+          else if (sscanf(line, "mix_frames_intensity=%f", &fval) == 1)
+               cfg->mix_frames_intensity = fval;
           else if (sscanf(line, "bg_r=%f", &fval) == 1)
                cfg->background_color[0] = fval;
           else if (sscanf(line, "bg_g=%f", &fval) == 1)
                cfg->background_color[1] = fval;
           else if (sscanf(line, "bg_b=%f", &fval) == 1)
                cfg->background_color[2] = fval;
+          else if (sscanf(line, "audio_muted=%d", &ival) == 1)
+               cfg->audio_muted = ival;
+          else if (sscanf(line, "audio_volume=%f", &fval) == 1)
+               cfg->audio_volume = fval;
           else if (sscanf(line, "fast_forward_speed=%f", &fval) == 1)
                cfg->fast_forward_speed = fval;
           else if (sscanf(line, "debug_font_size=%d", &ival) == 1)
                cfg->debug_font_size = ival;
           else if (sscanf(line, "start_paused=%d", &ival) == 1)
                cfg->start_paused = ival;
+          else if (sscanf(line, "save_slot=%d", &ival) == 1)
+               cfg->save_slot = ival;
           else if (sscanf(line, "recent=%255[^\n]", sval) == 1)
                cfg->recent_roms.push_back(sval);
           (void)key;
@@ -121,12 +137,17 @@ bool gba_debug_ui_config_save(const gba_debug_ui_config *cfg, const char *path)
      fprintf(f, "video_scale=%d\n", cfg->video_scale);
      fprintf(f, "scanlines=%d\n", (int)cfg->scanlines);
      fprintf(f, "scanlines_intensity=%f\n", cfg->scanlines_intensity);
+     fprintf(f, "mix_frames=%d\n", (int)cfg->mix_frames);
+     fprintf(f, "mix_frames_intensity=%f\n", cfg->mix_frames_intensity);
      fprintf(f, "bg_r=%f\n", cfg->background_color[0]);
      fprintf(f, "bg_g=%f\n", cfg->background_color[1]);
      fprintf(f, "bg_b=%f\n", cfg->background_color[2]);
+     fprintf(f, "audio_muted=%d\n", (int)cfg->audio_muted);
+     fprintf(f, "audio_volume=%f\n", cfg->audio_volume);
      fprintf(f, "fast_forward_speed=%f\n", cfg->fast_forward_speed);
      fprintf(f, "debug_font_size=%d\n", cfg->debug_font_size);
      fprintf(f, "start_paused=%d\n", (int)cfg->start_paused);
+     fprintf(f, "save_slot=%d\n", cfg->save_slot);
      for (auto &r : cfg->recent_roms)
           fprintf(f, "recent=%s\n", r.c_str());
 

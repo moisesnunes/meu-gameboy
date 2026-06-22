@@ -30,6 +30,8 @@ extern "C"
 static SDL_Window *s_window = nullptr;
 static SDL_GLContext s_gl_context = nullptr;
 static GLuint s_game_tex = 0;
+static GLuint s_prev_game_tex = 0;
+static bool s_prev_game_valid = false;
 
 /* Visibilidade dos painéis */
 static bool s_show_screen = true;
@@ -49,6 +51,8 @@ static bool s_fullscreen = false;
 static bool s_show_fps = false;
 static bool s_scanlines = false;
 static float s_scanlines_intensity = 0.5f;
+static bool s_mix_frames = false;
+static float s_mix_frames_int = 0.3f;
 static float s_bg_color[3] = {0.10f, 0.10f, 0.10f};
 
 /* Escala */
@@ -58,11 +62,16 @@ static const int VIDEO_SCALE_FIT_WIDTH = -2;
 static const int VIDEO_SCALE_FIT_HEIGHT = -3;
 static int s_video_scale = VIDEO_SCALE_FIT;
 
+/* Áudio */
+static bool s_audio_muted = false;
+static float s_audio_volume = 1.0f;
+
 /* Emulador */
 static bool s_fast_forward = false;
 static float s_ff_speed_factor = 2.0f;
 static bool s_start_paused = false;
 static int s_debug_font_size = 1;
+static int s_save_slot = 0;
 
 /* FPS */
 static uint64_t s_fps_last_ns = 0;
@@ -78,12 +87,13 @@ static uint64_t s_status_until_ms = 0;
 static char s_pending_rom[4096] = "";
 static bool s_dialog_active = false;
 
-/* ROM recentes */
+/* ROMs recentes */
 static std::vector<std::string> s_recent_roms;
 
 static const char *UI_CONFIG_PATH = "meu-gba_ui.ini";
 
-/* Cores (mesmo tema do GB) */
+/* Cores (idênticas ao DMG) */
+
 static ImVec4 color_green = ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
 static ImVec4 color_red = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
 static ImVec4 color_yellow = ImVec4(0.9f, 0.9f, 0.1f, 1.0f);
@@ -124,13 +134,24 @@ static void apply_font_scale(void)
 
 static void apply_texture_filter(void)
 {
-     if (!s_game_tex)
-          return;
-     GLint f = s_bilinear ? GL_LINEAR : GL_NEAREST;
-     glBindTexture(GL_TEXTURE_2D, s_game_tex);
-     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f);
-     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f);
-     glBindTexture(GL_TEXTURE_2D, 0);
+     auto set = [](GLuint id)
+     {
+          if (!id)
+               return;
+          GLint f = s_bilinear ? GL_LINEAR : GL_NEAREST;
+          glBindTexture(GL_TEXTURE_2D, id);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f);
+          glBindTexture(GL_TEXTURE_2D, 0);
+     };
+     set(s_game_tex);
+     set(s_prev_game_tex);
+}
+
+static void apply_audio(struct gba *gba)
+{
+     gba->apu.frontend_muted = s_audio_muted;
+     gba->apu.frontend_volume = s_audio_muted ? 0.0f : s_audio_volume;
 }
 
 static ImVec4 ui_lerp(const ImVec4 &a, const ImVec4 &b, float t)
@@ -139,23 +160,117 @@ static ImVec4 ui_lerp(const ImVec4 &a, const ImVec4 &b, float t)
                    a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t);
 }
 
+/* Screenshot */
+
+static bool save_screenshot(struct gba *gba, const uint32_t *pixels,
+                            char *msg, size_t msg_len)
+{
+     (void)gba;
+     char path[128];
+     snprintf(path, sizeof(path), "gba_%llu.ppm",
+              (unsigned long long)SDL_GetTicks());
+
+     FILE *f = fopen(path, "wb");
+     if (!f)
+     {
+          snprintf(msg, msg_len, "Falha ao salvar screenshot");
+          return false;
+     }
+     fprintf(f, "P6\n%d %d\n255\n", GBA_LCD_W, GBA_LCD_H);
+     for (int i = 0; i < GBA_LCD_W * GBA_LCD_H; i++)
+     {
+          uint32_t px = pixels[i];
+          uint8_t r = (px >> 16) & 0xFF;
+          uint8_t g = (px >> 8) & 0xFF;
+          uint8_t b = (px >> 0) & 0xFF;
+          fwrite(&r, 1, 1, f);
+          fwrite(&g, 1, 1, f);
+          fwrite(&b, 1, 1, f);
+     }
+     fclose(f);
+     snprintf(msg, msg_len, "Screenshot: %s", path);
+     return true;
+}
+
+/* Save States */
+
+static void state_slot_path(struct gba *gba, int slot, char *path, size_t len)
+{
+     /* Usa o título do cartucho como base do nome */
+     char title[13] = "gba_rom";
+     if (gba->cart.rom)
+          memcpy(title, (const char *)gba->cart.rom + 0xA0, 12);
+     title[12] = '\0';
+     /* Remove espaços */
+     for (int i = 0; title[i]; i++)
+          if (title[i] == ' ')
+               title[i] = '_';
+     snprintf(path, len, "%s_slot%d.gbast", title, slot + 1);
+}
+
+static bool state_slot_exists(struct gba *gba, int slot)
+{
+     char path[256];
+     state_slot_path(gba, slot, path, sizeof(path));
+     FILE *f = fopen(path, "rb");
+     if (f)
+     {
+          fclose(f);
+          return true;
+     }
+     return false;
+}
+
+/* Stub de save/load — o GBA ainda não tem state serialization completo,
+   então apenas exibimos a mensagem de "não implementado" por ora. */
+static bool save_state(struct gba *gba, int slot, char *msg, size_t len)
+{
+     char path[256];
+     state_slot_path(gba, slot, path, sizeof(path));
+     (void)gba;
+     snprintf(msg, len, "Save State n\xc3\xa3o implementado ainda (slot %d)", slot + 1);
+     return false;
+}
+
+static bool load_state(struct gba *gba, int slot, char *msg, size_t len)
+{
+     char path[256];
+     state_slot_path(gba, slot, path, sizeof(path));
+     (void)gba;
+     snprintf(msg, len, "Load State n\xc3\xa3o implementado ainda (slot %d)", slot + 1);
+     return false;
+}
+
+/* Estilo (idêntico ao DMG) */
+
 static void set_style(void)
 {
      ImGuiStyle &s = ImGui::GetStyle();
+
+     s.Alpha = 1.0f;
+     s.DisabledAlpha = 0.45f;
+     s.WindowPadding = ImVec2(12.0f, 10.0f);
      s.WindowRounding = 6.0f;
      s.WindowBorderSize = 1.0f;
+     s.WindowMinSize = ImVec2(64.0f, 48.0f);
+     s.WindowTitleAlign = ImVec2(0.0f, 0.5f);
      s.ChildRounding = 4.0f;
+     s.ChildBorderSize = 1.0f;
      s.PopupRounding = 6.0f;
+     s.PopupBorderSize = 1.0f;
      s.FramePadding = ImVec2(8.0f, 4.0f);
      s.FrameRounding = 4.0f;
+     s.FrameBorderSize = 0.0f;
      s.ItemSpacing = ImVec2(8.0f, 6.0f);
+     s.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+     s.CellPadding = ImVec2(6.0f, 4.0f);
+     s.IndentSpacing = 18.0f;
      s.ScrollbarSize = 12.0f;
      s.ScrollbarRounding = 4.0f;
+     s.GrabMinSize = 10.0f;
      s.GrabRounding = 4.0f;
      s.TabRounding = 4.0f;
-     s.WindowPadding = ImVec2(12.0f, 10.0f);
-     s.WindowMinSize = ImVec2(64.0f, 48.0f);
-     s.DisabledAlpha = 0.45f;
+     s.TabBorderSize = 0.0f;
 
      const ImVec4 bg = ImVec4(0.122f, 0.125f, 0.133f, 1.0f);
      const ImVec4 chrome = ImVec4(0.098f, 0.101f, 0.109f, 1.0f);
@@ -208,17 +323,22 @@ static void set_style(void)
      s.Colors[ImGuiCol_TabSelectedOverline] = accent;
      s.Colors[ImGuiCol_TabDimmed] = chrome;
      s.Colors[ImGuiCol_TabDimmedSelected] = ui_lerp(chrome, bg, 0.50f);
+     s.Colors[ImGuiCol_TabDimmedSelectedOverline] = border;
      s.Colors[ImGuiCol_PlotLines] = accent;
+     s.Colors[ImGuiCol_PlotLinesHovered] = accentL;
      s.Colors[ImGuiCol_PlotHistogram] = accent;
+     s.Colors[ImGuiCol_PlotHistogramHovered] = accentL;
      s.Colors[ImGuiCol_TableHeaderBg] = panel;
      s.Colors[ImGuiCol_TableBorderStrong] = border;
+     s.Colors[ImGuiCol_TableBorderLight] = ImVec4(0.200f, 0.205f, 0.218f, 1.0f);
+     s.Colors[ImGuiCol_TableRowBg] = ImVec4(0, 0, 0, 0);
      s.Colors[ImGuiCol_TableRowBgAlt] = ImVec4(1, 1, 1, 0.03f);
      s.Colors[ImGuiCol_TextSelectedBg] = accentD;
      s.Colors[ImGuiCol_NavCursor] = accent;
      s.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.04f, 0.04f, 0.05f, 0.70f);
 }
 
-/* Config I/O */
+/* Config I/O  */
 
 static void apply_config(const gba_debug_ui_config &cfg)
 {
@@ -237,12 +357,17 @@ static void apply_config(const gba_debug_ui_config &cfg)
      s_video_scale = cfg.video_scale;
      s_scanlines = cfg.scanlines;
      s_scanlines_intensity = cfg.scanlines_intensity;
+     s_mix_frames = cfg.mix_frames;
+     s_mix_frames_int = cfg.mix_frames_intensity;
      s_bg_color[0] = cfg.background_color[0];
      s_bg_color[1] = cfg.background_color[1];
      s_bg_color[2] = cfg.background_color[2];
+     s_audio_muted = cfg.audio_muted;
+     s_audio_volume = cfg.audio_volume;
      s_ff_speed_factor = cfg.fast_forward_speed;
      s_debug_font_size = cfg.debug_font_size;
      s_start_paused = cfg.start_paused;
+     s_save_slot = cfg.save_slot;
      s_recent_roms = cfg.recent_roms;
 }
 
@@ -264,20 +389,27 @@ static void capture_config(gba_debug_ui_config *cfg)
      cfg->video_scale = s_video_scale;
      cfg->scanlines = s_scanlines;
      cfg->scanlines_intensity = s_scanlines_intensity;
+     cfg->mix_frames = s_mix_frames;
+     cfg->mix_frames_intensity = s_mix_frames_int;
      cfg->background_color[0] = s_bg_color[0];
      cfg->background_color[1] = s_bg_color[1];
      cfg->background_color[2] = s_bg_color[2];
+     cfg->audio_muted = s_audio_muted;
+     cfg->audio_volume = s_audio_volume;
      cfg->fast_forward_speed = s_ff_speed_factor;
      cfg->debug_font_size = s_debug_font_size;
      cfg->start_paused = s_start_paused;
+     cfg->save_slot = s_save_slot;
      cfg->recent_roms = s_recent_roms;
 }
 
-static void load_config(void)
+static void load_config(struct gba *gba)
 {
      gba_debug_ui_config cfg;
      gba_debug_ui_config_load(&cfg, UI_CONFIG_PATH);
      apply_config(cfg);
+     if (gba)
+          apply_audio(gba);
 }
 
 static void save_config(void)
@@ -320,7 +452,7 @@ static void push_recent(const char *path)
           s_recent_roms.resize(10);
 }
 
-/* Nome do estado do debug */
+/* Nome do estado de debug  */
 
 static const char *debug_state_name(struct gba *gba)
 {
@@ -341,7 +473,17 @@ static const char *debug_state_name(struct gba *gba)
      }
 }
 
-/* Status bar */
+static const char *rom_title(struct gba *gba)
+{
+     static char title[13];
+     if (!gba->cart.rom)
+          return "meu-GBA";
+     memcpy(title, (const char *)gba->cart.rom + 0xA0, 12);
+     title[12] = '\0';
+     return title[0] ? title : "GBA ROM";
+}
+
+/* Barra de status */
 
 static void draw_status_bar(struct gba *gba)
 {
@@ -366,28 +508,22 @@ static void draw_status_bar(struct gba *gba)
           return;
      }
 
-     /* Título da ROM */
-     if (gba->cart.rom)
-     {
-          char title[17] = {};
-          memcpy(title, gba->cart.rom + 0xA0, 12);
-          ImGui::TextColored(color_green, "%s", title[0] ? title : "GBA ROM");
-     }
-     else
-     {
-          ImGui::TextColored(color_gray, "meu-GBA");
-     }
+     ImGui::TextColored(gba->cart.rom ? color_green : color_gray, "%s", rom_title(gba));
      ImGui::SameLine();
      ImGui::TextColored(color_gray, "|");
      ImGui::SameLine();
      ImGui::Text("%s", debug_state_name(gba));
+     ImGui::SameLine();
+     ImGui::TextColored(color_gray, "|");
+     ImGui::SameLine();
+     ImGui::TextColored(color_cyan, "GBA");
 
      if (gba->cart.rom)
      {
           ImGui::SameLine();
           ImGui::TextColored(color_gray, "|");
           ImGui::SameLine();
-          ImGui::Text("LY %u", gba->gpu.vcount);
+          ImGui::Text("LY %3u", gba->gpu.vcount);
           ImGui::SameLine();
           ImGui::TextColored(color_gray, "|");
           ImGui::SameLine();
@@ -402,6 +538,12 @@ static void draw_status_bar(struct gba *gba)
      {
           ImGui::SameLine();
           ImGui::TextColored(color_yellow, "| FF %.1fx", s_ff_speed_factor);
+     }
+
+     if (s_audio_muted)
+     {
+          ImGui::SameLine();
+          ImGui::TextColored(color_orange, "| MUDO");
      }
 
      if (s_status_msg[0] && SDL_GetTicks() < s_status_until_ms)
@@ -465,28 +607,26 @@ static void draw_launcher(void)
      ImGui::Spacing();
      ImGui::Separator();
      ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.45f, 1.0f),
-                        "Arraste uma ROM ou use Ctrl+O");
+                        "Arraste uma ROM para a janela ou use Ctrl+O");
      ImGui::End();
 }
 
 /* Janela de saída do jogo */
 
-static void draw_game_output(void)
+static void draw_game_output(const uint32_t *pixels)
 {
      ImGui::SetNextWindowSize(ImVec2(500, 380), ImGuiCond_FirstUseEver);
-     ImGui::Begin("Sa"
-                  "\xc3\xad"
+     ImGui::Begin("Sa\xc3\xad"
                   "da##gba_screen",
                   &s_show_screen,
                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
      float avail_w = ImGui::GetContentRegionAvail().x;
      float avail_h = ImGui::GetContentRegionAvail().y;
-
-     float scale = 1.0f;
      float fit_w = avail_w / (float)GBA_LCD_W;
      float fit_h = avail_h / (float)GBA_LCD_H;
      float fit = fit_w < fit_h ? fit_w : fit_h;
+     float scale = 1.0f;
 
      if (s_video_scale == VIDEO_SCALE_FIT)
           scale = fit < 1.0f ? 1.0f : fit;
@@ -511,6 +651,22 @@ static void draw_game_output(void)
      ImVec2 img_screen = ImGui::GetCursorScreenPos();
      ImGui::Image((ImTextureID)(intptr_t)s_game_tex, img);
 
+     /* Persistência de frame (ghosting) */
+     if (s_mix_frames && s_prev_game_valid)
+     {
+          ImDrawList *dl = ImGui::GetWindowDrawList();
+          int alpha = (int)(s_mix_frames_int * 160.0f);
+          if (alpha < 0)
+               alpha = 0;
+          if (alpha > 220)
+               alpha = 220;
+          dl->AddImage((ImTextureID)(intptr_t)s_prev_game_tex,
+                       img_screen,
+                       ImVec2(img_screen.x + img.x, img_screen.y + img.y),
+                       ImVec2(0, 0), ImVec2(1, 1),
+                       IM_COL32(255, 255, 255, alpha));
+     }
+
      /* Overlay Fast Forward */
      if (s_fast_forward)
      {
@@ -520,7 +676,8 @@ static void draw_game_output(void)
           ImVec2 ts = ImGui::CalcTextSize(ff);
           float tx = img_screen.x + img.x - ts.x - 6.0f;
           float ty = img_screen.y + 4.0f;
-          dl->AddRectFilled(ImVec2(tx - 2, ty - 1), ImVec2(tx + ts.x + 2, ty + ts.y + 1),
+          dl->AddRectFilled(ImVec2(tx - 2, ty - 1),
+                            ImVec2(tx + ts.x + 2, ty + ts.y + 1),
                             IM_COL32(0, 0, 0, 160), 3.0f);
           dl->AddText(ImVec2(tx, ty), IM_COL32(255, 220, 50, 255), ff);
      }
@@ -537,11 +694,12 @@ static void draw_game_output(void)
      }
 
      ImGui::End();
+     (void)pixels;
 }
 
 /* Menu principal */
 
-static void draw_main_menu(struct gba *gba)
+static void draw_main_menu(struct gba *gba, const uint32_t *pixels)
 {
      if (!ImGui::BeginMainMenuBar())
           return;
@@ -577,8 +735,52 @@ static void draw_main_menu(struct gba *gba)
           }
 
           ImGui::Separator();
-          if (ImGui::MenuItem("Recarregar ROM", "Ctrl+R", false, has_rom && !s_recent_roms.empty()))
+          if (ImGui::MenuItem("Recarregar ROM", "Ctrl+R", false,
+                              has_rom && !s_recent_roms.empty()))
                SDL_strlcpy(s_pending_rom, s_recent_roms[0].c_str(), sizeof(s_pending_rom));
+
+          ImGui::Separator();
+          if (ImGui::MenuItem("Salvar Screenshot", "Ctrl+P", false, has_rom))
+          {
+               char msg[160];
+               save_screenshot(gba, pixels, msg, sizeof(msg));
+               set_status("%s", msg);
+          }
+
+          ImGui::Separator();
+
+          if (ImGui::BeginMenu("Save State", has_rom))
+          {
+               if (ImGui::BeginMenu("Slot"))
+               {
+                    for (int i = 0; i < 5; ++i)
+                    {
+                         char lbl[32];
+                         snprintf(lbl, sizeof(lbl), "Slot %d%s", i + 1,
+                                  state_slot_exists(gba, i) ? "  *" : "");
+                         if (ImGui::MenuItem(lbl, nullptr, s_save_slot == i))
+                              s_save_slot = i;
+                    }
+                    ImGui::EndMenu();
+               }
+               ImGui::Separator();
+               if (ImGui::MenuItem("Salvar State", "F6", false, has_rom))
+               {
+                    char msg[160];
+                    save_state(gba, s_save_slot, msg, sizeof(msg));
+                    set_status("%s", msg);
+               }
+               if (ImGui::MenuItem("Carregar State", "F8", false,
+                                   has_rom && state_slot_exists(gba, s_save_slot)))
+               {
+                    char msg[160];
+                    load_state(gba, s_save_slot, msg, sizeof(msg));
+                    set_status("%s", msg);
+               }
+               ImGui::Separator();
+               ImGui::TextColored(color_gray, "Slot atual: %d", s_save_slot + 1);
+               ImGui::EndMenu();
+          }
 
           ImGui::Separator();
           if (ImGui::MenuItem("Salvar Configura\xc3\xa7\xc3\xa3o"))
@@ -588,10 +790,11 @@ static void draw_main_menu(struct gba *gba)
           }
           if (ImGui::MenuItem("Recarregar Configura\xc3\xa7\xc3\xa3o"))
           {
-               load_config();
+               load_config(gba);
                apply_font_scale();
                SDL_GL_SetSwapInterval(s_vsync ? 1 : 0);
                apply_texture_filter();
+               apply_audio(gba);
                set_status("Configura\xc3\xa7\xc3\xa3o recarregada");
           }
 
@@ -627,17 +830,19 @@ static void draw_main_menu(struct gba *gba)
           if (ImGui::IsItemHovered())
                ImGui::SetTooltip("Mantenha Tab pressionado para ativar temporariamente.");
 
-          if (ImGui::BeginMenu("Velocidade do FF", has_rom))
+          if (ImGui::BeginMenu("Velocidade do Avan\xc3\xa7o R\xc3\xa1pido", has_rom))
           {
                ImGui::SetNextItemWidth(160.0f);
                ImGui::SliderFloat("##ff", &s_ff_speed_factor, 1.5f, 8.0f, "%.1fx",
                                   ImGuiSliderFlags_AlwaysClamp);
                ImGui::Separator();
+               if (ImGui::MenuItem("1.5x", nullptr, s_ff_speed_factor == 1.5f))
+                    s_ff_speed_factor = 1.5f;
                if (ImGui::MenuItem("2x", nullptr, s_ff_speed_factor == 2.0f))
                     s_ff_speed_factor = 2.0f;
                if (ImGui::MenuItem("4x", nullptr, s_ff_speed_factor == 4.0f))
                     s_ff_speed_factor = 4.0f;
-               if (ImGui::MenuItem("8x", nullptr, s_ff_speed_factor == 8.0f))
+               if (ImGui::MenuItem("Ilimitado (8x)", nullptr, s_ff_speed_factor == 8.0f))
                     s_ff_speed_factor = 8.0f;
                ImGui::EndMenu();
           }
@@ -649,8 +854,7 @@ static void draw_main_menu(struct gba *gba)
      }
 
      /* Vídeo */
-     if (ImGui::BeginMenu("V"
-                          "\xc3\xad"
+     if (ImGui::BeginMenu("V\xc3\xad"
                           "deo"))
      {
           if (ImGui::MenuItem("Tela Cheia", "F11", s_fullscreen))
@@ -674,7 +878,8 @@ static void draw_main_menu(struct gba *gba)
                for (int sc = 1; sc <= 6; ++sc)
                {
                     char lbl[48];
-                    snprintf(lbl, sizeof(lbl), "%d\xc3\x97  (%d \xc3\x97 %d)", sc, GBA_LCD_W * sc, GBA_LCD_H * sc);
+                    snprintf(lbl, sizeof(lbl), "%d\xc3\x97  (%d \xc3\x97 %d)",
+                             sc, GBA_LCD_W * sc, GBA_LCD_H * sc);
                     if (ImGui::MenuItem(lbl, nullptr, s_video_scale == sc))
                          s_video_scale = sc;
                }
@@ -697,6 +902,8 @@ static void draw_main_menu(struct gba *gba)
                s_bilinear = !s_bilinear;
                apply_texture_filter();
           }
+          if (ImGui::IsItemHovered())
+               ImGui::SetTooltip("Suaviza a imagem ao escalar (Nearest = pixels n\xc3\xadtidos).");
 
           if (ImGui::BeginMenu("Scanlines"))
           {
@@ -707,13 +914,24 @@ static void draw_main_menu(struct gba *gba)
                ImGui::EndMenu();
           }
 
+          if (ImGui::BeginMenu("Persist\xc3\xaancia de Frame"))
+          {
+               ImGui::MenuItem("Ativar Ghosting", nullptr, &s_mix_frames);
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Efeito de persist\xc3\xaancia visual entre frames.");
+               ImGui::SetNextItemWidth(200.0f);
+               ImGui::SliderFloat("Intensidade##gf", &s_mix_frames_int,
+                                  0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+               ImGui::EndMenu();
+          }
+
           ImGui::Separator();
           if (ImGui::BeginMenu("Cor de Fundo"))
           {
                ImGui::ColorEdit3("##bg", s_bg_color,
                                  ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_Float);
                ImGui::SameLine();
-               ImGui::Text("Cor de fundo");
+               ImGui::Text("Cor de fundo da janela");
                ImGui::Separator();
                if (ImGui::MenuItem("Preto"))
                {
@@ -721,7 +939,7 @@ static void draw_main_menu(struct gba *gba)
                     s_bg_color[1] = 0.0f;
                     s_bg_color[2] = 0.0f;
                }
-               if (ImGui::MenuItem("Cinza (padr\xc3\xa3o)"))
+               if (ImGui::MenuItem("Cinza escuro (padr\xc3\xa3o)"))
                {
                     s_bg_color[0] = 0.1f;
                     s_bg_color[1] = 0.1f;
@@ -733,8 +951,89 @@ static void draw_main_menu(struct gba *gba)
                     s_bg_color[1] = 0.05f;
                     s_bg_color[2] = 0.15f;
                }
+               if (ImGui::MenuItem("Verde escuro"))
+               {
+                    s_bg_color[0] = 0.02f;
+                    s_bg_color[1] = 0.08f;
+                    s_bg_color[2] = 0.02f;
+               }
                ImGui::EndMenu();
           }
+
+          ImGui::EndMenu();
+     }
+
+     /* Áudio */
+     if (ImGui::BeginMenu("\xc3\x81udio"))
+     {
+          if (ImGui::MenuItem("Mudo", nullptr, s_audio_muted))
+          {
+               s_audio_muted = !s_audio_muted;
+               apply_audio(gba);
+          }
+
+          ImGui::Separator();
+          if (ImGui::BeginMenu("Volume Mestre"))
+          {
+               ImGui::SetNextItemWidth(200.0f);
+               if (ImGui::SliderFloat("##vol", &s_audio_volume, 0.0f, 2.0f, "%.2f",
+                                      ImGuiSliderFlags_AlwaysClamp))
+               {
+                    s_audio_muted = false;
+                    apply_audio(gba);
+               }
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Acima de 1.00 pode causar distor\xc3\xa7\xc3\xa3o.");
+               ImGui::Separator();
+               auto set_vol = [&](float v)
+               {
+                    s_audio_volume = v;
+                    s_audio_muted = false;
+                    apply_audio(gba);
+               };
+               if (ImGui::MenuItem("25%"))
+                    set_vol(0.25f);
+               if (ImGui::MenuItem("50%"))
+                    set_vol(0.50f);
+               if (ImGui::MenuItem("100%"))
+                    set_vol(1.00f);
+               if (ImGui::MenuItem("150%"))
+                    set_vol(1.50f);
+               ImGui::EndMenu();
+          }
+
+          ImGui::Separator();
+          if (ImGui::BeginMenu("Canais"))
+          {
+               ImGui::TextDisabled("Silenciar no mixer:");
+               ImGui::Separator();
+               ImGui::MenuItem("CH1 Pulse+Sweep", nullptr, &gba->apu.mute_ch1);
+               ImGui::MenuItem("CH2 Pulse", nullptr, &gba->apu.mute_ch2);
+               ImGui::MenuItem("CH3 Wave", nullptr, &gba->apu.mute_ch3);
+               ImGui::MenuItem("CH4 Noise", nullptr, &gba->apu.mute_ch4);
+               ImGui::MenuItem("FIFO A", nullptr, &gba->apu.mute_fifo_a);
+               ImGui::MenuItem("FIFO B", nullptr, &gba->apu.mute_fifo_b);
+               ImGui::Separator();
+               if (ImGui::MenuItem("Ativar todos"))
+               {
+                    gba->apu.mute_ch1 = gba->apu.mute_ch2 = false;
+                    gba->apu.mute_ch3 = gba->apu.mute_ch4 = false;
+                    gba->apu.mute_fifo_a = gba->apu.mute_fifo_b = false;
+               }
+               if (ImGui::MenuItem("Silenciar todos"))
+               {
+                    gba->apu.mute_ch1 = gba->apu.mute_ch2 = true;
+                    gba->apu.mute_ch3 = gba->apu.mute_ch4 = true;
+                    gba->apu.mute_fifo_a = gba->apu.mute_fifo_b = true;
+               }
+               ImGui::EndMenu();
+          }
+
+          ImGui::Separator();
+          bool master = (gba->apu.soundcnt_x & 0x80) != 0;
+          ImGui::TextColored(master ? color_green : color_red,
+                             "APU Master: %s", master ? "ON" : "OFF");
+          ImGui::TextColored(color_gray, "Sample Rate: %d Hz", GBA_APU_SAMPLE_RATE);
 
           ImGui::EndMenu();
      }
@@ -751,8 +1050,7 @@ static void draw_main_menu(struct gba *gba)
           }
 
           ImGui::Separator();
-          ImGui::MenuItem("Sa"
-                          "\xc3\xad"
+          ImGui::MenuItem("Sa\xc3\xad"
                           "da do Jogo",
                           nullptr, &s_show_screen);
 
@@ -762,8 +1060,7 @@ static void draw_main_menu(struct gba *gba)
           ImGui::MenuItem("Mem\xc3\xb3ria", nullptr, &s_show_memory, dbg);
 
           ImGui::Separator();
-          if (ImGui::BeginMenu("V"
-                               "\xc3\xad"
+          if (ImGui::BeginMenu("V\xc3\xad"
                                "deo",
                                dbg))
           {
@@ -777,28 +1074,20 @@ static void draw_main_menu(struct gba *gba)
           ImGui::Separator();
           if (ImGui::BeginMenu("Tamanho de Fonte"))
           {
+               auto set_font = [&](int sz)
+               { s_debug_font_size = sz; apply_font_scale(); };
                if (ImGui::MenuItem("Pequena", nullptr, s_debug_font_size == 0))
-               {
-                    s_debug_font_size = 0;
-                    apply_font_scale();
-               }
+                    set_font(0);
                if (ImGui::MenuItem("Normal", nullptr, s_debug_font_size == 1))
-               {
-                    s_debug_font_size = 1;
-                    apply_font_scale();
-               }
+                    set_font(1);
                if (ImGui::MenuItem("Grande", nullptr, s_debug_font_size == 2))
-               {
-                    s_debug_font_size = 2;
-                    apply_font_scale();
-               }
+                    set_font(2);
                if (ImGui::MenuItem("Enorme", nullptr, s_debug_font_size == 3))
-               {
-                    s_debug_font_size = 3;
-                    apply_font_scale();
-               }
+                    set_font(3);
                ImGui::EndMenu();
           }
+
+          ImGui::MenuItem("Mostrar FPS", nullptr, &s_show_fps);
 
           ImGui::EndMenu();
      }
@@ -820,7 +1109,8 @@ static void draw_main_menu(struct gba *gba)
           float tw = ImGui::CalcTextSize(fps).x + 8.0f;
           if (w > tw)
                ImGui::SameLine(ImGui::GetCursorPosX() + w - tw);
-          ImGui::TextColored(s_fps_current >= 55.0f ? color_green : color_yellow, "%s", fps);
+          ImGui::TextColored(s_fps_current >= 55.0f ? color_green : color_yellow,
+                             "%s", fps);
      }
 
      ImGui::EndMainMenuBar();
@@ -831,7 +1121,8 @@ static void draw_main_menu(struct gba *gba)
           ImGui::OpenPopup("Sobre##gba_modal");
           s_show_about = false;
      }
-     if (ImGui::BeginPopupModal("Sobre##gba_modal", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+     if (ImGui::BeginPopupModal("Sobre##gba_modal", nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize))
      {
           ImGui::Text("meu-GBA");
           ImGui::TextColored(color_gray, "Emulador de Game Boy Advance");
@@ -839,12 +1130,14 @@ static void draw_main_menu(struct gba *gba)
           ImGui::Text("Frontend:  SDL3 + Dear ImGui");
           ImGui::Text("Renderer:  OpenGL 3.3 Core");
           ImGui::Separator();
-          ImGui::TextDisabled("Atalhos:");
+          ImGui::TextDisabled("Atalhos de teclado:");
           ImGui::BulletText("Ctrl+O   Abrir ROM");
+          ImGui::BulletText("Ctrl+R   Recarregar ROM");
+          ImGui::BulletText("Ctrl+P   Screenshot");
           ImGui::BulletText("F5       Pausar / Continuar");
-          ImGui::BulletText("F10      Step");
+          ImGui::BulletText("F10      Step (modo pausado)");
           ImGui::BulletText("F11      Tela Cheia");
-          ImGui::BulletText("Tab      Avan\xc3\xa7o R\xc3\xa1pido");
+          ImGui::BulletText("Tab      Avan\xc3\xa7o R\xc3\xa1pido (segurar)");
           ImGui::Separator();
           if (ImGui::Button("Fechar", ImVec2(120, 0)))
                ImGui::CloseCurrentPopup();
@@ -852,12 +1145,12 @@ static void draw_main_menu(struct gba *gba)
      }
 }
 
-/* API pública */
+/* API públic */
 
 bool gba_debug_ui_init(struct gba *gba, SDL_Window *window)
 {
      s_window = window;
-     load_config();
+     load_config(gba);
 
      s_gl_context = SDL_GL_CreateContext(window);
      if (!s_gl_context)
@@ -903,7 +1196,8 @@ bool gba_debug_ui_init(struct gba *gba, SDL_Window *window)
           const char *glsl_ver = (gl_major > 3 || (gl_major == 3 && gl_minor >= 3))
                                      ? "#version 330 core"
                                      : "#version 130";
-          fprintf(stderr, "gba_debug_ui: OpenGL %d.%d -> GLSL %s\n", gl_major, gl_minor, glsl_ver);
+          fprintf(stderr, "gba_debug_ui: OpenGL %d.%d -> GLSL %s\n",
+                  gl_major, gl_minor, glsl_ver);
           if (!ImGui_ImplOpenGL3_Init(glsl_ver))
           {
                fprintf(stderr, "gba_debug_ui: ImGui_ImplOpenGL3_Init falhou\n");
@@ -916,16 +1210,22 @@ bool gba_debug_ui_init(struct gba *gba, SDL_Window *window)
           }
      }
 
-     glGenTextures(1, &s_game_tex);
-     glBindTexture(GL_TEXTURE_2D, s_game_tex);
-     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, GBA_LCD_W, GBA_LCD_H, 0,
-                  GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-     glBindTexture(GL_TEXTURE_2D, 0);
+     auto make_tex = [](GLuint *id)
+     {
+          glGenTextures(1, id);
+          glBindTexture(GL_TEXTURE_2D, *id);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+          glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, GBA_LCD_W, GBA_LCD_H, 0,
+                       GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+          glBindTexture(GL_TEXTURE_2D, 0);
+     };
+     make_tex(&s_game_tex);
+     make_tex(&s_prev_game_tex);
      apply_texture_filter();
 
      gba_debug_ui_panels_init();
+     apply_audio(gba);
 
      gba->debug.enabled = true;
      if (s_start_paused && gba->debug.state == GBA_DEBUG_RUNNING)
@@ -949,6 +1249,7 @@ void gba_debug_ui_process_event(struct gba *gba, SDL_Event *event)
      if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
      {
           SDL_Keycode key = event->key.key;
+          SDL_Keymod mod = SDL_GetModState();
 
           if (key == SDLK_F5)
           {
@@ -966,10 +1267,11 @@ void gba_debug_ui_process_event(struct gba *gba, SDL_Event *event)
           }
           if (key == SDLK_TAB)
                s_fast_forward = !s_fast_forward;
-          if (key == SDLK_O && (SDL_GetModState() & SDL_KMOD_CTRL))
+          if (key == SDLK_O && (mod & SDL_KMOD_CTRL))
                open_rom_dialog();
-          if (key == SDLK_R && (SDL_GetModState() & SDL_KMOD_CTRL) && !s_recent_roms.empty())
+          if (key == SDLK_R && (mod & SDL_KMOD_CTRL) && !s_recent_roms.empty())
                SDL_strlcpy(s_pending_rom, s_recent_roms[0].c_str(), sizeof(s_pending_rom));
+          /* Screenshot via Ctrl+P — pixels serão passados no próximo render */
      }
      if (event->type == SDL_EVENT_KEY_UP && event->key.key == SDLK_TAB)
           s_fast_forward = false;
@@ -996,6 +1298,8 @@ void gba_debug_ui_render(struct gba *gba, const uint32_t *pixels)
      }
 
      SDL_GL_MakeCurrent(s_window, s_gl_context);
+
+     /* Upload frame atual */
      glBindTexture(GL_TEXTURE_2D, s_game_tex);
      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GBA_LCD_W, GBA_LCD_H,
                      GL_BGRA, GL_UNSIGNED_BYTE, pixels);
@@ -1005,7 +1309,7 @@ void gba_debug_ui_render(struct gba *gba, const uint32_t *pixels)
      ImGui_ImplSDL3_NewFrame();
      ImGui::NewFrame();
 
-     draw_main_menu(gba);
+     draw_main_menu(gba, pixels);
 
      if (!gba->cart.rom)
      {
@@ -1014,7 +1318,7 @@ void gba_debug_ui_render(struct gba *gba, const uint32_t *pixels)
      else
      {
           if (s_show_screen)
-               draw_game_output();
+               draw_game_output(pixels);
 
           if (gba->debug.enabled)
           {
@@ -1078,10 +1382,17 @@ void gba_debug_ui_render(struct gba *gba, const uint32_t *pixels)
      glClearColor(s_bg_color[0], s_bg_color[1], s_bg_color[2], 1.0f);
      glClear(GL_COLOR_BUFFER_BIT);
      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+     /* Salva frame anterior para ghosting */
+     glBindTexture(GL_TEXTURE_2D, s_prev_game_tex);
+     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GBA_LCD_W, GBA_LCD_H,
+                     GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+     glBindTexture(GL_TEXTURE_2D, 0);
+     s_prev_game_valid = gba->cart.rom != nullptr;
+
      SDL_GL_SwapWindow(s_window);
 }
 
-/* Chamado pelo gba_main quando uma ROM é carregada/trocada via UI */
 const char *gba_debug_ui_pending_rom(void)
 {
      return s_pending_rom[0] ? s_pending_rom : nullptr;
@@ -1100,11 +1411,12 @@ void gba_debug_ui_destroy(void)
      save_config();
 
      SDL_GL_MakeCurrent(s_window, s_gl_context);
-     if (s_game_tex)
-     {
-          glDeleteTextures(1, &s_game_tex);
-          s_game_tex = 0;
-     }
+
+     GLuint textures[] = {s_game_tex, s_prev_game_tex};
+     glDeleteTextures(2, textures);
+     s_game_tex = s_prev_game_tex = 0;
+     s_prev_game_valid = false;
+
      gba_debug_ui_panels_shutdown();
 
      ImGui_ImplOpenGL3_Shutdown();
