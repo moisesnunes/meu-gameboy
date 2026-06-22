@@ -116,6 +116,7 @@ void gba_cart_save(struct gba *gba);
 void gba_cart_sync(struct gba *gba);
 bool gba_cart_is_eeprom(struct gba *gba);
 uint16_t gba_cart_eeprom_read(struct gba *gba);
+uint16_t gba_cart_eeprom_peek(const struct gba *gba);
 void gba_cart_eeprom_write(struct gba *gba, uint16_t value, uint32_t write_size);
 
 #endif /* _GBA_CART_H_ */

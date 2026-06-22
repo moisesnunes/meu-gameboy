@@ -262,7 +262,7 @@ static void io_write8(struct gba *gba, uint32_t addr, uint8_t val)
           gba_apu_write_reg(gba, addr, val);
           break;
 
-     /* Timers: write reload through 16-bit handler */
+     /* Timers: preserve the deferred reload latch for byte writes. */
      case REG_TM0CNT_L:
      case REG_TM0CNT_L + 1:
      case REG_TM1CNT_L:
@@ -273,11 +273,7 @@ static void io_write8(struct gba *gba, uint32_t addr, uint8_t val)
      case REG_TM3CNT_L + 1:
      {
           int n = (addr - REG_TM0CNT_L) / 4;
-          gba_timer_sync(gba);
-          if (addr & 1)
-               gba->timer.ch[n].reload = (uint16_t)((gba->timer.ch[n].reload & 0x00FF) | (val << 8));
-          else
-               gba->timer.ch[n].reload = (uint16_t)((gba->timer.ch[n].reload & 0xFF00) | val);
+          gba_timer_write_reload8(gba, n, (addr & 1U) != 0, val);
           break;
      }
      case REG_TM0CNT_H:
@@ -626,30 +622,96 @@ static const int waitcnt_ws0_seq[2] = {2, 1};
 static const int waitcnt_ws1_seq[2] = {4, 1};
 static const int waitcnt_ws2_seq[2] = {8, 1};
 
-static int memory_wait_cycles(struct gba *gba, uint32_t addr, bool sequential)
+static const struct gba_memory_block memory_blocks[] = {
+     [GBA_MEMORY_REGION_BIOS] = {"BIOS", GBA_BIOS_BASE, GBA_BIOS_SIZE, 0x00003FFFU},
+     [GBA_MEMORY_REGION_UNUSED] = {"unused", 0, 0, 0},
+     [GBA_MEMORY_REGION_EWRAM] = {"EWRAM", GBA_EWRAM_BASE, GBA_EWRAM_SIZE, 0x0003FFFFU},
+     [GBA_MEMORY_REGION_IWRAM] = {"IWRAM", GBA_IWRAM_BASE, GBA_IWRAM_SIZE, 0x00007FFFU},
+     [GBA_MEMORY_REGION_IO] = {"I/O", GBA_IO_BASE, GBA_IO_SIZE, 0x000003FFU},
+     [GBA_MEMORY_REGION_PRAM] = {"palette", GBA_PAL_BASE, GBA_PAL_SIZE, 0x000003FFU},
+     [GBA_MEMORY_REGION_VRAM] = {"VRAM", GBA_VRAM_BASE, GBA_VRAM_SIZE, 0x0001FFFFU},
+     [GBA_MEMORY_REGION_OAM] = {"OAM", GBA_OAM_BASE, GBA_OAM_SIZE, 0x000003FFU},
+     [GBA_MEMORY_REGION_ROM0] = {"ROM WS0", 0x08000000U, GBA_ROM_MAX_SIZE, 0x01FFFFFFU},
+     [GBA_MEMORY_REGION_ROM1] = {"ROM WS1", 0x0A000000U, GBA_ROM_MAX_SIZE, 0x01FFFFFFU},
+     [GBA_MEMORY_REGION_ROM2] = {"ROM WS2", 0x0C000000U, GBA_ROM_MAX_SIZE, 0x01FFFFFFU},
+     [GBA_MEMORY_REGION_SRAM] = {"SRAM", GBA_SRAM_BASE, GBA_SRAM_SIZE, 0x00007FFFU},
+};
+
+enum gba_memory_region gba_memory_region_for_addr(uint32_t addr)
+{
+     switch (addr >> 24)
+     {
+     case 0x00: return addr < GBA_BIOS_SIZE ? GBA_MEMORY_REGION_BIOS : GBA_MEMORY_REGION_UNUSED;
+     case 0x02: return GBA_MEMORY_REGION_EWRAM;
+     case 0x03: return GBA_MEMORY_REGION_IWRAM;
+     case 0x04: return addr < GBA_IO_BASE + GBA_IO_SIZE ? GBA_MEMORY_REGION_IO : GBA_MEMORY_REGION_UNUSED;
+     case 0x05: return GBA_MEMORY_REGION_PRAM;
+     case 0x06: return GBA_MEMORY_REGION_VRAM;
+     case 0x07: return GBA_MEMORY_REGION_OAM;
+     case 0x08:
+     case 0x09: return GBA_MEMORY_REGION_ROM0;
+     case 0x0A:
+     case 0x0B: return GBA_MEMORY_REGION_ROM1;
+     case 0x0C:
+     case 0x0D: return GBA_MEMORY_REGION_ROM2;
+     case 0x0E:
+     case 0x0F: return GBA_MEMORY_REGION_SRAM;
+     default: return GBA_MEMORY_REGION_UNUSED;
+     }
+}
+
+const struct gba_memory_block *gba_memory_block_for_addr(uint32_t addr)
+{
+     return &memory_blocks[gba_memory_region_for_addr(addr)];
+}
+
+static uint32_t memory_open_bus(const struct gba *gba)
+{
+     return gba->cpu_bus;
+}
+
+static uint8_t memory_open_bus8(const struct gba *gba, uint32_t addr)
+{
+     return (uint8_t)(memory_open_bus(gba) >> ((addr & 3U) * 8));
+}
+
+int gba_memory_wait_cycles(const struct gba *gba,
+                           const struct gba_memory_access *access)
 {
      uint16_t wc = gba->waitcnt;
-     int region = addr >> 24;
-     switch (region)
+     switch (gba_memory_region_for_addr(access->addr))
      {
-     case 0x0E:
-     case 0x0F: /* SRAM */
+     case GBA_MEMORY_REGION_EWRAM:
+          return access->width == GBA_MEMORY_ACCESS_32 ? 5 : 2;
+     case GBA_MEMORY_REGION_SRAM:
           return waitcnt_sram_table[wc & 0x3];
-     case 0x08:
-     case 0x09: /* ROM WS0 */
-          return sequential ? waitcnt_ws0_seq[(wc >> 4) & 1]
-                            : waitcnt_ws_first[(wc >> 2) & 0x3];
-     case 0x0A:
-     case 0x0B: /* ROM WS1 */
-          return sequential ? waitcnt_ws1_seq[(wc >> 7) & 1]
-                            : waitcnt_ws_first[(wc >> 5) & 0x3];
-     case 0x0C:
-     case 0x0D: /* ROM WS2 */
-          return sequential ? waitcnt_ws2_seq[(wc >> 10) & 1]
-                            : waitcnt_ws_first[(wc >> 8) & 0x3];
+     case GBA_MEMORY_REGION_ROM0:
+          return access->sequential ? waitcnt_ws0_seq[(wc >> 4) & 1]
+                                    : waitcnt_ws_first[(wc >> 2) & 0x3];
+     case GBA_MEMORY_REGION_ROM1:
+          return access->sequential ? waitcnt_ws1_seq[(wc >> 7) & 1]
+                                    : waitcnt_ws_first[(wc >> 5) & 0x3];
+     case GBA_MEMORY_REGION_ROM2:
+          return access->sequential ? waitcnt_ws2_seq[(wc >> 10) & 1]
+                                    : waitcnt_ws_first[(wc >> 8) & 0x3];
      default:
           return 0;
      }
+}
+
+static int cpu_wait_cycles(const struct gba *gba, uint32_t addr,
+                           enum gba_memory_access_width width,
+                           enum gba_memory_access_kind kind, bool sequential)
+{
+     const struct gba_memory_access access = {
+          .addr = addr,
+          .width = width,
+          .source = GBA_MEMORY_ACCESS_CPU,
+          .kind = kind,
+          .sequential = sequential,
+     };
+
+     return gba_memory_wait_cycles(gba, &access);
 }
 
 /* Map a VRAM address to its physical offset, handling the 96KB→128KB mirror.
@@ -686,9 +748,9 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
                     return gba->bios[addr];
                return (uint8_t)(gba->bios_open_bus >> ((addr & 3U) * 8));
           }
-          return 0;
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8));
      case 0x01:
-          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* unused region — open bus */
+          return memory_open_bus8(gba, addr); /* unused region — open bus */
      case 0x02:
           return gba->ewram[addr & (GBA_EWRAM_SIZE - 1)];
      case 0x03:
@@ -696,7 +758,7 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
      case 0x04:
           if (addr < GBA_IO_BASE + 0x400)
                return io_read8(gba, addr);
-          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* I/O gap — open bus */
+          return memory_open_bus8(gba, addr); /* I/O gap — open bus */
      case 0x05:
           return gba->pram[addr & (GBA_PAL_SIZE - 1)];
      case 0x06:
@@ -719,7 +781,7 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
      case 0x0F:
           return gba_cart_read8(gba, addr);
      default:
-          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8)); /* open bus */
+          return memory_open_bus8(gba, addr); /* open bus */
      }
 }
 
@@ -727,7 +789,8 @@ uint16_t gba_memory_read16(struct gba *gba, uint32_t addr)
 {
      if ((addr >> 24) >= 0x0E)
      {
-          gba->mem_cycles += memory_wait_cycles(gba, addr, false);
+          gba->mem_cycles += cpu_wait_cycles(gba, addr, GBA_MEMORY_ACCESS_16,
+                                              GBA_MEMORY_ACCESS_READ, false);
           uint8_t v = gba_cart_read8(gba, addr);
           return (uint16_t)(v | ((uint16_t)v << 8));
      }
@@ -736,7 +799,9 @@ uint16_t gba_memory_read16(struct gba *gba, uint32_t addr)
      {
           if ((addr >> 24) == 0x0D && gba_cart_is_eeprom(gba))
                return gba_cart_eeprom_read(gba);
-          gba->mem_cycles += memory_wait_cycles(gba, addr & ~1U, false);
+          gba->mem_cycles += cpu_wait_cycles(gba, addr & ~1U,
+                                              GBA_MEMORY_ACCESS_16,
+                                              GBA_MEMORY_ACCESS_READ, false);
           addr &= ~1U;
           return (uint16_t)(gba_cart_read8(gba, addr) |
                             ((uint16_t)gba_cart_read8(gba, addr + 1) << 8));
@@ -764,7 +829,8 @@ uint32_t gba_memory_read32(struct gba *gba, uint32_t addr)
      if ((addr >> 24) >= 0x0E)
      {
           /* SRAM is 8-bit wide; 32-bit read costs 4× byte accesses */
-          gba->mem_cycles += memory_wait_cycles(gba, addr, false) * 4;
+          gba->mem_cycles += cpu_wait_cycles(gba, addr, GBA_MEMORY_ACCESS_8,
+                                              GBA_MEMORY_ACCESS_READ, false) * 4;
           uint8_t v = gba_cart_read8(gba, addr);
           return (uint32_t)v | ((uint32_t)v << 8) |
                  ((uint32_t)v << 16) | ((uint32_t)v << 24);
@@ -772,8 +838,11 @@ uint32_t gba_memory_read32(struct gba *gba, uint32_t addr)
      addr &= ~3U;
      if ((addr >> 24) >= 0x08 && (addr >> 24) <= 0x0D)
      {
-          gba->mem_cycles += memory_wait_cycles(gba, addr, false);
-          gba->mem_cycles += memory_wait_cycles(gba, addr + 2, true);
+          gba->mem_cycles += cpu_wait_cycles(gba, addr, GBA_MEMORY_ACCESS_16,
+                                              GBA_MEMORY_ACCESS_READ, false);
+          gba->mem_cycles += cpu_wait_cycles(gba, addr + 2,
+                                              GBA_MEMORY_ACCESS_16,
+                                              GBA_MEMORY_ACCESS_READ, true);
           if ((addr & 0x1FFFFU) == 0)
                gba->mem_cycles += 2;
           uint32_t val = (uint32_t)gba_cart_read8(gba, addr) |
@@ -803,7 +872,10 @@ uint16_t gba_memory_fetch16(struct gba *gba, uint32_t addr, bool sequential)
           if (prefetch_hit)
                gba->mem_cycles += 1;
           else
-               gba->mem_cycles += memory_wait_cycles(gba, addr, sequential);
+               gba->mem_cycles += cpu_wait_cycles(gba, addr,
+                                                   GBA_MEMORY_ACCESS_16,
+                                                   GBA_MEMORY_ACCESS_FETCH,
+                                                   sequential);
           gba->prefetch_last_addr = addr;
           val = (uint16_t)(gba_cart_read8(gba, addr) |
                            ((uint16_t)gba_cart_read8(gba, addr + 1) << 8));
@@ -826,11 +898,15 @@ uint32_t gba_memory_fetch32(struct gba *gba, uint32_t addr, bool sequential)
      {
           bool prefetch_hit = gba->prefetch_en && sequential &&
                               addr == gba->prefetch_last_addr + 2;
-          gba->mem_cycles += prefetch_hit ? 1 : memory_wait_cycles(gba, addr, sequential);
+          gba->mem_cycles += prefetch_hit ? 1 :
+              cpu_wait_cycles(gba, addr, GBA_MEMORY_ACCESS_16,
+                              GBA_MEMORY_ACCESS_FETCH, sequential);
           /* Second halfword of a 32-bit fetch is always sequential */
           bool prefetch_hit2 = gba->prefetch_en &&
                                (addr + 2) == gba->prefetch_last_addr + 2;
-          gba->mem_cycles += prefetch_hit2 ? 1 : memory_wait_cycles(gba, addr + 2, true);
+          gba->mem_cycles += prefetch_hit2 ? 1 :
+              cpu_wait_cycles(gba, addr + 2, GBA_MEMORY_ACCESS_16,
+                              GBA_MEMORY_ACCESS_FETCH, true);
           if (!sequential && (addr & 0x1FFFFU) == 0)
                gba->mem_cycles += 2;
           gba->prefetch_last_addr = addr + 2;
@@ -854,9 +930,13 @@ uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr)
      switch (addr >> 24)
      {
      case 0x00:
-          if (addr < GBA_BIOS_SIZE && gba->bios)
-               return gba->bios[addr];
-          return (uint8_t)(gba->bios_open_bus >> ((addr & 3U) * 8));
+          if (addr < GBA_BIOS_SIZE)
+          {
+               if (gba->bios)
+                    return gba->bios[addr];
+               return (uint8_t)(gba->bios_open_bus >> ((addr & 3U) * 8));
+          }
+          return (uint8_t)(gba->cpu_bus >> ((addr & 3U) * 8));
      case 0x02:
           return gba->ewram[addr & (GBA_EWRAM_SIZE - 1)];
      case 0x03:
@@ -962,7 +1042,11 @@ uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr)
      case 0x0A:
      case 0x0B:
      case 0x0C:
+          return gba_cart_read8(gba, addr);
      case 0x0D:
+          if (gba_cart_is_eeprom(gba))
+               return (uint8_t)gba_cart_eeprom_peek(gba);
+          return gba_cart_read8(gba, addr);
      case 0x0E:
      case 0x0F:
           return gba_cart_read8(gba, addr);
@@ -974,6 +1058,8 @@ uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr)
 uint16_t gba_memory_peek16(struct gba *gba, uint32_t addr)
 {
      addr &= ~1U;
+     if ((addr >> 24) == 0x0D && gba_cart_is_eeprom(gba))
+          return gba_cart_eeprom_peek(gba);
      return (uint16_t)(gba_memory_peek8(gba, addr) |
                        ((uint16_t)gba_memory_peek8(gba, addr + 1) << 8));
 }
@@ -1128,6 +1214,10 @@ void gba_memory_write32(struct gba *gba, uint32_t addr, uint32_t val)
           gba_cart_write8(gba, addr, (uint8_t)(val >> ((addr & 3U) * 8)));
           return;
      }
+     /* EEPROM is a 16-bit serial device.  A 32-bit store is not two EEPROM
+      * commands and must not advance its serial state. */
+     if ((addr >> 24) == 0x0D && gba_cart_is_eeprom(gba))
+          return;
      addr &= ~3U;
      switch (addr >> 24)
      {

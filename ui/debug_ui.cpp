@@ -1477,15 +1477,24 @@ extern "C" void debug_ui_init(struct gb *gb)
           s_window = nullptr;
           return;
      }
-     if (!ImGui_ImplOpenGL3_Init("#version 330 core"))
      {
-          fprintf(stderr, "debug_ui: ImGui_ImplOpenGL3_Init falhou (OpenGL 3.3 nao suportado?)\n");
-          ImGui_ImplSDL3_Shutdown();
-          ImGui::DestroyContext();
-          SDL_GL_DestroyContext(s_gl_context);
-          s_gl_context = nullptr;
-          s_window = nullptr;
-          return;
+          int gl_major = 0, gl_minor = 0;
+          SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &gl_major);
+          SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &gl_minor);
+          const char *glsl_ver = (gl_major > 3 || (gl_major == 3 && gl_minor >= 3))
+                                     ? "#version 330 core"
+                                     : "#version 130";
+          fprintf(stderr, "debug_ui: OpenGL %d.%d -> GLSL %s\n", gl_major, gl_minor, glsl_ver);
+          if (!ImGui_ImplOpenGL3_Init(glsl_ver))
+          {
+               fprintf(stderr, "debug_ui: ImGui_ImplOpenGL3_Init falhou\n");
+               ImGui_ImplSDL3_Shutdown();
+               ImGui::DestroyContext();
+               SDL_GL_DestroyContext(s_gl_context);
+               s_gl_context = nullptr;
+               s_window = nullptr;
+               return;
+          }
      }
 
      /* Cria textura do frame do jogo (160×144) */

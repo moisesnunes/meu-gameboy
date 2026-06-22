@@ -1,9 +1,60 @@
 #ifndef _GBA_MEMORY_H_
 #define _GBA_MEMORY_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct gba;
+
+/* Describes one bus transaction.  Timing and open-bus rules can then depend
+ * on who initiated the access without overloading the public read helpers. */
+enum gba_memory_access_width {
+     GBA_MEMORY_ACCESS_8 = 1,
+     GBA_MEMORY_ACCESS_16 = 2,
+     GBA_MEMORY_ACCESS_32 = 4,
+};
+
+enum gba_memory_access_source {
+     GBA_MEMORY_ACCESS_CPU,
+     GBA_MEMORY_ACCESS_DMA,
+     GBA_MEMORY_ACCESS_DEBUG,
+};
+
+enum gba_memory_access_kind {
+     GBA_MEMORY_ACCESS_READ,
+     GBA_MEMORY_ACCESS_WRITE,
+     GBA_MEMORY_ACCESS_FETCH,
+};
+
+enum gba_memory_region {
+     GBA_MEMORY_REGION_BIOS,
+     GBA_MEMORY_REGION_UNUSED,
+     GBA_MEMORY_REGION_EWRAM,
+     GBA_MEMORY_REGION_IWRAM,
+     GBA_MEMORY_REGION_IO,
+     GBA_MEMORY_REGION_PRAM,
+     GBA_MEMORY_REGION_VRAM,
+     GBA_MEMORY_REGION_OAM,
+     GBA_MEMORY_REGION_ROM0,
+     GBA_MEMORY_REGION_ROM1,
+     GBA_MEMORY_REGION_ROM2,
+     GBA_MEMORY_REGION_SRAM,
+};
+
+struct gba_memory_block {
+     const char *name;
+     uint32_t base;
+     uint32_t size;
+     uint32_t mirror_mask;
+};
+
+struct gba_memory_access {
+     uint32_t addr;
+     enum gba_memory_access_width width;
+     enum gba_memory_access_source source;
+     enum gba_memory_access_kind kind;
+     bool sequential;
+};
 
 /* GBA memory map regions */
 #define GBA_BIOS_BASE 0x00000000U
@@ -131,6 +182,14 @@ void gba_memory_write32(struct gba *gba, uint32_t addr, uint32_t val);
 uint8_t gba_memory_peek8(struct gba *gba, uint32_t addr);
 uint16_t gba_memory_peek16(struct gba *gba, uint32_t addr);
 uint32_t gba_memory_peek32(struct gba *gba, uint32_t addr);
+
+/* Extra cost for one mapped bus phase.  Game Pak and SRAM values depend on
+ * WAITCNT; this deliberately excludes the caller's base instruction/DMA
+ * cycle accounting. */
+int gba_memory_wait_cycles(const struct gba *gba,
+                           const struct gba_memory_access *access);
+enum gba_memory_region gba_memory_region_for_addr(uint32_t addr);
+const struct gba_memory_block *gba_memory_block_for_addr(uint32_t addr);
 
 void gba_memory_reset(struct gba *gba);
 

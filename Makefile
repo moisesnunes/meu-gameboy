@@ -109,6 +109,11 @@ GBA_OBJ  = $(BUILD_GBA_DIR)/gba_main.o $(GBA_CORE_OBJ) $(GBA_UI_OBJ) $(IMGUI_OBJ
 GBA_COMPAT_NAME = gba_compat_test
 GBA_COMPAT_OBJ  = $(BUILD_TEST_DIR)/gba_compat_test.o $(GBA_CORE_OBJ)
 
+# gba_memory_test: invariants of debug peeks and byte-sized DMA I/O accesses
+GBA_MEMORY_TEST_NAME = gba_memory_test
+GBA_MEMORY_TEST_OBJ  = $(BUILD_TEST_DIR)/gba_memory_test.o $(GBA_CORE_OBJ)
+GBA_MEMORY_TEST_DEP  = $(GBA_MEMORY_TEST_OBJ:.o=.d)
+
 # Frontend minimalista: sem ImGui, útil para profiling e testes headless rápidos
 SIMPLE_NAME = gameboy-simple
 SIMPLE_OBJ  = $(BUILD_APP_DIR)/main_simple.o $(CORE_OBJ)
@@ -150,7 +155,7 @@ TESTER_DEP = $(TESTER_OBJ:.o=.d)
 COMPAT_DEP = $(COMPAT_OBJ:.o=.d)
 GBA_DEP    = $(GBA_CORE_DEP) $(GBA_UI_DEP)
 # DEP agrega todos os .d de todos os alvos; -include abaixo os carrega sem erro se ausentes
-DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(HW_DEP) $(VEC_DEP) $(GBA_VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP)
+DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(HW_DEP) $(VEC_DEP) $(GBA_VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP) $(GBA_MEMORY_TEST_DEP)
 
 $(NAME) : $(OBJ)
 	$(info LD $@)
@@ -189,6 +194,10 @@ $(GBA_NAME) : $(GBA_OBJ)
 	$(CC_CXX) -o $@ $^ $(LDFLAGS) -lpthread -lm
 
 $(GBA_COMPAT_NAME) : $(GBA_COMPAT_OBJ)
+	$(info LD $@)
+	$(CC_C) -o $@ $^ -lpthread -lm
+
+$(GBA_MEMORY_TEST_NAME) : $(GBA_MEMORY_TEST_OBJ)
 	$(info LD $@)
 	$(CC_C) -o $@ $^ -lpthread -lm
 
@@ -235,16 +244,19 @@ $(BUILD_GBA_DIR)/%.o: gba/%.c
 	mkdir -p $(dir $@)
 	$(CC_C) -c $(CFLAGS) -I gba -o $@ $<
 
-.PHONY : clean compat-run mooneye-run game-smoke gba-game-smoke shootout-run shootout-list gba-compat-run sm83-validate
+.PHONY : clean compat-run blargg-run mooneye-run game-smoke gba-game-smoke shootout-run shootout-list gba-compat-run gba-memory-test sm83-validate
 clean:
 	$(info CLEAN $(NAME))
 	rm -rf $(BUILD_DIR)
 	rm -f *.o *.d imgui/*.o imgui/*.d imgui/backends/*.o imgui/backends/*.d
-	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(SM83_VALIDATE_NAME)
+	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(GBA_MEMORY_TEST_NAME) $(SM83_VALIDATE_NAME)
 
 # --no-build: evita recompilar dentro do script Python; o Make já garantiu o binário
 compat-run: $(COMPAT_NAME)
 	./tests/compat/run_compat.py --no-build $(COMPAT_ARGS)
+
+blargg-run: $(COMPAT_NAME)
+	COMPAT_SUITE=blargg ./tests/compat/run_compat.py --no-build $(COMPAT_ARGS)
 
 mooneye-run: $(COMPAT_NAME)
 	./tests/compat/run_compat.py --no-build --manifest tests/compat/mooneye.tsv $(COMPAT_ARGS)
@@ -254,6 +266,9 @@ game-smoke: $(TESTER_NAME)
 
 gba-game-smoke: $(GBA_COMPAT_NAME)
 	./tests/games/run_gba_game_smoke.py --no-build $(GBA_GAME_SMOKE_ARGS)
+
+gba-memory-test: $(GBA_MEMORY_TEST_NAME)
+	./$(GBA_MEMORY_TEST_NAME)
 
 shootout-run: $(COMPAT_NAME)
 	./tests/shootout/run_shootout.py --no-build $(SHOOTOUT_ARGS)

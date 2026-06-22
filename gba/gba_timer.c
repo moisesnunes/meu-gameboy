@@ -34,6 +34,33 @@ void gba_timer_write_reload(struct gba *gba, int n, uint16_t val)
      }
 }
 
+void gba_timer_write_reload8(struct gba *gba, int n, bool high, uint8_t val)
+{
+     struct gba_timer_channel *ch = &gba->timer.ch[n];
+     uint16_t reload;
+
+     gba_timer_sync(gba);
+     /* When a live timer already has a deferred reload, both byte writes must
+      * update that same latch rather than exposing the stale active reload. */
+     reload = ch->pending_reload ? ch->reload_pending : ch->reload;
+     if (high)
+          reload = (uint16_t)((reload & 0x00FFU) | ((uint16_t)val << 8));
+     else
+          reload = (uint16_t)((reload & 0xFF00U) | val);
+
+     if (ch->enable && !ch->cascade)
+     {
+          ch->reload_pending = reload;
+          ch->pending_reload = true;
+          ch->reload_delay = 1;
+     }
+     else
+     {
+          ch->reload = reload;
+          ch->pending_reload = false;
+     }
+}
+
 void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val)
 {
      gba_timer_write_ctrl_delayed(gba, n, val, 0);

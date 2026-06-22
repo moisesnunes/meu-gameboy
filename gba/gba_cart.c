@@ -415,6 +415,28 @@ uint16_t gba_cart_eeprom_read(struct gba *gba)
      return 0;
 }
 
+uint16_t gba_cart_eeprom_peek(const struct gba *gba)
+{
+     const struct gba_cart_eeprom *ee = &gba->cart.eeprom;
+     int remaining;
+
+     if (ee->command != 4)
+          return (ee->settling_until && gba->timestamp < ee->settling_until) ? 0 : 1;
+
+     /* Mirror the next serial read without consuming its output bit. */
+     remaining = ee->read_bits_remaining - 1;
+     if (remaining < 64)
+     {
+          int step = 63 - remaining;
+          uint32_t byte_addr = (ee->read_address + (uint32_t)step) >> 3;
+          if (byte_addr >= sizeof(ee->data))
+               return 1;
+          return (ee->data[byte_addr] >> (7 - (step & 7))) & 1;
+     }
+
+     return 0;
+}
+
 void gba_cart_eeprom_write(struct gba *gba, uint16_t value, uint32_t write_size)
 {
      struct gba_cart *cart = &gba->cart;

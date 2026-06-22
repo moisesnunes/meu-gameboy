@@ -35,6 +35,7 @@ struct gba_timer
 void gba_timer_reset(struct gba *gba);
 void gba_timer_sync(struct gba *gba);
 void gba_timer_write_reload(struct gba *gba, int n, uint16_t val);
+void gba_timer_write_reload8(struct gba *gba, int n, bool high, uint8_t val);
 void gba_timer_write_ctrl(struct gba *gba, int n, uint16_t val);
 void gba_timer_write_ctrl_delayed(struct gba *gba, int n, uint16_t val, int32_t access_delay);
 uint16_t gba_timer_read_counter(struct gba *gba, int n);

@@ -156,38 +156,35 @@ static int dma_access_cycles(struct gba *gba, uint32_t addr, bool word32, bool s
 {
      int region = addr >> 24;
      int base = word32 ? 2 : 1; /* 32-bit = 2 sequential 16-bit accesses */
+     struct gba_memory_access access = {
+          .addr = addr,
+          .width = word32 ? GBA_MEMORY_ACCESS_32 : GBA_MEMORY_ACCESS_16,
+          .source = GBA_MEMORY_ACCESS_DMA,
+          .kind = GBA_MEMORY_ACCESS_READ,
+          .sequential = seq,
+     };
+
      switch (region)
      {
      case 0x08:
      case 0x09:
-     {
-          uint16_t wc = gba->waitcnt;
-          int first = (int[]){4, 3, 2, 8}[(wc >> 2) & 3];
-          int s = (wc >> 4) & 1 ? 1 : 2;
-          return word32 ? (first + s) : (seq ? s : first);
-     }
      case 0x0A:
      case 0x0B:
-     {
-          uint16_t wc = gba->waitcnt;
-          int first = (int[]){4, 3, 2, 8}[(wc >> 5) & 3];
-          int s = (wc >> 7) & 1 ? 1 : 4;
-          return word32 ? (first + s) : (seq ? s : first);
-     }
      case 0x0C:
      case 0x0D:
      {
-          uint16_t wc = gba->waitcnt;
-          int first = (int[]){4, 3, 2, 8}[(wc >> 8) & 3];
-          int s = (wc >> 10) & 1 ? 1 : 8;
-          return word32 ? (first + s) : (seq ? s : first);
+          if (!word32)
+               return gba_memory_wait_cycles(gba, &access);
+
+          access.sequential = false;
+          int first = gba_memory_wait_cycles(gba, &access);
+          access.addr += 2;
+          access.sequential = true;
+          return first + gba_memory_wait_cycles(gba, &access);
      }
      case 0x0E:
      case 0x0F:
-     {
-          uint16_t wc = gba->waitcnt;
-          return (int[]){4, 3, 2, 8}[wc & 3] * base;
-     }
+          return gba_memory_wait_cycles(gba, &access) * base;
      default:
           return base; /* internal bus: 1 cycle per halfword */
      }

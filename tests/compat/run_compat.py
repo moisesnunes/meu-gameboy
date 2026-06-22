@@ -22,6 +22,7 @@ DEFAULT_OUT = ROOT / "tests" / "compat" / "out"
 @dataclass(frozen=True)
 class TestCase:
     rom: Path
+    suite: str
     mode: str
     expect: str
     max_cycles: int
@@ -54,6 +55,15 @@ def parse_int(value: str | None, default: int) -> int:
         die(f"invalid integer value: {value}")
 
 
+def suite_for_path(path_text: str) -> str:
+    path = path_text.lower()
+    if "blargg" in path:
+        return "blargg"
+    if "mooneye" in path:
+        return "mooneye"
+    return "other"
+
+
 def discover_manifest(manifest: Path) -> list[TestCase]:
     if not manifest.exists():
         die(f"compat manifest not found: {display_path(manifest)}")
@@ -74,11 +84,13 @@ def discover_manifest(manifest: Path) -> list[TestCase]:
             if path_text.startswith("glob:"):
                 pattern = path_text.removeprefix("glob:")
                 for match in sorted(glob.glob(str(ROOT / pattern), recursive=True)):
-                    tests.append(TestCase(Path(match), mode, expect, cycles, sha1))
+                    tests.append(TestCase(Path(match), suite_for_path(path_text), mode,
+                                          expect, cycles, sha1))
             elif path_text:
                 rom = ROOT / path_text
                 if rom.exists():
-                    tests.append(TestCase(rom, mode, expect, cycles, sha1))
+                    tests.append(TestCase(rom, suite_for_path(path_text), mode,
+                                          expect, cycles, sha1))
             else:
                 die(f"empty ROM path in {display_path(manifest)}:{line_no}")
     return tests
@@ -167,6 +179,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=env_path("COMPAT_OUT", DEFAULT_OUT))
     parser.add_argument("--result", type=Path, default=os.environ.get("COMPAT_RESULT"))
     parser.add_argument("--summary", type=Path, default=os.environ.get("COMPAT_SUMMARY"))
+    parser.add_argument("--suite", choices=("all", "blargg", "mooneye"),
+                        default=os.environ.get("COMPAT_SUITE", "all"))
     parser.add_argument("--max-cycles", type=int, default=parse_int(os.environ.get("COMPAT_MAX_CYCLES"), 0) or None)
     parser.add_argument("--visual-cycles", type=int, default=parse_int(os.environ.get("COMPAT_VISUAL_CYCLES"), 0) or None)
     parser.add_argument("--no-build", action="store_true")
@@ -186,6 +200,10 @@ def main() -> int:
         die("compat_test is missing; run `make compat_test` first or omit --no-build")
 
     tests = discover_manifest(manifest)
+    if args.suite != "all":
+        tests = [test for test in tests if test.suite == args.suite]
+    if not tests:
+        die(f"no {args.suite} tests found in {display_path(manifest)}")
     clean_out_dir(out_dir, result_file, summary_file)
     result_file.parent.mkdir(parents=True, exist_ok=True)
     summary_file.parent.mkdir(parents=True, exist_ok=True)
@@ -193,6 +211,7 @@ def main() -> int:
     write_summary_header(summary_file, manifest, result_file)
 
     totals = {"PASS": 0, "FAIL": 0, "TIMEOUT": 0, "VISUAL": 0, "UNKNOWN": 0}
+    suite_totals: dict[str, dict[str, int]] = {}
     with tempfile.TemporaryDirectory(prefix="gaembuoy-compat.") as tmp:
         tmp_dir = Path(tmp)
         for test in tests:
@@ -204,6 +223,10 @@ def main() -> int:
                 args.visual_cycles,
             )
             totals[final_status] = totals.get(final_status, 0) + 1
+            counts = suite_totals.setdefault(
+                test.suite, {"PASS": 0, "FAIL": 0, "TIMEOUT": 0, "VISUAL": 0, "UNKNOWN": 0}
+            )
+            counts[final_status] = counts.get(final_status, 0) + 1
             if test.expect == "visual":
                 line = f"{final_status}\t{display_path(test.rom)}\tsha1={sha1}\t{output}\n"
             else:
@@ -225,6 +248,22 @@ def main() -> int:
                     for line in stderr.splitlines():
                         f.write(f"    {line}\n")
                 f.write("\n")
+
+    for suite in ("blargg", "mooneye", "other"):
+        counts = suite_totals.get(suite)
+        if not counts:
+            continue
+        suite_total = sum(counts.values())
+        suite_summary = (
+            f"compat suite={suite} TOTAL={suite_total} PASS={counts.get('PASS', 0)} "
+            f"FAIL={counts.get('FAIL', 0)} TIMEOUT={counts.get('TIMEOUT', 0)} "
+            f"VISUAL={counts.get('VISUAL', 0)} UNKNOWN={counts.get('UNKNOWN', 0)}"
+        )
+        print(suite_summary)
+        with result_file.open("a") as f:
+            f.write(f"{suite_summary}\n")
+        with summary_file.open("a") as f:
+            f.write(f"{suite_summary}\n")
 
     total = len(tests)
     summary = (
