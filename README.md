@@ -105,6 +105,16 @@ make meu-gba.exe
 
 ## Command Line Usage
 
+For normal use, build once and launch a ROM directly:
+
+```sh
+./gameboy path/to/rom.gb
+./meu-gba path/to/rom.gba
+```
+
+The remaining options are only needed for debugging, custom boot ROMs, BIOS,
+or instruction traces:
+
 ```text
 ./gameboy [--debug] [--bootrom path/to/bootrom.bin] path/to/rom.gb
 ./meu-gba [--debug] [--bios path/to/gba_bios.bin] [--trace [count] [file]] path/to/rom.gba
