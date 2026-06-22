@@ -19,7 +19,12 @@ sm83_netlist_validate
 *.ini
 
 # ROM collections (large + copyright)
-roms/
+roms/blargg-test-roms-master
+roms/game-boy-advance-test-roms
+roms/game-boy-and-game-boy-color-complete-collection
+roms/game-boy-test-roms-v7.0
+roms/GameboyAdvanceRomCollectionByGhostware
+roms/mooneye-test-suite
 
 # Documentação interna
 docs/

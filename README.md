@@ -105,11 +105,13 @@ make meu-gba.exe
 
 ## Command Line Usage
 
-For normal use, build once and launch a ROM directly:
+For normal use, build once and start the frontend:
 
 ```sh
-./gameboy 
-or
+# Open the Game Boy frontend, then choose or drop a ROM
+./gameboy
+
+# Or launch a ROM directly
 ./gameboy path/to/rom.gb
 ./meu-gba path/to/rom.gba
 ```
@@ -176,8 +178,23 @@ make sm83-validate
 
 The compatibility runners write machine-readable result tables under
 `tests/compat/out/`, `tests/gba_compat/out/`, and `tests/shootout/out/`.
-Useful shootout profiles and focused-run arguments are documented in
-[tests/shootout/README.md](tests/shootout/README.md).
+Each test family now has its own guide under [tests/](tests/):
+[compatibility](tests/compat/README.md), [GBA compatibility](tests/gba_compat/README.md),
+[commercial smoke](tests/games/README.md), and [shootout](tests/shootout/README.md).
+
+### GB/GBC Commercial Smoke Snapshot
+
+The current `run_game_smoke.py` report in `tests/games/out/summary.md` covers
+1,028 ROMs from the [Game Boy and Game Boy Color Complete Collection](https://archive.org/download/game-boy-and-game-boy-color-complete-collection).
+It classifies 922 (89.7%) as likely working, 106 (10.3%) as needing review,
+and none as a tool or emulator failure.
+
+| Verdict | ROMs |
+| --- | ---: |
+| Works - screen changed | 820 |
+| Works - stable screen | 102 |
+| Review - blank screen | 4 |
+| Review - low visual detail | 102 |
 
 ### Game Boy Test ROMs v7.0 Shootout
 
