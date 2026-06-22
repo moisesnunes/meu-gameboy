@@ -44,11 +44,18 @@ void gba_apu_reset(struct gba *gba)
      struct gba_apu *apu = &gba->apu;
 
      /* Preserve frontend-only state across resets */
+     bool sync_initialized = apu->sync_initialized;
      bool mute_ch1 = apu->mute_ch1, mute_ch2 = apu->mute_ch2;
      bool mute_ch3 = apu->mute_ch3, mute_ch4 = apu->mute_ch4;
      bool mute_fifo_a = apu->mute_fifo_a, mute_fifo_b = apu->mute_fifo_b;
      bool frontend_muted = apu->frontend_muted;
      float frontend_volume = apu->frontend_volume;
+
+     if (sync_initialized)
+     {
+          sem_destroy(&apu->buf_free);
+          sem_destroy(&apu->buf_ready);
+     }
 
      memset(apu, 0, sizeof(*apu));
 
@@ -63,9 +70,21 @@ void gba_apu_reset(struct gba *gba)
 
      sem_init(&apu->buf_free, 0, 2);
      sem_init(&apu->buf_ready, 0, 0);
+     apu->sync_initialized = true;
 
      apu->next_sample_cycles = GBA_CPU_FREQ_HZ / GBA_APU_SAMPLE_RATE;
      gba_sync_next(gba, GBA_SYNC_APU, apu->next_sample_cycles);
+}
+
+void gba_apu_destroy(struct gba *gba)
+{
+     struct gba_apu *apu = &gba->apu;
+
+     if (!apu->sync_initialized)
+          return;
+     sem_destroy(&apu->buf_free);
+     sem_destroy(&apu->buf_ready);
+     apu->sync_initialized = false;
 }
 
 /*

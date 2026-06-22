@@ -16,6 +16,7 @@ void gba_destroy(struct gba *gba)
 {
      if (!gba)
           return;
+     gba_apu_destroy(gba);
      gba_cart_unload(gba);
      free(gba->bios);
      free(gba);
@@ -70,6 +71,9 @@ void gba_event_trace(struct gba *gba, enum gba_event_trace_kind kind,
 
 void gba_reset(struct gba *gba)
 {
+     if (gba->frontend.lock_reset)
+          gba->frontend.lock_reset(gba->frontend.data);
+
      gba->timestamp = 0;
      gba->quit = false;
      gba->halt_mode = 0;
@@ -138,6 +142,9 @@ void gba_reset(struct gba *gba)
            * What matters more: 0x03007FFC = interrupt handler pointer (0 = no handler).
            */
      }
+
+     if (gba->frontend.unlock_reset)
+          gba->frontend.unlock_reset(gba->frontend.data);
 }
 
 void gba_run_frame(struct gba *gba)

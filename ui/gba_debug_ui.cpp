@@ -1240,12 +1240,6 @@ void gba_debug_ui_process_event(struct gba *gba, SDL_Event *event)
           return;
      ImGui_ImplSDL3_ProcessEvent(event);
 
-     if (event->type == SDL_EVENT_DROP_FILE)
-     {
-          SDL_strlcpy(s_pending_rom, event->drop.data, sizeof(s_pending_rom));
-          SDL_free((void *)event->drop.data);
-     }
-
      if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
      {
           SDL_Keycode key = event->key.key;

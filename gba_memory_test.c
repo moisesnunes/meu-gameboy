@@ -1,7 +1,33 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "gba/gba.h"
+#include "gba/gba_disasm.h"
+
+int gba_arm_execute(struct gba *gba, uint32_t instr);
+int gba_thumb_execute(struct gba *gba, uint16_t instr);
+
+struct reset_probe
+{
+     int depth;
+     int completed;
+};
+
+static void lock_reset_probe(void *data)
+{
+     struct reset_probe *probe = data;
+     assert(probe->depth == 0);
+     probe->depth = 1;
+}
+
+static void unlock_reset_probe(void *data)
+{
+     struct reset_probe *probe = data;
+     assert(probe->depth == 1);
+     probe->depth = 0;
+     probe->completed++;
+}
 
 static void test_peek_does_not_sync_timer(struct gba *gba)
 {
@@ -17,6 +43,74 @@ static void test_peek_does_not_sync_timer(struct gba *gba)
      assert(gba->sync.last_sync[GBA_SYNC_TIMER] == 40);
      assert(timer->counter == 0x1234);
      assert(timer->cycles_acc == 7);
+}
+
+static void test_repeated_reset_reinitializes_apu_sync(struct gba *gba)
+{
+     struct reset_probe probe = {0};
+     gba->frontend.data = &probe;
+     gba->frontend.lock_reset = lock_reset_probe;
+     gba->frontend.unlock_reset = unlock_reset_probe;
+
+     gba_reset(gba);
+     assert(gba->apu.sync_initialized);
+     assert(sem_trywait(&gba->apu.buf_free) == 0);
+     sem_post(&gba->apu.buf_free);
+
+     gba_reset(gba);
+     assert(gba->apu.sync_initialized);
+     assert(sem_trywait(&gba->apu.buf_free) == 0);
+     sem_post(&gba->apu.buf_free);
+     assert(sem_trywait(&gba->apu.buf_ready) != 0);
+     assert(probe.depth == 0);
+     assert(probe.completed == 2);
+
+     gba->frontend.data = NULL;
+     gba->frontend.lock_reset = NULL;
+     gba->frontend.unlock_reset = NULL;
+}
+
+static void test_reset_preserves_debug_pause_state(struct gba *gba)
+{
+     gba->debug.enabled = true;
+     gba->debug.state = GBA_DEBUG_RUNNING;
+     gba_reset(gba);
+     assert(gba->debug.enabled);
+     assert(gba->debug.state == GBA_DEBUG_RUNNING);
+
+     gba->debug.state = GBA_DEBUG_PAUSED;
+     gba_reset(gba);
+     assert(gba->debug.state == GBA_DEBUG_PAUSED);
+
+     gba->debug.enabled = false;
+     gba->debug.state = GBA_DEBUG_RUNNING;
+}
+
+static void test_mov_r5_r0(struct gba *gba)
+{
+     const uint32_t flags = GBA_CPSR_N | GBA_CPSR_Z | GBA_CPSR_C | GBA_CPSR_V;
+     char text[64];
+
+     gba->cpu.r[0] = 0x12345678;
+     gba->cpu.r[5] = 0;
+     gba->cpu.cpsr = GBA_MODE_SYS | GBA_CPSR_T | flags;
+     assert(gba_thumb_execute(gba, 0x4605) == 1);
+     assert(gba->cpu.r[5] == 0x12345678);
+     assert((gba->cpu.cpsr & flags) == flags);
+
+     gba_memory_write16(gba, GBA_IWRAM_BASE, 0x4605);
+     gba_disasm(gba, GBA_IWRAM_BASE, 1, text, sizeof(text));
+     assert(strcmp(text, "mov r5, r0") == 0);
+
+     gba->cpu.r[5] = 0;
+     gba->cpu.cpsr = GBA_MODE_SYS | flags;
+     assert(gba_arm_execute(gba, 0xE1A05000) == 1);
+     assert(gba->cpu.r[5] == 0x12345678);
+     assert((gba->cpu.cpsr & flags) == flags);
+
+     gba_memory_write32(gba, GBA_IWRAM_BASE, 0xE1A05000);
+     gba_disasm(gba, GBA_IWRAM_BASE, 0, text, sizeof(text));
+     assert(strcmp(text, "mov r5, r0") == 0);
 }
 
 static void test_waitcnt_access_descriptor(struct gba *gba)
@@ -141,6 +235,23 @@ static void test_dma_byte_register_access(struct gba *gba)
      assert(gba_memory_read8(gba, REG_DMA3CNT_H + 1) == 0x7F);
 }
 
+static void test_dma_invalid_source_uses_dma_latch(struct gba *gba)
+{
+     struct gba_dma_channel *dma = &gba->dma.ch[0];
+
+     gba_dma_reset(gba);
+     gba->cpu_bus = 0;
+     dma->data_latch = 0xA1B2C3D4;
+     gba_dma_write_src(gba, 0, 0x00000000);
+     gba_dma_write_dst(gba, 0, GBA_EWRAM_BASE);
+     gba_dma_write_count(gba, 0, 1);
+     gba_dma_write_ctrl(gba, 0, 0x8400); /* immediate, 32-bit */
+
+     assert(gba_memory_read32(gba, GBA_EWRAM_BASE) == 0xA1B2C3D4);
+     assert(gba->cpu_bus == 0xA1B2C3D4);
+     assert(gba_memory_read32(gba, 0x01000000) == 0xA1B2C3D4);
+}
+
 static void test_peek_does_not_consume_eeprom(struct gba *gba)
 {
      struct gba_cart_eeprom *eeprom = &gba->cart.eeprom;
@@ -224,6 +335,9 @@ int main(void)
      struct gba *gba = gba_create();
      assert(gba);
      gba_reset(gba);
+     test_repeated_reset_reinitializes_apu_sync(gba);
+     test_reset_preserves_debug_pause_state(gba);
+     test_mov_r5_r0(gba);
 
      test_peek_does_not_sync_timer(gba);
      test_waitcnt_access_descriptor(gba);
@@ -233,6 +347,7 @@ int main(void)
      test_cpu_open_bus(gba);
      test_unused_bios_region_uses_open_bus(gba);
      test_dma_byte_register_access(gba);
+     test_dma_invalid_source_uses_dma_latch(gba);
      test_peek_does_not_consume_eeprom(gba);
      test_eeprom_ignores_word_writes(gba);
      test_memory_map_mirrors_and_byte_writes(gba);

@@ -22,6 +22,12 @@ static int mul_cycles_signed(uint32_t rs)
      return 4;
 }
 
+static int32_t sign_extend(uint32_t value, unsigned bits)
+{
+     uint32_t sign = 1U << (bits - 1);
+     return (int32_t)((value ^ sign) - sign);
+}
+
 /*
  * Flag helpers (shared with ARM side)
  */
@@ -752,7 +758,7 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
      /* Format 18: Unconditional branch */
      if ((hi & 0xF8) == 0xE0)
      {
-          int32_t offset = (int32_t)((instr & 0x7FF) << 21) >> 20; /* sign-extend 11-bit ×2 */
+          int32_t offset = sign_extend((uint32_t)(instr & 0x7FFU) << 1, 12);
           uint32_t hw_pc = cpu->r[15] - 2;                         /* = instr_addr + 4 */
           uint32_t target = hw_pc + (uint32_t)offset;
           cpu->r[15] = target + 4;
@@ -770,7 +776,7 @@ int gba_thumb_execute(struct gba *gba, uint16_t instr)
                /* First half: LR = PC + sign_ext(imm11 << 12).
                 * At execute time r[15] = instr_addr + 6 (step loop advanced +2).
                 * Hardware PC = instr_addr + 4 = r[15] - 2. */
-               int32_t offset = (int32_t)((instr & 0x7FF) << 21) >> 9; /* sign-ext 11-bit << 12 */
+               int32_t offset = sign_extend((uint32_t)(instr & 0x7FFU) << 12, 23);
                cpu->r[14] = (cpu->r[15] - 2) + (uint32_t)offset;
           }
           else

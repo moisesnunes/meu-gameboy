@@ -56,6 +56,9 @@ struct gba_frontend
      /* Cleanup */
      void (*destroy)(void *data);
      void *data;
+     /* Serialize frontend-owned workers around a core reset. */
+     void (*lock_reset)(void *data);
+     void (*unlock_reset)(void *data);
 };
 
 enum gba_hw_model

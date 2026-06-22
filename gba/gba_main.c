@@ -40,6 +40,7 @@ struct gba_ctx
      bool fullscreen;
      bool fast_forward;
      bool debug_ui;
+     bool reset_locked;
      struct gba *gba;
 };
 
@@ -100,6 +101,26 @@ static void flip(void *data)
 static void refresh_input(void *data)
 {
      (void)data;
+}
+
+static void lock_reset(void *data)
+{
+     struct gba_ctx *ctx = data;
+
+     ctx->reset_locked = ctx->audio_stream && SDL_LockAudioStream(ctx->audio_stream);
+     if (ctx->audio_stream && !ctx->reset_locked)
+          fprintf(stderr, "[SDL] LockAudioStream failed: %s\n", SDL_GetError());
+}
+
+static void unlock_reset(void *data)
+{
+     struct gba_ctx *ctx = data;
+
+     ctx->buf_read = 0;
+     ctx->buf_offset = 0;
+     if (ctx->reset_locked && !SDL_UnlockAudioStream(ctx->audio_stream))
+          fprintf(stderr, "[SDL] UnlockAudioStream failed: %s\n", SDL_GetError());
+     ctx->reset_locked = false;
 }
 
 static void destroy_frontend(void *data)
@@ -359,6 +380,8 @@ static bool frontend_init(struct gba *gba, bool debug_ui)
      else
           fprintf(stderr, "Warning: no audio — %s\n", SDL_GetError());
 
+     gba->frontend.lock_reset = lock_reset;
+     gba->frontend.unlock_reset = unlock_reset;
      gba->frontend.draw_line = draw_line;
      gba->frontend.flip = flip;
      gba->frontend.refresh_input = refresh_input;

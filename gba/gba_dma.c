@@ -265,8 +265,13 @@ static void dma_run(struct gba *gba, int n)
 
           if (ch->word_32)
           {
-               uint32_t v = gba_memory_read32(gba, src & ~3U);
-               ch->data_latch = v;
+               uint32_t v = ch->data_latch;
+               /* Invalid DMA sources retain the previous DMA bus value. */
+               if (src >= GBA_EWRAM_BASE)
+               {
+                    v = gba_memory_read32(gba, src & ~3U);
+                    ch->data_latch = v;
+               }
                gba_memory_write32(gba, ch->dst & ~3U, v);
           }
           else
@@ -353,8 +358,10 @@ static void dma_run(struct gba *gba, int n)
                if (((ch->dst >> 24) == 0x0D) && gba_cart_is_eeprom(gba))
                     gba_cart_eeprom_write(gba, v, (uint32_t)count + 1);
                else
-                    gba_memory_write16(gba, ch->dst & ~1U, v);
+                   gba_memory_write16(gba, ch->dst & ~1U, v);
           }
+          /* DMA drives the shared system bus after each completed transfer. */
+          gba->cpu_bus = ch->data_latch;
           if (timed_sampling)
                dma_advance_sampling_time(gba, src_cycles + dst_cycles, n);
           ch->src += src_step;

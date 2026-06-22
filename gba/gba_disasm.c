@@ -85,10 +85,17 @@ static void disasm_thumb(struct gba *gba, uint32_t addr, uint16_t op,
           return;
      }
 
-     if ((hi & 0xFC) == 0x44 && ((op >> 8) & 3) == 3)
+     if ((hi & 0xFC) == 0x44)
      {
-          unsigned rm = ((op >> 3) & 7) | (((op >> 6) & 1) << 3);
-          snprintf(out, out_len, "bx r%u", rm);
+          static const char *names[3] = {"add", "cmp", "mov"};
+          unsigned kind = (op >> 8) & 3;
+          unsigned rs = ((op >> 3) & 7) | (((op >> 6) & 1) << 3);
+          unsigned rd = (op & 7) | (((op >> 7) & 1) << 3);
+
+          if (kind == 3)
+               snprintf(out, out_len, "%s r%u", ((op >> 7) & 1) ? "blx" : "bx", rs);
+          else
+               snprintf(out, out_len, "%s r%u, r%u", names[kind], rd, rs);
           return;
      }
 

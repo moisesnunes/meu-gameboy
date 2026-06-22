@@ -141,6 +141,7 @@ struct gba_apu
      int buf_pos; /* samples written into current buf_write half */
      sem_t buf_free;
      sem_t buf_ready;
+     bool sync_initialized;
 
      /* Mute/volume flags (frontend only) */
      bool mute_ch1, mute_ch2, mute_ch3, mute_ch4;
@@ -152,6 +153,7 @@ struct gba_apu
 };
 
 void gba_apu_reset(struct gba *gba);
+void gba_apu_destroy(struct gba *gba);
 void gba_apu_sync(struct gba *gba);
 void gba_apu_write_reg(struct gba *gba, uint32_t addr, uint8_t val);
 uint8_t gba_apu_read_reg(struct gba *gba, uint32_t addr);

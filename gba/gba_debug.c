@@ -19,6 +19,7 @@ void gba_debug_reset(struct gba *gba)
 {
      struct gba_debug *dbg = &gba->debug;
      bool enabled = dbg->enabled;
+     enum gba_debug_state state = dbg->state;
      uint32_t breakpoints[GBA_DEBUG_MAX_BREAKPOINTS];
      bool bp_enabled[GBA_DEBUG_MAX_BREAKPOINTS];
      unsigned n_breakpoints = dbg->n_breakpoints;
@@ -28,7 +29,9 @@ void gba_debug_reset(struct gba *gba)
 
      memset(dbg, 0, sizeof(*dbg));
      dbg->enabled = enabled;
-     dbg->state = enabled ? GBA_DEBUG_PAUSED : GBA_DEBUG_RUNNING;
+     dbg->state = enabled && state == GBA_DEBUG_PAUSED
+                      ? GBA_DEBUG_PAUSED
+                      : GBA_DEBUG_RUNNING;
      dbg->n_breakpoints = n_breakpoints;
      memcpy(dbg->breakpoints, breakpoints, sizeof(breakpoints));
      memcpy(dbg->bp_enabled, bp_enabled, sizeof(bp_enabled));
