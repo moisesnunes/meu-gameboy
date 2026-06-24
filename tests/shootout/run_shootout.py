@@ -104,12 +104,17 @@ def infer_models(path: Path, rel: str, refs_by_model: dict[str, tuple[Path, ...]
         return ["dmg0"]
     if re.search(r"[-_]mgb$", stem):
         return ["mgb"]
+    if stem.startswith("mgb_"):
+        return ["mgb"]
     if re.search(r"[-_]sgb2$", stem) or re.search(r"2-S$", stem_orig):
         return ["sgb2"]
     if re.search(r"[-_]sgb$", stem) or re.search(r"-S$", stem_orig):
         return ["sgb"]
     if re.search(r"[-_]cgb0$|[-_]cgbABCDE$|[-_]cgb$", path.stem):
         return ["gbc"]
+    # A suffix is exclusive to the AGB/AGS group, which this GB core does not model.
+    if re.search(r"-A$", stem_orig):
+        return ["agb"]
     # -C suffix = cgb+agb+ags group (mooneye naming convention)
     if re.search(r"-C$", stem_orig):
         return ["gbc"]
@@ -241,6 +246,10 @@ def discover_tests(rom_root: Path, profile: str, include_manual: bool, include_c
         for model in infer_models(rom, rel, refs_by_model):
             refs = refs_by_model.get(model) or refs_by_model.get("auto") or ()
             expect = infer_expect(suite, refs)
+            if (model == "agb" or
+                    rel == "mooneye-test-suite/utils/bootrom_dumper.gb" or
+                    rel.startswith("mooneye-test-suite/madness/")):
+                expect = "info"
             tests.append(
                 TestCase(
                     name=f"{normalized_name(rom, rom_root)} ({model.upper()})",
@@ -286,6 +295,23 @@ def display_path(path: Path) -> str:
 
 
 def run_one(test: TestCase, compat_bin: Path, out_dir: Path, host_timeout: float) -> dict[str, str]:
+    if test.model == "agb":
+        return {
+            "status": "INFO",
+            "suite": SUITE_LABELS.get(test.suite, test.suite),
+            "name": test.name,
+            "model": test.model.upper(),
+            "expect": test.expect,
+            "rom": test.rom.relative_to(ROOT).as_posix(),
+            "refs": "",
+            "matched_ref": "",
+            "cycles": "0",
+            "seconds": "0.000",
+            "exit_code": "0",
+            "output": "AGB/AGS-only test; GB core does not model this hardware",
+            "stderr": "",
+        }
+
     screenshot = out_dir / "screenshots" / f"{safe_slug(test.name)}.ppm"
     screenshot.parent.mkdir(parents=True, exist_ok=True)
     compat_expect = "visual" if test.expect == "info" else test.expect

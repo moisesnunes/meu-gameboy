@@ -54,7 +54,7 @@ C_SRC = main.c cpu.c memory.c cart.c gpu.c sync.c sdl.c input.c irq.c dma.c \
 
 # Painéis de debug ImGui do emulador GB (C++ para compatibilidade com ImGui)
 UI_SRC = ui/debug_ui.cpp ui/debug_ui_config.cpp ui/debug_ui_actions.cpp \
-         ui/debug_ui_menus.cpp ui/debug_ui_panels.cpp
+         ui/debug_ui_menus.cpp ui/debug_ui_panels.cpp ui/lcd_shader.cpp
 
 # Simulação de netlist do SM83: dados estáticos + simulador + visualizador de die
 SM83_C_SRC = sm83/sm83_netlist_data.c sm83/sm83_die_view.c sm83/sm83_signal_overlay.c \

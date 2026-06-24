@@ -1,4 +1,5 @@
 #include "debug_ui_config.h"
+#include "lcd_shader.h"
 
 #include <algorithm>
 #include <cctype>
@@ -97,10 +98,15 @@ void debug_ui_config_defaults(debug_ui_config *cfg)
      cfg->background_color[1] = 0.10f;
      cfg->background_color[2] = 0.10f;
 
+     cfg->lcd_shader = lcd_shader_defaults(LCD_SHADER_NONE);
+
      cfg->audio_muted = false;
      cfg->audio_volume = 1.0f;
 
      cfg->start_paused = false;
+     cfg->rewind_enabled = false;
+     cfg->rewind_interval_frames = 30;
+     cfg->rewind_capacity = 120;
      cfg->fast_forward_speed = 2.0f;
      cfg->debug_font_size = 1;
      cfg->save_slot = 0;
@@ -192,12 +198,28 @@ bool debug_ui_config_load(debug_ui_config *cfg, const char *path)
                cfg->background_color[1] = parse_float(value, cfg->background_color[1]);
           else if (key == "background_b")
                cfg->background_color[2] = parse_float(value, cfg->background_color[2]);
+          else if (key == "lcd_shader_preset")
+               cfg->lcd_shader.preset = (lcd_shader_preset)parse_int(value, (int)cfg->lcd_shader.preset);
+          else if (key == "lcd_shader_ghost")
+               cfg->lcd_shader.ghost_strength = parse_float(value, cfg->lcd_shader.ghost_strength);
+          else if (key == "lcd_shader_subpixel")
+               cfg->lcd_shader.subpixel_str = parse_float(value, cfg->lcd_shader.subpixel_str);
+          else if (key == "lcd_shader_scanline")
+               cfg->lcd_shader.scanline_str = parse_float(value, cfg->lcd_shader.scanline_str);
+          else if (key == "lcd_shader_brightness")
+               cfg->lcd_shader.brightness = parse_float(value, cfg->lcd_shader.brightness);
           else if (key == "audio_muted")
                cfg->audio_muted = parse_bool(value, cfg->audio_muted);
           else if (key == "audio_volume")
                cfg->audio_volume = parse_float(value, cfg->audio_volume);
           else if (key == "start_paused")
                cfg->start_paused = parse_bool(value, cfg->start_paused);
+          else if (key == "rewind_enabled")
+               cfg->rewind_enabled = parse_bool(value, cfg->rewind_enabled);
+          else if (key == "rewind_interval_frames")
+               cfg->rewind_interval_frames = parse_int(value, cfg->rewind_interval_frames);
+          else if (key == "rewind_capacity")
+               cfg->rewind_capacity = parse_int(value, cfg->rewind_capacity);
           else if (key == "fast_forward_speed")
                cfg->fast_forward_speed = parse_float(value, cfg->fast_forward_speed);
           else if (key == "debug_font_size")
@@ -225,6 +247,11 @@ bool debug_ui_config_load(debug_ui_config *cfg, const char *path)
      }
 
      cfg->video_scale = clamp_int(cfg->video_scale, -3, 8);
+     cfg->lcd_shader.preset = (lcd_shader_preset)clamp_int((int)cfg->lcd_shader.preset, 0, 3);
+     cfg->lcd_shader.ghost_strength = clamp_float(cfg->lcd_shader.ghost_strength, 0.0f, 1.0f);
+     cfg->lcd_shader.subpixel_str   = clamp_float(cfg->lcd_shader.subpixel_str,   0.0f, 1.0f);
+     cfg->lcd_shader.scanline_str   = clamp_float(cfg->lcd_shader.scanline_str,   0.0f, 1.0f);
+     cfg->lcd_shader.brightness     = clamp_float(cfg->lcd_shader.brightness,     0.3f, 2.0f);
      cfg->scanlines_intensity = clamp_float(cfg->scanlines_intensity, 0.0f, 1.0f);
      cfg->mix_frames_intensity = clamp_float(cfg->mix_frames_intensity, 0.0f, 1.0f);
      cfg->background_color[0] = clamp_float(cfg->background_color[0], 0.0f, 1.0f);
@@ -234,6 +261,8 @@ bool debug_ui_config_load(debug_ui_config *cfg, const char *path)
      cfg->fast_forward_speed = clamp_float(cfg->fast_forward_speed, 1.5f, 8.0f);
      cfg->debug_font_size = clamp_int(cfg->debug_font_size, 0, 3);
      cfg->save_slot = clamp_int(cfg->save_slot, 0, 4);
+     cfg->rewind_interval_frames = clamp_int(cfg->rewind_interval_frames, 1, 120);
+     cfg->rewind_capacity = clamp_int(cfg->rewind_capacity, 8, 240);
 
      return true;
 }
@@ -271,9 +300,17 @@ bool debug_ui_config_save(const debug_ui_config *cfg, const char *path)
      out << "background_r=" << cfg->background_color[0] << "\n";
      out << "background_g=" << cfg->background_color[1] << "\n";
      out << "background_b=" << cfg->background_color[2] << "\n";
+     out << "lcd_shader_preset="     << (int)cfg->lcd_shader.preset          << "\n";
+     out << "lcd_shader_ghost="      << cfg->lcd_shader.ghost_strength       << "\n";
+     out << "lcd_shader_subpixel="   << cfg->lcd_shader.subpixel_str         << "\n";
+     out << "lcd_shader_scanline="   << cfg->lcd_shader.scanline_str         << "\n";
+     out << "lcd_shader_brightness=" << cfg->lcd_shader.brightness           << "\n";
      out << "audio_muted=" << cfg->audio_muted << "\n";
      out << "audio_volume=" << cfg->audio_volume << "\n";
      out << "start_paused=" << cfg->start_paused << "\n";
+     out << "rewind_enabled=" << cfg->rewind_enabled << "\n";
+     out << "rewind_interval_frames=" << cfg->rewind_interval_frames << "\n";
+     out << "rewind_capacity=" << cfg->rewind_capacity << "\n";
      out << "fast_forward_speed=" << cfg->fast_forward_speed << "\n";
      out << "debug_font_size=" << cfg->debug_font_size << "\n";
      out << "save_slot=" << cfg->save_slot << "\n";

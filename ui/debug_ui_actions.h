@@ -17,6 +17,9 @@ extern "C"
      bool debug_ui_action_save_state_slot(struct gb *gb, int slot, char *message, size_t message_len);
      bool debug_ui_action_load_state_slot(struct gb *gb, int slot, char *message, size_t message_len);
      void debug_ui_action_reset(struct gb *gb, bool start_paused);
+     bool debug_ui_action_save_debug_settings(struct gb *gb, char *message, size_t message_len);
+     bool debug_ui_action_load_debug_settings(struct gb *gb, char *message, size_t message_len);
+     const char *debug_ui_action_trace_path(struct gb *gb);
 
 #ifdef __cplusplus
 }

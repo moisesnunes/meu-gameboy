@@ -133,6 +133,7 @@ int main(int argc, char **argv)
      {
           bool pause_on_load = gb->debug.enabled && debug_ui_start_paused();
           gb->debug.state = pause_on_load ? GB_DEBUG_PAUSED : GB_DEBUG_RUNNING;
+          debug_ui_on_rom_loaded(gb);
      }
 
      gb->quit = false;
@@ -155,6 +156,7 @@ int main(int argc, char **argv)
           if (pending)
           {
                load_rom(gb, pending);
+               debug_ui_on_rom_loaded(gb);
                debug_ui_clear_pending_rom(pending);
                if (debug_ui_start_paused())
                {

@@ -828,7 +828,7 @@ static void draw_cpu_toolbar(struct gb *gb)
      bool paused = dbg->state == GB_DEBUG_PAUSED;
      bool running = dbg->state == GB_DEBUG_RUNNING;
 
-     if (ImGui::Button(running ? "Break" : "Continue"))
+     if (ImGui::Button(running ? u8"⏸ Break" : u8"▶ Continue"))
      {
           dbg->enabled = true;
           if (running)
@@ -837,11 +837,11 @@ static void draw_cpu_toolbar(struct gb *gb)
                dbg->state = GB_DEBUG_RUNNING;
      }
      if (ImGui::IsItemHovered())
-          ImGui::SetTooltip(running ? "Pause emulation" : "Start / Continue");
+          ImGui::SetTooltip(running ? "Pause emulation [F5]" : "Start / Continue [F5]");
 
      ImGui::SameLine();
      ImGui::BeginDisabled(!paused);
-     if (ImGui::Button("Step In"))
+     if (ImGui::Button(u8"↓ Step In"))
           dbg->state = GB_DEBUG_STEPPING;
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Step Into [F10]");
@@ -849,7 +849,7 @@ static void draw_cpu_toolbar(struct gb *gb)
 
      ImGui::SameLine();
      ImGui::BeginDisabled(!paused);
-     if (ImGui::Button("Step Over"))
+     if (ImGui::Button(u8"↷ Step Over"))
           gb_debug_step_over(gb);
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Step over CALL");
@@ -857,18 +857,18 @@ static void draw_cpu_toolbar(struct gb *gb)
 
      ImGui::SameLine();
      ImGui::BeginDisabled(!paused);
-     if (ImGui::Button("Step Out"))
+     if (ImGui::Button(u8"↑ Step Out"))
           gb_debug_step_out(gb);
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Continue until return");
      ImGui::EndDisabled();
 
      ImGui::SameLine();
-     if (ImGui::Button("Reset"))
+     if (ImGui::Button(u8"↺ Reset"))
           debug_ui_action_reset(gb, true);
 
      ImGui::SameLine();
-     ImGui::TextColored(paused ? color_red : color_green, paused ? "PAUSED" : "RUNNING");
+     ImGui::TextColored(paused ? color_red : color_green, paused ? u8"⏸ PAUSED" : u8"● RUNNING");
 
      ImGui::TextColored(color_gray, "instructions %llu", (unsigned long long)dbg->instruction_count);
      ImGui::SameLine();
@@ -1112,7 +1112,7 @@ static void draw_disasm_controls(struct gb *gb)
      struct gb_debug *dbg = &gb->debug;
      bool paused = dbg->state == GB_DEBUG_PAUSED;
 
-     if (ImGui::Button("Continue"))
+     if (ImGui::Button(u8"▶ Continue"))
      {
           dbg->enabled = true;
           dbg->state = GB_DEBUG_RUNNING;
@@ -1121,7 +1121,7 @@ static void draw_disasm_controls(struct gb *gb)
           ImGui::SetTooltip("Start / Continue");
 
      ImGui::SameLine();
-     if (ImGui::Button("Break"))
+     if (ImGui::Button(u8"⏸ Break"))
      {
           dbg->enabled = true;
           dbg->state = GB_DEBUG_PAUSED;
@@ -1131,26 +1131,26 @@ static void draw_disasm_controls(struct gb *gb)
 
      ImGui::SameLine();
      ImGui::BeginDisabled(!paused);
-     if (ImGui::Button("Step In"))
+     if (ImGui::Button(u8"↓ Step In"))
           dbg->state = GB_DEBUG_STEPPING;
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Step Into [F10]");
 
      ImGui::SameLine();
-     if (ImGui::Button("Step Over"))
+     if (ImGui::Button(u8"↷ Step Over"))
           gb_debug_step_over(gb);
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Step Over current CALL");
 
      ImGui::SameLine();
-     if (ImGui::Button("Step Out"))
+     if (ImGui::Button(u8"↑ Step Out"))
           gb_debug_step_out(gb);
      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
           ImGui::SetTooltip("Continue until return");
      ImGui::EndDisabled();
 
      ImGui::SameLine();
-     if (ImGui::Button("Run Cursor") && s_disasm_selected_addr >= 0)
+     if (ImGui::Button(u8"⊳ Run Cursor") && s_disasm_selected_addr >= 0)
      {
           gb_debug_add_breakpoint(gb, (uint16_t)s_disasm_selected_addr);
           dbg->enabled = true;
@@ -1160,7 +1160,7 @@ static void draw_disasm_controls(struct gb *gb)
           ImGui::SetTooltip("Add a breakpoint at selected address and continue");
 
      ImGui::SameLine();
-     ImGui::TextColored(paused ? color_red : color_green, paused ? "PAUSED" : "RUNNING");
+     ImGui::TextColored(paused ? color_red : color_green, paused ? u8"⏸ PAUSED" : u8"● RUNNING");
 
      ImGui::SameLine();
      ImGui::Checkbox("Follow PC", &s_disasm_follow_pc);

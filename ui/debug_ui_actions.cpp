@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <fstream>
+#include <sstream>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -149,6 +151,114 @@ static std::string state_slot_path(struct gb *gb, int slot)
      snprintf(suffix, sizeof(suffix), "-slot%d.gbst", slot + 1);
      path += suffix;
      return path;
+}
+
+static std::string debug_settings_path(struct gb *gb)
+{
+     return std::string("debug/") + safe_rom_title(gb) + ".debug";
+}
+
+const char *debug_ui_action_trace_path(struct gb *gb)
+{
+     static std::string path;
+     path = std::string("debug/") + safe_rom_title(gb) + ".trace.log";
+     return path.c_str();
+}
+
+bool debug_ui_action_save_debug_settings(struct gb *gb, char *message, size_t message_len)
+{
+     if (!gb->cart.rom)
+     {
+          write_message(message, message_len, "Nenhuma ROM carregada");
+          return false;
+     }
+     if (mkdir_compat("debug") != 0 && errno != EEXIST)
+     {
+          write_message(message, message_len, "Falha ao criar diretorio debug/");
+          return false;
+     }
+
+     std::string path = debug_settings_path(gb);
+     std::ofstream out(path);
+     if (!out)
+     {
+          write_message(message, message_len, "Falha ao salvar debugger da ROM");
+          return false;
+     }
+
+     for (unsigned i = 0; i < gb->debug.n_breakpoints; i++)
+          out << "bp=" << gb->debug.breakpoints[i] << ","
+              << gb->debug.bp_enabled[i] << "\n";
+     for (unsigned i = 0; i < gb->debug.n_watchpoints; i++)
+     {
+          const struct gb_watchpoint *wp = &gb->debug.watchpoints[i];
+          out << "wp=" << wp->addr << "," << (int)wp->type << ","
+              << wp->enabled << "\n";
+     }
+     if (!out)
+     {
+          write_message(message, message_len, "Falha ao escrever debugger da ROM");
+          return false;
+     }
+
+     write_message(message, message_len, "Debugger salvo para %s", safe_rom_title(gb).c_str());
+     return true;
+}
+
+bool debug_ui_action_load_debug_settings(struct gb *gb, char *message, size_t message_len)
+{
+     if (!gb->cart.rom)
+          return false;
+
+     std::ifstream in(debug_settings_path(gb));
+     if (!in)
+          return false;
+
+     gb->debug.n_breakpoints = 0;
+     gb->debug.n_watchpoints = 0;
+
+     std::string line;
+     while (std::getline(in, line))
+     {
+          std::istringstream fields(line.substr(3));
+          std::string field;
+          if (line.rfind("bp=", 0) == 0)
+          {
+               unsigned addr = 0;
+               int enabled = 0;
+               if (std::getline(fields, field, ',') &&
+                   sscanf(field.c_str(), "%u", &addr) == 1 &&
+                   std::getline(fields, field) &&
+                   sscanf(field.c_str(), "%d", &enabled) == 1)
+               {
+                    gb_debug_add_breakpoint(gb, (uint16_t)addr);
+                    if (gb->debug.n_breakpoints)
+                         gb->debug.bp_enabled[gb->debug.n_breakpoints - 1] = enabled != 0;
+               }
+          }
+          else if (line.rfind("wp=", 0) == 0)
+          {
+               unsigned addr = 0;
+               int type = 0, enabled = 0;
+               if (std::getline(fields, field, ',') &&
+                   sscanf(field.c_str(), "%u", &addr) == 1 &&
+                   std::getline(fields, field, ',') &&
+                   sscanf(field.c_str(), "%d", &type) == 1 &&
+                   std::getline(fields, field) &&
+                   sscanf(field.c_str(), "%d", &enabled) == 1 &&
+                   type >= GB_WATCHPOINT_READ && type <= GB_WATCHPOINT_BOTH)
+               {
+                    gb_debug_add_watchpoint(gb, (uint16_t)addr,
+                                            (gb_watchpoint_type)type);
+                    if (gb->debug.n_watchpoints)
+                         gb->debug.watchpoints[gb->debug.n_watchpoints - 1].enabled = enabled != 0;
+               }
+          }
+     }
+
+     write_message(message, message_len, "Debugger restaurado: %u BP, %u WP",
+                   gb->debug.n_breakpoints, gb->debug.n_watchpoints);
+     return true;
 }
 
 bool debug_ui_action_state_slot_exists(struct gb *gb, int slot)

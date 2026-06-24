@@ -19,6 +19,7 @@
 #include "debug_ui_config.h"
 #include "debug_ui_menus.h"
 #include "debug_ui_panels.h"
+#include "lcd_shader.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 #include <stdio.h>
@@ -50,6 +51,8 @@ static bool s_rewind_enabled = false;
 static int s_rewind_head = 0;
 static int s_rewind_count = 0;
 static int s_rewind_frame_counter = 0;
+static int s_rewind_interval_frames = 30;
+static int s_rewind_capacity = 120;
 
 /* Textura OpenGL do frame do jogo (160×144) */
 static GLuint s_game_tex = 0;
@@ -112,6 +115,10 @@ static bool s_scanlines = false;
 static float s_scanlines_intensity = 0.5f;
 static bool s_mix_frames = false;
 static float s_mix_frames_int = 0.3f;
+
+/* Estado: Shader LCD */
+static lcd_shader_params s_lcd_shader = {};
+static bool s_lcd_shader_inited = false;
 static float s_bg_color[3] = {0.10f, 0.10f, 0.10f};
 static bool s_show_call_stack = false;
 static bool s_show_hw_viz = false;
@@ -188,10 +195,15 @@ static void apply_ui_config(const debug_ui_config &cfg)
      s_bg_color[1] = cfg.background_color[1];
      s_bg_color[2] = cfg.background_color[2];
 
+     s_lcd_shader = cfg.lcd_shader;
+
      s_audio_muted = cfg.audio_muted;
      s_audio_volume = cfg.audio_volume;
 
      s_start_paused = cfg.start_paused;
+     s_rewind_enabled = cfg.rewind_enabled;
+     s_rewind_interval_frames = cfg.rewind_interval_frames;
+     s_rewind_capacity = cfg.rewind_capacity;
      s_ff_speed_factor = cfg.fast_forward_speed;
      s_debug_font_size = cfg.debug_font_size;
      s_save_slot = cfg.save_slot;
@@ -233,10 +245,15 @@ static void capture_ui_config(debug_ui_config *cfg)
      cfg->background_color[1] = s_bg_color[1];
      cfg->background_color[2] = s_bg_color[2];
 
+     cfg->lcd_shader = s_lcd_shader;
+
      cfg->audio_muted = s_audio_muted;
      cfg->audio_volume = s_audio_volume;
 
      cfg->start_paused = s_start_paused;
+     cfg->rewind_enabled = s_rewind_enabled;
+     cfg->rewind_interval_frames = s_rewind_interval_frames;
+     cfg->rewind_capacity = s_rewind_capacity;
      cfg->fast_forward_speed = s_ff_speed_factor;
      cfg->debug_font_size = s_debug_font_size;
      cfg->save_slot = s_save_slot;
@@ -264,7 +281,7 @@ static void rewind_capture(struct gb *gb)
          (gb->debug.enabled && gb->debug.state == GB_DEBUG_PAUSED))
           return;
 
-     if (++s_rewind_frame_counter < 30)
+     if (++s_rewind_frame_counter < s_rewind_interval_frames)
           return;
      s_rewind_frame_counter = 0;
 
@@ -272,8 +289,8 @@ static void rewind_capture(struct gb *gb)
      rewind_slot_path(s_rewind_head, path, sizeof(path));
      if (gb_state_save(gb, path))
      {
-          s_rewind_head = (s_rewind_head + 1) % 120;
-          if (s_rewind_count < 120)
+          s_rewind_head = (s_rewind_head + 1) % s_rewind_capacity;
+          if (s_rewind_count < s_rewind_capacity)
                s_rewind_count++;
      }
 }
@@ -283,7 +300,7 @@ static bool rewind_step(struct gb *gb)
      if (!gb->cart.rom || s_rewind_count <= 0)
           return false;
 
-     s_rewind_head = (s_rewind_head + 119) % 120;
+     s_rewind_head = (s_rewind_head + s_rewind_capacity - 1) % s_rewind_capacity;
      char path[64];
      rewind_slot_path(s_rewind_head, path, sizeof(path));
      if (!gb_state_load(gb, path))
@@ -374,8 +391,8 @@ static void set_style(void)
      style.PopupRounding = 6.0f;
      style.PopupBorderSize = 1.0f;
      style.FramePadding = ImVec2(8.0f, 4.0f);
-     style.FrameRounding = 4.0f;
-     style.FrameBorderSize = 0.0f;
+     style.FrameRounding = 5.0f;
+     style.FrameBorderSize = 1.0f;
      style.ItemSpacing = ImVec2(8.0f, 6.0f);
      style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
      style.CellPadding = ImVec2(6.0f, 4.0f);
@@ -391,21 +408,20 @@ static void set_style(void)
      style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
      style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
 
-     // Palette
-     // Backgrounds: escala de cinza fria, característica de IDEs
-     const ImVec4 bg = ImVec4(0.122f, 0.125f, 0.133f, 1.0f);       // editor bg
-     const ImVec4 chrome = ImVec4(0.098f, 0.101f, 0.109f, 1.0f);   // titlebar / menubar
-     const ImVec4 panel = ImVec4(0.145f, 0.149f, 0.157f, 1.0f);    // sidebar / popup
-     const ImVec4 panel2 = ImVec4(0.180f, 0.185f, 0.196f, 1.0f);   // inputs / headers
-     const ImVec4 panel3 = ImVec4(0.215f, 0.221f, 0.234f, 1.0f);   // hover surface
-     const ImVec4 border = ImVec4(0.255f, 0.260f, 0.278f, 1.0f);   // bordas sutis
-     const ImVec4 text = ImVec4(0.918f, 0.925f, 0.937f, 1.0f);     // texto principal
-     const ImVec4 text_dim = ImVec4(0.520f, 0.535f, 0.570f, 1.0f); // texto secundário
+     // Palette — Dark Pro: maior separação entre layers para clareza visual
+     const ImVec4 bg     = ImVec4(0.122f, 0.125f, 0.135f, 1.0f);   // editor bg — ligeiramente mais frio
+     const ImVec4 chrome = ImVec4(0.075f, 0.077f, 0.085f, 1.0f);   // titlebar / menubar — mais escuro (melhor contraste)
+     const ImVec4 panel  = ImVec4(0.152f, 0.156f, 0.167f, 1.0f);   // sidebar / popup — destacado do bg
+     const ImVec4 panel2 = ImVec4(0.192f, 0.197f, 0.212f, 1.0f);   // inputs / headers — +12 pts de luminosidade
+     const ImVec4 panel3 = ImVec4(0.235f, 0.242f, 0.258f, 1.0f);   // hover surface — salto visível
+     const ImVec4 border = ImVec4(0.220f, 0.228f, 0.248f, 1.0f);   // bordas entre painéis — mais sutis
+     const ImVec4 text     = ImVec4(0.930f, 0.935f, 0.948f, 1.0f); // texto principal — mais branco
+     const ImVec4 text_dim = ImVec4(0.490f, 0.505f, 0.540f, 1.0f); // texto secundário
 
-     // Accent: azul corporativo (similar ao VS Code / Fluent Design)
-     const ImVec4 accent = ImVec4(0.239f, 0.525f, 0.878f, 1.0f);       // #3D86E0
-     const ImVec4 accent_light = ImVec4(0.380f, 0.635f, 0.940f, 1.0f); // hover mais claro
-     const ImVec4 accent_dim = ImVec4(0.239f, 0.525f, 0.878f, 0.35f);  // accent transparente
+     // Accent: azul mais vibrante e saturado
+     const ImVec4 accent       = ImVec4(0.302f, 0.620f, 0.941f, 1.0f); // #4D9EF0 — +8% saturação
+     const ImVec4 accent_light = ImVec4(0.440f, 0.710f, 0.980f, 1.0f); // hover mais claro / brilhante
+     const ImVec4 accent_dim   = ImVec4(0.302f, 0.620f, 0.941f, 0.30f); // accent transparente
 
      // Colors
      style.Colors[ImGuiCol_Text] = text;
@@ -422,22 +438,22 @@ static void set_style(void)
      style.Colors[ImGuiCol_FrameBgHovered] = panel3;
      style.Colors[ImGuiCol_FrameBgActive] = ui_lerp(panel2, accent, 0.40f);
 
-     style.Colors[ImGuiCol_TitleBg] = chrome;
-     style.Colors[ImGuiCol_TitleBgActive] = chrome;
+     style.Colors[ImGuiCol_TitleBg]          = chrome;
+     style.Colors[ImGuiCol_TitleBgActive]    = ui_lerp(chrome, accent, 0.15f); // janela focada: toque de azul
      style.Colors[ImGuiCol_TitleBgCollapsed] = chrome;
-     style.Colors[ImGuiCol_MenuBarBg] = chrome;
+     style.Colors[ImGuiCol_MenuBarBg]        = chrome;
 
-     style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-     style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.310f, 0.320f, 0.340f, 1.0f);
-     style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.420f, 0.430f, 0.460f, 1.0f);
-     style.Colors[ImGuiCol_ScrollbarGrabActive] = accent;
+     style.Colors[ImGuiCol_ScrollbarBg]          = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+     style.Colors[ImGuiCol_ScrollbarGrab]        = ImVec4(0.280f, 0.295f, 0.325f, 1.0f);
+     style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.390f, 0.408f, 0.445f, 1.0f);
+     style.Colors[ImGuiCol_ScrollbarGrabActive]  = accent;
 
      style.Colors[ImGuiCol_CheckMark] = accent_light;
      style.Colors[ImGuiCol_SliderGrab] = accent;
      style.Colors[ImGuiCol_SliderGrabActive] = accent_light;
 
      style.Colors[ImGuiCol_Button] = panel2;
-     style.Colors[ImGuiCol_ButtonHovered] = ui_lerp(panel2, accent, 0.40f);
+     style.Colors[ImGuiCol_ButtonHovered] = ui_lerp(panel2, accent, 0.55f); // hover mais vibrante
      style.Colors[ImGuiCol_ButtonActive] = accent;
 
      style.Colors[ImGuiCol_Header] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -529,26 +545,6 @@ static void push_recent_rom(const char *path)
           s_recent_roms.resize(10);
 }
 
-static const char *run_state_name(struct gb *gb)
-{
-     if (!gb->cart.rom)
-          return "Idle";
-     if (!gb->debug.enabled)
-          return "Rodando";
-
-     switch (gb->debug.state)
-     {
-     case GB_DEBUG_PAUSED:
-          return "Pausado";
-     case GB_DEBUG_STEPPING:
-          return "Step";
-     case GB_DEBUG_RUNNING:
-          return "Rodando";
-     default:
-          return "Debug";
-     }
-}
-
 static void draw_status_bar(struct gb *gb)
 {
      if (!s_show_status_bar)
@@ -579,22 +575,42 @@ static void draw_status_bar(struct gb *gb)
      ImGui::SameLine();
      ImGui::TextColored(color_gray, "|");
      ImGui::SameLine();
-     ImGui::Text("%s", run_state_name(gb));
+
+     // Badge de estado com ícone
+     {
+          bool paused = gb->debug.state == GB_DEBUG_PAUSED;
+          bool idle   = gb->cart.rom == nullptr;
+          ImVec4 state_col = idle ? color_gray : (paused ? color_red : color_green);
+          const char *state_icon = idle ? "Idle" : (paused ? u8"⏸ Paused" : u8"● Running");
+          ImGui::TextColored(state_col, "%s", state_icon);
+     }
+
      ImGui::SameLine();
      ImGui::TextColored(color_gray, "|");
      ImGui::SameLine();
-     ImGui::Text("%s", gb->gbc ? "CGB" : "DMG");
+     ImGui::TextColored(color_cyan, "%s", gb->gbc ? "CGB" : "DMG");
 
      if (gb->cart.rom)
      {
+          // LY counter
           ImGui::SameLine();
           ImGui::TextColored(color_gray, "|");
           ImGui::SameLine();
           ImGui::Text("LY %03u", gb->gpu.ly);
+
+          // Modo GPU com cor por modo
+          int gpu_mode = gb_gpu_get_mode(gb);
+          static const ImVec4 gpu_mode_colors[4] = {
+               ImVec4(0.3f, 0.7f, 1.0f, 1.0f),  // HBlank — azul-claro
+               ImVec4(0.3f, 1.0f, 0.5f, 1.0f),  // VBlank — verde-claro
+               ImVec4(1.0f, 0.7f, 0.2f, 1.0f),  // OAM Scan — laranja
+               ImVec4(1.0f, 0.4f, 0.4f, 1.0f),  // Drawing — vermelho-claro
+          };
           ImGui::SameLine();
           ImGui::TextColored(color_gray, "|");
           ImGui::SameLine();
-          ImGui::Text("%s", gpu_mode_name(gb_gpu_get_mode(gb)));
+          ImGui::TextColored(gpu_mode_colors[gpu_mode & 3], "%s", gpu_mode_name(gpu_mode));
+
           ImGui::SameLine();
           ImGui::TextColored(color_gray, "|");
           ImGui::SameLine();
@@ -604,7 +620,7 @@ static void draw_status_bar(struct gb *gb)
      if (s_fast_forward)
      {
           ImGui::SameLine();
-          ImGui::TextColored(color_yellow, "| FF %.1fx", s_ff_speed_factor);
+          ImGui::TextColored(color_yellow, u8"| ⏩ %.1fx", s_ff_speed_factor);
      }
 
      if (s_status_message[0] && SDL_GetTicks() < s_status_message_until_ms)
@@ -615,13 +631,17 @@ static void draw_status_bar(struct gb *gb)
           ImGui::TextColored(color_cyan, "%s", s_status_message);
      }
 
+     // FPS com indicador de cor
      char right[48];
      snprintf(right, sizeof(right), "%.0f FPS", s_fps_current);
      float right_w = ImGui::CalcTextSize(right).x;
      float avail = ImGui::GetContentRegionAvail().x;
      if (avail > right_w)
           ImGui::SameLine(ImGui::GetCursorPosX() + avail - right_w);
-     ImGui::TextColored(s_fps_current >= 55.0f ? color_green : color_yellow, "%s", right);
+     ImVec4 fps_col = s_fps_current >= 58.0f ? color_green
+                    : s_fps_current >= 40.0f ? color_yellow
+                    : color_red;
+     ImGui::TextColored(fps_col, "%s", right);
 
      ImGui::End();
 }
@@ -948,6 +968,54 @@ static void draw_main_menu(struct gb *gb)
                ImGui::EndMenu();
           }
 
+          /* Shader LCD (GPU) */
+          if (ImGui::BeginMenu("Shader LCD"))
+          {
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Efeitos de tela processados na GPU via GLSL");
+
+               /* Seletor de preset */
+               ImGui::TextDisabled("Preset");
+               for (int p = 0; p <= 3; p++)
+               {
+                    bool sel = ((int)s_lcd_shader.preset == p);
+                    if (ImGui::MenuItem(lcd_shader_preset_name((lcd_shader_preset)p), nullptr, sel))
+                    {
+                         s_lcd_shader = lcd_shader_defaults((lcd_shader_preset)p);
+                    }
+               }
+
+               if (s_lcd_shader.preset != LCD_SHADER_NONE)
+               {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Ajustes finos");
+                    ImGui::SetNextItemWidth(200.0f);
+
+                    if (s_lcd_shader.preset == LCD_SHADER_DMG || s_lcd_shader.preset == LCD_SHADER_CRT ||
+                        s_lcd_shader.preset == LCD_SHADER_GBC)
+                    {
+                         ImGui::SliderFloat("Ghosting##lsg", &s_lcd_shader.ghost_strength,
+                                            0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                         ImGui::SetNextItemWidth(200.0f);
+                    }
+                    if (s_lcd_shader.preset == LCD_SHADER_GBC)
+                    {
+                         ImGui::SliderFloat("Subpixel##lss", &s_lcd_shader.subpixel_str,
+                                            0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                         ImGui::SetNextItemWidth(200.0f);
+                    }
+                    if (s_lcd_shader.preset == LCD_SHADER_DMG || s_lcd_shader.preset == LCD_SHADER_CRT)
+                    {
+                         ImGui::SliderFloat("Scanlines##lsc", &s_lcd_shader.scanline_str,
+                                            0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                         ImGui::SetNextItemWidth(200.0f);
+                    }
+                    ImGui::SliderFloat("Brilho##lsb", &s_lcd_shader.brightness,
+                                       0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+               }
+               ImGui::EndMenu();
+          }
+
           ImGui::Separator();
 
           /* Cor de fundo */
@@ -1156,11 +1224,27 @@ static void draw_main_menu(struct gb *gb)
                bool trace = gb_debug_trace_enabled();
                if (ImGui::MenuItem("Trace logger", nullptr, &trace, dbg))
                {
-                    if (gb_debug_trace_set_enabled(gb, trace, "trace.log"))
-                         set_status_message("Trace logger %s", trace ? "ativado" : "desativado");
+                    if (gb_debug_trace_set_enabled(gb, trace,
+                                                  debug_ui_action_trace_path(gb)))
+                         set_status_message("Trace %s", trace ? "ativado para esta ROM" : "desativado");
                     else
-                         set_status_message("Falha ao abrir trace.log");
+                         set_status_message("Falha ao abrir trace da ROM");
                }
+          }
+
+          if (ImGui::MenuItem("Salvar breakpoints/watchpoints", nullptr, false, has_rom))
+          {
+               char message[160];
+               debug_ui_action_save_debug_settings(gb, message, sizeof(message));
+               set_status_message("%s", message);
+          }
+          if (ImGui::MenuItem("Recarregar breakpoints/watchpoints", nullptr, false, has_rom))
+          {
+               char message[160];
+               if (debug_ui_action_load_debug_settings(gb, message, sizeof(message)))
+                    set_status_message("%s", message);
+               else
+                    set_status_message("Nenhum debugger salvo para esta ROM");
           }
 
           if (ImGui::MenuItem("Rewind ativo", nullptr, &s_rewind_enabled, has_rom))
@@ -1174,6 +1258,22 @@ static void draw_main_menu(struct gb *gb)
                     set_status_message("Rewind: snapshot restaurado");
                else
                     set_status_message("Rewind: nenhum snapshot valido");
+          }
+          if (ImGui::BeginMenu("Configuracao do Rewind", has_rom))
+          {
+               ImGui::SetNextItemWidth(180.0f);
+               ImGui::SliderInt("Intervalo (frames)", &s_rewind_interval_frames,
+                                1, 120, "%d", ImGuiSliderFlags_AlwaysClamp);
+               ImGui::SetNextItemWidth(180.0f);
+               ImGui::SliderInt("Snapshots", &s_rewind_capacity, 8, 240,
+                                "%d", ImGuiSliderFlags_AlwaysClamp);
+               ImGui::TextDisabled("Historico: %d snapshots", s_rewind_count);
+               if (ImGui::MenuItem("Limpar historico"))
+               {
+                    rewind_reset();
+                    set_status_message("Historico de rewind limpo");
+               }
+               ImGui::EndMenu();
           }
 
           ImGui::Separator();
@@ -1375,23 +1475,53 @@ static void draw_game_output(void)
      ImGui::SetCursorPos(ImVec2(off_x, off_y));
 
      ImVec2 img_screen = ImGui::GetCursorScreenPos();
-     ImGui::Image((ImTextureID)(intptr_t)s_game_tex, img);
 
-     if (s_mix_frames && s_prev_game_valid)
+     /* Aplica shader LCD se habilitado, caso contrário exibe textura direta */
+     GLuint display_tex = s_game_tex;
+     if (s_lcd_shader_inited && s_lcd_shader.preset != LCD_SHADER_NONE)
      {
+          /* Parâmetros de ghosting: se mix_frames estava ativo, repassa a força */
+          lcd_shader_params params = s_lcd_shader;
+          if (s_mix_frames)
+               params.ghost_strength = s_mix_frames_int;
+
+          display_tex = lcd_shader_process(
+               s_game_tex, s_prev_game_tex, s_prev_game_valid,
+               &params,
+               (int)img.x, (int)img.y);
+     }
+     else if (s_mix_frames && s_prev_game_valid)
+     {
+          /* Ghosting CPU legado quando shader está desligado */
           ImDrawList *dl = ImGui::GetWindowDrawList();
+          ImGui::Image((ImTextureID)(intptr_t)s_game_tex, img);
           int alpha = (int)(s_mix_frames_int * 160.0f);
-          if (alpha < 0)
-               alpha = 0;
-          if (alpha > 220)
-               alpha = 220;
+          if (alpha < 0) alpha = 0;
+          if (alpha > 220) alpha = 220;
           dl->AddImage((ImTextureID)(intptr_t)s_prev_game_tex,
                        img_screen,
                        ImVec2(img_screen.x + img.x, img_screen.y + img.y),
-                       ImVec2(0, 0),
-                       ImVec2(1, 1),
+                       ImVec2(0, 0), ImVec2(1, 1),
                        IM_COL32(255, 255, 255, alpha));
+          goto after_image;
      }
+
+     ImGui::Image((ImTextureID)(intptr_t)display_tex, img);
+
+     /* Scanlines CPU legadas — apenas quando shader está desligado */
+     if (s_scanlines && s_lcd_shader.preset == LCD_SHADER_NONE)
+     {
+          ImDrawList *dl = ImGui::GetWindowDrawList();
+          ImU32 sc_col = IM_COL32(0, 0, 0, (int)(s_scanlines_intensity * 210.0f));
+          float step = scale * 2.0f;
+          if (step < 2.0f) step = 2.0f;
+          for (float y = img_screen.y; y < img_screen.y + img.y; y += step)
+               dl->AddRectFilled(ImVec2(img_screen.x, y),
+                                 ImVec2(img_screen.x + img.x, y + scale),
+                                 sc_col);
+     }
+
+     after_image:;
 
      /* Overlay de Fast Forward */
      if (s_fast_forward)
@@ -1406,20 +1536,6 @@ static void draw_game_output(void)
                             ImVec2(tx + ts.x + 2, ty + ts.y + 1),
                             IM_COL32(0, 0, 0, 160), 3.0f);
           dl->AddText(ImVec2(tx, ty), IM_COL32(255, 220, 50, 255), ff_str);
-     }
-
-     /* Scanlines */
-     if (s_scanlines)
-     {
-          ImDrawList *dl = ImGui::GetWindowDrawList();
-          ImU32 sc_col = IM_COL32(0, 0, 0, (int)(s_scanlines_intensity * 210.0f));
-          float step = scale * 2.0f;
-          if (step < 2.0f)
-               step = 2.0f;
-          for (float y = img_screen.y; y < img_screen.y + img.y; y += step)
-               dl->AddRectFilled(ImVec2(img_screen.x, y),
-                                 ImVec2(img_screen.x + img.x, y + scale),
-                                 sc_col);
      }
 
      ImGui::End();
@@ -1510,6 +1626,11 @@ extern "C" void debug_ui_init(struct gb *gb)
      };
      make_tex(&s_game_tex, GB_LCD_WIDTH, GB_LCD_HEIGHT);
      make_tex(&s_prev_game_tex, GB_LCD_WIDTH, GB_LCD_HEIGHT);
+
+     s_lcd_shader_inited = lcd_shader_init(GB_LCD_WIDTH, GB_LCD_HEIGHT);
+     if (!s_lcd_shader_inited)
+          fprintf(stderr, "debug_ui: lcd_shader_init falhou — efeitos LCD desativados\n");
+
      debug_ui_panels_init();
      apply_texture_filter();
      gb_sdl_set_audio_gain(gb, s_audio_muted ? 0.0f : s_audio_volume);
@@ -1617,6 +1738,15 @@ extern "C" void debug_ui_clear_pending_rom(const char *loaded_path)
 {
      push_recent_rom(loaded_path);
      s_pending_rom[0] = '\0';
+}
+
+extern "C" void debug_ui_on_rom_loaded(struct gb *gb)
+{
+     char message[160];
+
+     rewind_reset();
+     if (debug_ui_action_load_debug_settings(gb, message, sizeof(message)))
+          set_status_message("%s", message);
 }
 
 extern "C" bool debug_ui_start_paused(void)
@@ -1814,6 +1944,9 @@ extern "C" void debug_ui_destroy(struct gb * /*gb*/)
           return;
 
      SDL_GL_MakeCurrent(s_window, s_gl_context);
+
+     lcd_shader_destroy();
+     s_lcd_shader_inited = false;
 
      GLuint textures[] = {s_game_tex, s_prev_game_tex};
      glDeleteTextures(2, textures);

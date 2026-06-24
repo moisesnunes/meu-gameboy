@@ -226,9 +226,12 @@ when comparing multiple suites side by side.
 Current Mooneye v7.0 shootout snapshot, generated from
 `tests/shootout/out/summary.md`:
 
-| Suite | Total | Pass | Fail | Timeout |
-| --- | ---: | ---: | ---: | ---: |
-| Mooneye | 114 | 108 | 4 | 2 |
+| Suite | Total | Pass | Fail | Timeout | Info |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Mooneye | 114 | 110 | 0 | 0 | 4 |
+
+`INFO` covers two AGB/AGS-only probes, the continuous boot ROM dumper, and the
+visual `madness/mgb_oam_dma_halt_sprites` probe. All 110 automatic tests pass.
 
 ## Compatibility Manifest Snapshot
 

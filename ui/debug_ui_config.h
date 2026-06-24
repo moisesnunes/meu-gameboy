@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "lcd_shader.h"
 
 struct debug_ui_config
 {
@@ -32,10 +33,16 @@ struct debug_ui_config
      float mix_frames_intensity;
      float background_color[3];
 
+     /* Shader LCD */
+     lcd_shader_params lcd_shader;
+
      bool audio_muted;
      float audio_volume;
 
      bool start_paused;
+     bool rewind_enabled;
+     int rewind_interval_frames;
+     int rewind_capacity;
      float fast_forward_speed;
      int debug_font_size;
      int save_slot;

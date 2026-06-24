@@ -24,6 +24,9 @@ const char *debug_ui_pending_rom(void);
 /* Registra o ROM como recente e limpa o path pendente */
 void debug_ui_clear_pending_rom(const char *loaded_path);
 
+/* Restaura breakpoints e watchpoints associados a uma ROM recem-carregada. */
+void debug_ui_on_rom_loaded(struct gb *gb);
+
 /* Retorna o multiplicador de velocidade atual (1.0 = normal, >1.0 = fast-forward) */
 float debug_ui_get_speed_multiplier(void);
 

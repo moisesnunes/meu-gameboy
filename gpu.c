@@ -202,6 +202,12 @@ static uint16_t gb_gpu_line_total(struct gb *gb)
      return HTOTAL;
 }
 
+static bool gb_gpu_is_cgb_hardware(const struct gb *gb)
+{
+     return gb->gbc || gb->hw_model == GB_HW_CGB0 ||
+            gb->hw_model == GB_HW_CGB;
+}
+
 static uint8_t gb_gpu_visible_ly(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
@@ -434,6 +440,24 @@ static void gb_gpu_maybe_fire_mode0_stat_early(struct gb *gb,
           gpu->stat_mode0_early_fired = true;
           gb_gpu_update_stat_irq(gb);
      }
+}
+
+static void gb_gpu_maybe_fire_cgb_line144_mode2_stat(struct gb *gb,
+                                                     int32_t step)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     uint16_t trigger_dot = gb_gpu_line_total(gb) - 4;
+
+     if (!gb_gpu_is_cgb_hardware(gb) || gpu->ly != VSYNC_START - 1 ||
+         !gpu->iten_mode2 ||
+         gpu->stat_irq_line || gpu->line_pos > trigger_dot ||
+         gpu->line_pos + step < trigger_dot)
+     {
+          return;
+     }
+
+     gb_irq_trigger(gb, GB_IRQ_LCD_STAT);
+     gpu->stat_irq_line = true;
 }
 
 /*
@@ -1436,6 +1460,33 @@ static void gb_gpu_begin_pixel_transfer(struct gb *gb)
                }
           }
 
+          if (n == 10)
+          {
+               bool evenly_spaced = true;
+               unsigned phase = ((unsigned)gpu->line_sprites[0].x + 8 +
+                                 gpu->scx) & 7;
+
+               for (i = 1; i < n; i++)
+               {
+                    if (gpu->line_sprites[i].x !=
+                        gpu->line_sprites[i - 1].x + 8)
+                    {
+                         evenly_spaced = false;
+                         break;
+                    }
+               }
+
+               if (evenly_spaced)
+               {
+                    if (phase >= 2)
+                    {
+                         unsigned per_sprite = phase < 5 ? 11 - phase : 6;
+                         /* The FIFO model already absorbs the final two dots. */
+                         sprite_penalty = ((n * per_sprite) & ~3U) - 2;
+                    }
+               }
+          }
+
           uint8_t scx_penalty = gpu->scx & 7;
 
           if (scx_penalty)
@@ -1707,7 +1758,8 @@ static void gb_gpu_finish_scanline(struct gb *gb)
           gb_irq_trigger(gb, GB_IRQ_VSYNC);
           gb_debug_hw_trace_ppu_vblank(gb, (uint8_t)gpu->ly);
 
-          if (!gpu->stat_irq_line && gpu->iten_mode2)
+          if (!gb_gpu_is_cgb_hardware(gb) && !gpu->stat_irq_line &&
+              gpu->iten_mode2)
           {
                gb_irq_trigger(gb, GB_IRQ_LCD_STAT);
           }
@@ -1803,6 +1855,7 @@ void gb_gpu_sync(struct gb *gb)
           }
 
           gb_gpu_maybe_fire_mode0_stat_early(gb, prev_mode, step);
+          gb_gpu_maybe_fire_cgb_line144_mode2_stat(gb, step);
 
           gpu->line_pos += step;
           elapsed -= step;
@@ -1863,6 +1916,13 @@ void gb_gpu_sync(struct gb *gb)
                     break;
                default:
                     next_event = gb_gpu_line_total(gb) - gpu->line_pos;
+                    if (gb_gpu_is_cgb_hardware(gb) &&
+                        gpu->ly == VSYNC_START - 1 &&
+                        gpu->iten_mode2 && !gpu->stat_irq_line &&
+                        gpu->line_pos < gb_gpu_line_total(gb) - 4)
+                    {
+                         next_event = gb_gpu_line_total(gb) - 4 - gpu->line_pos;
+                    }
                     break;
                }
      }
@@ -1896,7 +1956,8 @@ void gb_gpu_set_lcd_stat(struct gb *gb, uint8_t stat)
      /* Sincroniza antes de mudar o estado para não perder eventos passados */
      gb_gpu_sync(gb);
 
-     dmg_write_glitch = !gb->gbc && gpu->master_enable && !gpu->stat_irq_line &&
+     dmg_write_glitch = !gb_gpu_is_cgb_hardware(gb) && gpu->master_enable &&
+                        !gpu->stat_irq_line &&
                         (gb_gpu_get_stat_mode(gb) < 2 || gpu->stat_lyc_flag);
 
      gpu->iten_mode0 = stat & 0x08;
@@ -1914,6 +1975,7 @@ void gb_gpu_set_lcd_stat(struct gb *gb, uint8_t stat)
      }
 
      gb_gpu_update_stat_irq(gb);
+     gb_gpu_sync(gb);
 }
 
 /*

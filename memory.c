@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "gb.h"
 
 /* ROM (banco 0 + 1) */
@@ -315,14 +316,76 @@ static void gb_memory_copy_oam_row(struct gb *gb, unsigned dst, unsigned src)
 void gb_memory_trigger_oam_bug(struct gb *gb, uint16_t addr)
 {
      int row;
+     uint8_t pre_ly;
+     uint16_t pre_pos;
+     uint8_t pre_mode;
+     static int trace_enabled = -1;
+
+     if (trace_enabled < 0)
+     {
+          trace_enabled = getenv("GB_OAM_BUG_TRACE") != NULL;
+          if (trace_enabled)
+          {
+               fprintf(stderr,
+                       "oam_bug_trace: ts,pc,addr,b,de,pre_ly,pre_pos,pre_mode,"
+                       "post_ly,post_pos,post_mode,row,hit,prev,mid,old,new\n");
+          }
+     }
 
      if (addr < OAM_BASE || addr >= 0xff00U)
      {
           return;
      }
 
+     pre_ly = gb->gpu.ly;
+     pre_pos = gb->gpu.line_pos;
+     pre_mode = gb_gpu_get_mode(gb);
+
      gb_gpu_sync(gb);
      row = gb_memory_oam_bug_row(gb);
+     if (trace_enabled && row >= 8 && row <= 0x98)
+     {
+          uint16_t prev = oam_get16(gb, row - 8);
+          uint16_t mid = oam_get16(gb, row - 4);
+          uint16_t old = oam_get16(gb, row);
+          uint16_t newv = oam_glitch_write(old, prev, mid);
+
+          fprintf(stderr,
+                  "oam_bug_trace: %d,%04x,%04x,%02x,%04x,%u,%u,%u,%u,%u,%u,%d,1,%04x,%04x,%04x,%04x\n",
+                  gb->timestamp,
+                  (uint16_t)(gb->cpu.pc - 1),
+                  addr,
+                  gb->cpu.b,
+                  ((uint16_t)gb->cpu.d << 8) | gb->cpu.e,
+                  pre_ly,
+                  pre_pos,
+                  pre_mode,
+                  gb->gpu.ly,
+                  gb->gpu.line_pos,
+                  gb_gpu_get_mode(gb),
+                  row,
+                  prev,
+                  mid,
+                  old,
+                  newv);
+     }
+     else if (trace_enabled)
+     {
+          fprintf(stderr,
+                  "oam_bug_trace: %d,%04x,%04x,%02x,%04x,%u,%u,%u,%u,%u,%u,%d,0,----,----,----,----\n",
+                  gb->timestamp,
+                  (uint16_t)(gb->cpu.pc - 1),
+                  addr,
+                  gb->cpu.b,
+                  ((uint16_t)gb->cpu.d << 8) | gb->cpu.e,
+                  pre_ly,
+                  pre_pos,
+                  pre_mode,
+                  gb->gpu.ly,
+                  gb->gpu.line_pos,
+                  gb_gpu_get_mode(gb),
+                  row);
+     }
      if (row < 8 || row > 0x98)
      {
           return;
