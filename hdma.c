@@ -12,10 +12,10 @@ static void gb_hdma_copy(struct gb *gb, uint16_t len)
      while (len--)
      {
           /* O destino é sempre espelhado para a VRAM (0x8000–0x9FFF) */
-          uint16_t vram_addr = 0x8000U + (dst % 0x2000U);
+          uint16_t vram_off = dst % 0x2000U;
 
           uint8_t v = gb_memory_readb(gb, src);
-          gb_memory_writeb(gb, vram_addr, v);
+          gb->vram[vram_off + 0x2000U * gb->vram_high_bank] = v;
 
           src++;
           dst++;
@@ -51,6 +51,13 @@ void gb_hdma_start(struct gb *gb, bool hblank)
 
      if (hblank)
      {
+          if (!gb->gpu.master_enable)
+          {
+               hdma->run_on_hblank = true;
+               gb_hdma_hblank(gb);
+               return;
+          }
+
           /* Modo H-Blank DMA: a cópia é feita em chunks de 16 bytes por HBlank.
            * A GPU chama gb_hdma_hblank() a cada Mode 0 até length chegar a zero. */
           gb_gpu_sync(gb);

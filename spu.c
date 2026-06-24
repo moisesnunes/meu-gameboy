@@ -107,6 +107,7 @@ void gb_spu_reset(struct gb *gb)
      spu->frame_seq_step = 0;
      spu->output_level = 0x77;
      spu->sound_mux = 0xf3;
+     memset(spu->pcm, 0, sizeof(spu->pcm));
 
      gb_spu_update_sound_amp(gb);
 
@@ -198,6 +199,7 @@ void gb_spu_power_off(struct gb *gb)
      spu->sample_period_frac = 0;
      spu->frame_seq_counter = GB_SPU_FRAME_SEQ_PERIOD;
      spu->frame_seq_step = 0;
+     memset(spu->pcm, 0, sizeof(spu->pcm));
 
      memset(&spu->nr1, 0, sizeof(spu->nr1));
      memset(&spu->nr2, 0, sizeof(spu->nr2));
@@ -385,24 +387,24 @@ static bool gb_spu_sweep_init(struct gb_spu_sweep *s)
      return overflow;
 }
 
-#define GB_SPU_NPHASES 16
+#define GB_SPU_NPHASES 8
 static uint8_t gb_spu_next_wave_sample(struct gb_spu_rectangle_wave *wave,
                                        unsigned phase_steps)
 {
-     static const uint8_t waveforms[4][GB_SPU_NPHASES / 2] = {
+     static const uint8_t waveforms[4][GB_SPU_NPHASES] = {
          /* 1/8 */
-         {1, 0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0, 1},
          /* 1/4 */
-         {1, 1, 0, 0, 0, 0, 0, 0},
+         {1, 0, 0, 0, 0, 0, 0, 1},
          /* 1/2 */
-         {1, 1, 1, 1, 0, 0, 0, 0},
+         {1, 0, 0, 0, 0, 1, 1, 1},
          /* 3/4 */
-         {1, 1, 1, 1, 1, 1, 0, 0},
+         {0, 1, 1, 1, 1, 1, 1, 0},
      };
 
      wave->phase = (wave->phase + phase_steps) % GB_SPU_NPHASES;
 
-     return waveforms[wave->duty_cycle][wave->phase / 2];
+     return waveforms[wave->duty_cycle][wave->phase];
 }
 
 static void gb_spu_envelope_reload_counter(struct gb_spu_envelope *e)
@@ -479,12 +481,14 @@ static int16_t gb_spu_next_nr1_sample(struct gb *gb, unsigned cycles)
 
      if (!spu->nr1.running)
      {
+          spu->pcm[0] = 0;
           return 0;
      }
 
      sound_cycles = gb_spu_frequency_update(&spu->nr1.sweep.divider, cycles);
 
      sample = gb_spu_next_wave_sample(&spu->nr1.wave, sound_cycles);
+     spu->pcm[0] = sample ? spu->nr1.envelope.value : 0;
 
      return sample ? spu->nr1.envelope.value : -spu->nr1.envelope.value;
 }
@@ -497,12 +501,14 @@ static int16_t gb_spu_next_nr2_sample(struct gb *gb, unsigned cycles)
 
      if (!spu->nr2.running)
      {
+          spu->pcm[1] = 0;
           return 0;
      }
 
      sound_cycles = gb_spu_frequency_update(&spu->nr2.divider, cycles);
 
      sample = gb_spu_next_wave_sample(&spu->nr2.wave, sound_cycles);
+     spu->pcm[1] = sample ? spu->nr2.envelope.value : 0;
 
      return sample ? spu->nr2.envelope.value : -spu->nr2.envelope.value;
 }
@@ -514,6 +520,7 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 
      if (!spu->nr3.running)
      {
+          spu->pcm[2] = 0;
           return 0;
      }
 
@@ -556,6 +563,7 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 
      if (spu->nr3.volume_shift == 0)
      {
+          spu->pcm[2] = 0;
           return 0; /* volume_shift 0 = mudo */
      }
 
@@ -570,6 +578,8 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
      {
           sample >>= 4;
      }
+
+     spu->pcm[2] = sample >> (spu->nr3.volume_shift - 1);
 
      return ((int16_t)sample * 2 - 15) /
             (1 << (spu->nr3.volume_shift - 1));
@@ -603,6 +613,7 @@ static int16_t gb_spu_next_nr4_sample(struct gb *gb, unsigned cycles)
 
      if (!spu->nr4.running)
      {
+          spu->pcm[3] = 0;
           return 0;
      }
 
@@ -622,6 +633,7 @@ static int16_t gb_spu_next_nr4_sample(struct gb *gb, unsigned cycles)
      }
 
      sample = spu->nr4.lfsr & 1;
+     spu->pcm[3] = sample ? 0 : spu->nr4.envelope.value;
 
      return sample ? spu->nr4.envelope.value : -spu->nr4.envelope.value;
 }
@@ -828,6 +840,18 @@ void gb_spu_sync(struct gb *gb)
                  GB_SPU_SAMPLE_RATE_DIVISOR;
      next_sync -= frac;
      gb_sync_next(gb, GB_SYNC_SPU, next_sync);
+}
+
+uint8_t gb_spu_pcm12(struct gb *gb)
+{
+     struct gb_spu *spu = &gb->spu;
+     return (spu->pcm[0] & 0x0f) | ((spu->pcm[1] & 0x0f) << 4);
+}
+
+uint8_t gb_spu_pcm34(struct gb *gb)
+{
+     struct gb_spu *spu = &gb->spu;
+     return (spu->pcm[2] & 0x0f) | ((spu->pcm[3] & 0x0f) << 4);
 }
 
 void gb_spu_nr1_start(struct gb *gb)

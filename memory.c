@@ -830,7 +830,10 @@ uint8_t gb_memory_peekb(struct gb *gb, uint16_t addr)
      if (gb_memory_is_cgb_hardware(gb) && addr == REG_CGB_FF75)
           return gb->cgb_reg_ff75 | 0x8f;
      if (gb_memory_is_cgb_hardware(gb) && (addr == REG_PCM12 || addr == REG_PCM34))
-          return 0x00;
+     {
+          gb_spu_sync(gb);
+          return addr == REG_PCM12 ? gb_spu_pcm12(gb) : gb_spu_pcm34(gb);
+     }
 
      if (addr == REG_BOOT)
           return gb->bootrom_mapped ? 0x00 : 0xff;
@@ -1305,7 +1308,10 @@ uint8_t gb_memory_readb(struct gb *gb, uint16_t addr)
           return gb->cgb_reg_ff75 | 0x8f;
 
      if (gb_memory_is_cgb_hardware(gb) && (addr == REG_PCM12 || addr == REG_PCM34))
-          return 0x00;
+     {
+          gb_spu_sync(gb);
+          return addr == REG_PCM12 ? gb_spu_pcm12(gb) : gb_spu_pcm34(gb);
+     }
 
      if (addr == REG_BOOT)
           return gb->bootrom_mapped ? 0x00 : 0xff;
@@ -1553,6 +1559,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
                if ((val & 0xf8) == 0)
                {
                     gb->spu.nr1.running = false;
+                    gb->spu.pcm[0] = 0;
                }
           }
           return;
@@ -1620,6 +1627,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
                if ((val & 0xf8) == 0)
                {
                     gb->spu.nr2.running = false;
+                    gb->spu.pcm[1] = 0;
                }
           }
           return;
@@ -1671,6 +1679,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
                if (!enable)
                {
                     gb->spu.nr3.running = false;
+                    gb->spu.pcm[2] = 0;
                }
           }
           return;
@@ -1702,6 +1711,8 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           {
                gb_spu_sync(gb);
                gb->spu.nr3.volume_shift = (val >> 5) & 3;
+               if (gb->spu.nr3.volume_shift == 0)
+                    gb->spu.pcm[2] = 0;
           }
           return;
      }
@@ -1767,6 +1778,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
                if ((val & 0xf8) == 0)
                {
                     gb->spu.nr4.running = false;
+                    gb->spu.pcm[3] = 0;
                }
           }
           return;
@@ -1989,7 +2001,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
      if (gb->gbc && addr == REG_HDMA3)
      {
           gb->hdma.destination &= 0x00ff;
-          gb->hdma.destination |= (uint16_t)val << 8;
+          gb->hdma.destination |= (uint16_t)(val & 0x1f) << 8;
           return;
      }
 

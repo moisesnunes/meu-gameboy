@@ -411,6 +411,31 @@ static void print_serial_escaped(struct compat_ctx *ctx)
      putchar('"');
 }
 
+static void dump_memory_row(struct gb *gb, uint16_t base, unsigned len)
+{
+     fprintf(stderr, "%04X-%04X=", base, (uint16_t)(base + len - 1));
+     for (unsigned i = 0; i < len; i++)
+     {
+          fprintf(stderr, "%s%02x", i ? " " : "",
+                  gb_memory_peekb(gb, (uint16_t)(base + i)));
+     }
+     fputc('\n', stderr);
+}
+
+static void dump_vram_row(struct gb *gb, uint16_t base, unsigned len, bool high_bank)
+{
+     uint16_t off = base - 0x8000U;
+
+     fprintf(stderr, "%04X-%04X%s=", base, (uint16_t)(base + len - 1),
+             high_bank ? "[bank1]" : "[bank0]");
+     for (unsigned i = 0; i < len; i++)
+     {
+          fprintf(stderr, "%s%02x", i ? " " : "",
+                  gb->vram[off + i + (high_bank ? 0x2000U : 0)]);
+     }
+     fputc('\n', stderr);
+}
+
 static void reset_gb(struct gb *gb, const char *rom_path, enum compat_mode mode)
 {
      gb_cart_unload(gb);
@@ -712,6 +737,10 @@ int main(int argc, char **argv)
                fprintf(stderr, "%s%02x", i ? " " : "", gb->zram[i]);
           }
           fputc('\n', stderr);
+          dump_memory_row(gb, 0xc000, 0x20);
+          dump_memory_row(gb, 0xcfe0, 0x20);
+          dump_vram_row(gb, 0x8800, 0x20, false);
+          dump_vram_row(gb, 0x8800, 0x20, true);
           if (gb->cart.ram && gb->cart.ram_length >= 16)
           {
                fprintf(stderr,

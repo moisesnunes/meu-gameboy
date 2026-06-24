@@ -188,6 +188,8 @@ struct gb_spu
      int16_t sound_amp[4][2];
      /* Mute por canal controlado pelo frontend (UI). Não altera registradores da APU. */
      bool frontend_mute[4];
+     /* Saida digital atual dos canais, exposta nos registradores CGB PCM12/PCM34. */
+     uint8_t pcm[4];
 
      struct gb_spu_nr1 nr1; /* CH1 — onda retangular com sweep */
      struct gb_spu_nr2 nr2; /* CH2 — onda retangular */
@@ -207,6 +209,8 @@ void gb_spu_power_off(struct gb *gb);
 void gb_spu_sync(struct gb *gb);
 void gb_spu_div_reset(struct gb *gb, uint16_t old_divider);
 void gb_spu_update_sound_amp(struct gb *gb);
+uint8_t gb_spu_pcm12(struct gb *gb);
+uint8_t gb_spu_pcm34(struct gb *gb);
 void gb_spu_nr1_start(struct gb *gb);
 void gb_spu_nr2_start(struct gb *gb);
 void gb_spu_nr3_start(struct gb *gb);
