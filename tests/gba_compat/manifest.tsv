@@ -39,7 +39,7 @@ glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000	5c92b8b7b2c9b6c72684422a91
 {gba_root}/hw-test-master/timer/start-stop/start-stop.gba	visual	100000000
 {gba_root}/hw-test-master/timer/reload/reload.gba	visual	100000000
 {gba_root}/hw-test-master/irq/irq-delay/irq-delay.gba	visual	100000000	16bad75d7c8093728184bb9f3b4221c96e94f0e8
-{gba_root}/hw-test-master/archive/irq/cancel-irq-ie/cancel-irq-ie.gba	visual	100000000
+{gba_root}/hw-test-master/archive/irq/cancel-irq-ie/cancel-irq-ie.gba	visual	100000000	9e0ba29fb058013368816513cf2501ad69e191f9
 {gba_root}/hw-test-master/archive/irq/cancel-irq-if/cancel-irq-if.gba	visual	100000000	05821ad4976855adf82ff7ae62d9d64d2a999db8
 {gba_root}/hw-test-master/archive/irq/cancel-irq-ime/cancel-irq-ime.gba	visual	100000000	8eedd57f42106e4b59a10b32c02ccca936e4cc62
 {gba_root}/hw-test-master/haltcnt/haltcnt.gba	visual	100000000
@@ -56,7 +56,7 @@ glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000	5c92b8b7b2c9b6c72684422a91
 {gba_root}/hw-test-master/ppu/bgx/bgx.gba	visual	100000000	818a426180275056faf9e9ca8799859a30b02c68
 {gba_root}/hw-test-master/ppu/bgpd/bgpd.gba	visual	100000000	7471ef956816360ff740c158b574c65d75fc7897
 {gba_root}/hw-test-master/ppu/dispcnt-latch/dispcnt-latch.gba	visual	100000000
-{gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000	e32f30ed7a79450001c02cb7aac1ad64433236b1
 {gba_root}/hw-test-master/ppu/ram-access-timing/ram-access-timing.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/sprite-hmosaic/sprite-hmosaic.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000

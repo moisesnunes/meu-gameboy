@@ -141,6 +141,8 @@ struct gb_spu_nr3
      uint8_t ram[GB_NR3_RAM_SIZE];
      /* Índice da amostra atual (0–31) */
      uint8_t index;
+     /* Amostra crua atualmente retida pelo buffer interno do CH3. */
+     uint8_t sample;
      /* DMG: ciclos restantes da janela de acesso à Wave RAM pela CPU.
       * Abre (= 2) cada vez que a unidade de onda lê um novo byte e conta
       * regressivamente por ciclo. Quando chega a 0, leituras retornam 0xFF

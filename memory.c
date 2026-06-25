@@ -518,18 +518,12 @@ static int32_t gb_serial_transfer_cycles(struct gb *gb)
      return (int32_t)((cpu_cycles + speed_scale - 1) / speed_scale);
 }
 
-/* Recarrega o contador de duração do canal de som, com correção para dupla velocidade no GBC. */
-static void gb_memory_reload_spu_duration(struct gb *gb,
-                                          struct gb_spu_duration *d,
+/* Recarrega o contador de duração do canal de som. */
+static void gb_memory_reload_spu_duration(struct gb_spu_duration *d,
                                           unsigned duration_max,
                                           uint8_t t1)
 {
      gb_spu_duration_reload(d, duration_max, t1);
-
-     if (gb->gbc && gb->double_speed && d->counter)
-     {
-          d->counter++;
-     }
 }
 
 /* Sincroniza o DMA antes de qualquer acesso da CPU à memória, se necessário. */
@@ -1536,7 +1530,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           {
                gb_spu_sync(gb);
                gb->spu.nr1.wave.duty_cycle = val >> 6;
-               gb_memory_reload_spu_duration(gb, &gb->spu.nr1.duration,
+               gb_memory_reload_spu_duration(&gb->spu.nr1.duration,
                                              GB_SPU_NR1_T1_MAX,
                                              val & 0x3f);
           }
@@ -1604,7 +1598,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           {
                gb_spu_sync(gb);
                gb->spu.nr2.wave.duty_cycle = val >> 6;
-               gb_memory_reload_spu_duration(gb, &gb->spu.nr2.duration,
+               gb_memory_reload_spu_duration(&gb->spu.nr2.duration,
                                              GB_SPU_NR2_T1_MAX,
                                              val & 0x3f);
           }
@@ -1691,7 +1685,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           {
                gb_spu_sync(gb);
                gb->spu.nr3.t1 = val;
-               gb_memory_reload_spu_duration(gb, &gb->spu.nr3.duration,
+               gb_memory_reload_spu_duration(&gb->spu.nr3.duration,
                                              GB_SPU_NR3_T1_MAX,
                                              val);
           }
@@ -1755,7 +1749,7 @@ void gb_memory_writeb(struct gb *gb, uint16_t addr, uint8_t val)
           if (gb->spu.enable)
           {
                gb_spu_sync(gb);
-               gb_memory_reload_spu_duration(gb, &gb->spu.nr4.duration,
+               gb_memory_reload_spu_duration(&gb->spu.nr4.duration,
                                              GB_SPU_NR4_T1_MAX,
                                              val & 0x3f);
           }

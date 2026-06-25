@@ -153,6 +153,7 @@ void gb_spu_reset(struct gb *gb)
      spu->nr3.volume_shift = 0;
      spu->nr3.divider.offset = 0;
      spu->nr3.t1 = 0;
+     spu->nr3.sample = 0;
      spu->nr3.index = 0;
      spu->nr3.access_cycles = 0;
 
@@ -516,7 +517,6 @@ static int16_t gb_spu_next_nr2_sample(struct gb *gb, unsigned cycles)
 static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
 {
      struct gb_spu *spu = &gb->spu;
-     uint8_t sample;
 
      if (!spu->nr3.running)
      {
@@ -549,6 +549,10 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
                if (spu->nr3.divider.counter == 0)
                {
                     spu->nr3.index = (spu->nr3.index + 1) % (GB_NR3_RAM_SIZE * 2);
+                    if (spu->nr3.index & 1)
+                         spu->nr3.sample = spu->nr3.ram[spu->nr3.index / 2] & 0xf;
+                    else
+                         spu->nr3.sample = spu->nr3.ram[spu->nr3.index / 2] >> 4;
                     gb_spu_frequency_reload(&spu->nr3.divider);
                     spu->nr3.access_cycles = 2;
                }
@@ -558,7 +562,13 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
      {
           unsigned sound_cycles = gb_spu_frequency_update(&spu->nr3.divider, cycles);
           if (sound_cycles > 0)
+          {
                spu->nr3.index = (spu->nr3.index + sound_cycles) % (GB_NR3_RAM_SIZE * 2);
+               if (spu->nr3.index & 1)
+                    spu->nr3.sample = spu->nr3.ram[spu->nr3.index / 2] & 0xf;
+               else
+                    spu->nr3.sample = spu->nr3.ram[spu->nr3.index / 2] >> 4;
+          }
      }
 
      if (spu->nr3.volume_shift == 0)
@@ -567,21 +577,9 @@ static int16_t gb_spu_next_nr3_sample(struct gb *gb, unsigned cycles)
           return 0; /* volume_shift 0 = mudo */
      }
 
-     /* Duas amostras de 4 bits empacotadas por byte: nibble alto = índice par */
-     sample = spu->nr3.ram[spu->nr3.index / 2];
+     spu->pcm[2] = spu->nr3.sample >> (spu->nr3.volume_shift - 1);
 
-     if (spu->nr3.index & 1)
-     {
-          sample &= 0xf;
-     }
-     else
-     {
-          sample >>= 4;
-     }
-
-     spu->pcm[2] = sample >> (spu->nr3.volume_shift - 1);
-
-     return ((int16_t)sample * 2 - 15) /
+     return ((int16_t)spu->nr3.sample * 2 - 15) /
             (1 << (spu->nr3.volume_shift - 1));
 }
 
@@ -895,6 +893,8 @@ void gb_spu_nr3_start(struct gb *gb)
                memcpy(spu->nr3.ram, spu->nr3.ram + (offset & ~3u), 4);
      }
 
+     if (!spu->nr3.running)
+          spu->nr3.sample = 0;
      spu->nr3.index = 0;
      gb_spu_duration_trigger(gb, &spu->nr3.duration, GB_SPU_LENGTH_STEP_NR3);
      gb_spu_frequency_reload(&spu->nr3.divider);
