@@ -1317,7 +1317,7 @@ static void draw_main_menu(struct gb *gb)
      /* Sobre */
      if (ImGui::BeginMenu("Sobre"))
      {
-          if (ImGui::MenuItem("Sobre Gaembuoy..."))
+          if (ImGui::MenuItem("Sobre Gameboy..."))
                s_show_about = true;
           ImGui::EndMenu();
      }
@@ -1345,7 +1345,7 @@ static void draw_main_menu(struct gb *gb)
      }
      if (ImGui::BeginPopupModal("Sobre##modal", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
      {
-          ImGui::Text("Gaembuoy");
+          ImGui::Text("Gameboy");
           ImGui::TextColored(color_gray, "Emulador de Game Boy / Game Boy Color");
           ImGui::Separator();
           ImGui::Text("Frontend:  SDL3 + Dear ImGui");
@@ -1381,8 +1381,8 @@ static void draw_launcher(void)
                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
 
-     ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Gaembuoy").x) * 0.5f);
-     ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "Gaembuoy");
+     ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Gameboy").x) * 0.5f);
+     ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "Gameboy");
      ImGui::Spacing();
      ImGui::Separator();
      ImGui::Spacing();

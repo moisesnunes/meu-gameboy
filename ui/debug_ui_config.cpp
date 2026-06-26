@@ -273,7 +273,7 @@ bool debug_ui_config_save(const debug_ui_config *cfg, const char *path)
      if (!out)
           return false;
 
-     out << "# Gaembuoy desktop UI configuration\n";
+     out << "# Gameboy desktop UI configuration\n";
      out << "show_screen=" << cfg->show_screen << "\n";
      out << "show_cpu=" << cfg->show_cpu << "\n";
      out << "show_disasm=" << cfg->show_disasm << "\n";

@@ -230,9 +230,17 @@ static void dma_run(struct gba *gba, int n)
                                   ch->dst_mode == GBA_DMA_ADDR_FIXED &&
                                   dma_dst_is_affine_ppu_reg(ch->dst) &&
                                   original_count > 32;
+     bool vram_fetch_sampling = !ch->word_32 &&
+                                ch->timing == GBA_DMA_HBLANK &&
+                                ch->dst_mode == GBA_DMA_ADDR_FIXED &&
+                                (ch->dst & ~1U) == GBA_VRAM_BASE &&
+                                original_count > 32;
+     bool timed_vram_fetch_sampling = vram_fetch_sampling &&
+                                      gba->gpu.bg_mode == 2;
      bool timed_sampling = timed_io_sampling || timed_if_sampling ||
                            timed_vcount_sampling ||
-                           timed_timer_sampling || timed_affine_sampling;
+                           timed_timer_sampling || timed_affine_sampling ||
+                           timed_vram_fetch_sampling;
 
      gba->timestamp += ch->word_32 ? 4 : 8;
 
@@ -358,7 +366,13 @@ static void dma_run(struct gba *gba, int n)
                if (((ch->dst >> 24) == 0x0D) && gba_cart_is_eeprom(gba))
                     gba_cart_eeprom_write(gba, v, (uint32_t)count + 1);
                else
-                   gba_memory_write16(gba, ch->dst & ~1U, v);
+               {
+                    gba_memory_write16(gba, ch->dst & ~1U, v);
+                    if (vram_fetch_sampling)
+                         gba_gpu_sample_hblank_vram_dma(
+                             gba, ch->dst & ~1U,
+                             (uint32_t)(original_count - count - 1), v);
+               }
           }
           /* DMA drives the shared system bus after each completed transfer. */
           gba->cpu_bus = ch->data_latch;

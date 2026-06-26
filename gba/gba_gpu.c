@@ -17,6 +17,15 @@
  * Total: 1008+224 = 1232 = 308×4 cycles/line. */
 #define GBA_CYCLES_HDRAW 1008 /* dot 0 → HBlank trigger  (252 dots × 4) */
 #define GBA_CYCLES_HBLANK 224 /* HBlank trigger → next line (56 dots × 4) */
+#define GBA_DMA_FETCH_SLOTS 512
+
+static struct
+{
+     struct gba *owner;
+     bool valid;
+     uint8_t line;
+     uint16_t sample[GBA_DMA_FETCH_SLOTS];
+} dma_fetch;
 
 /* Snapshot affine BG2/BG3 parameters at the start of each scanline.
  * The hardware latches PA-PD and the reference point once per line so that
@@ -41,6 +50,8 @@ void gba_gpu_reset(struct gba *gba)
      memset(gpu, 0, sizeof(*gpu));
      gpu->vcount = 0;
      gpu->hblank_flag = false;
+     dma_fetch.owner = gba;
+     dma_fetch.valid = false;
      latch_affine_line(gpu);
      /* First event: HBlank trigger of line 0 */
      gba_sync_next(gba, GBA_SYNC_GPU, GBA_CYCLES_HDRAW);
@@ -266,6 +277,32 @@ static void render_bg_affine(struct gba *gba, int bg_idx, uint16_t *line_buf,
      struct gba_gpu *gpu = &gba->gpu;
      struct gba_bg_layer *bg = &gpu->bg[bg_idx];
 
+     if (dma_fetch.owner == gba && dma_fetch.valid && dma_fetch.line == line)
+     {
+          for (int x = 0; x < GBA_LCD_W; x++)
+          {
+               int slot = x;
+               if (gpu->bg_mode == 2 && bg_idx == 3 &&
+                   gpu->bg_en[2] && gpu->bg_en[3])
+                    slot += GBA_LCD_W;
+               uint16_t sample = dma_fetch.sample[slot];
+               uint8_t color_idx = gpu->bg_mode == 2
+                                       ? (uint8_t)(sample >> ((x & 1) ? 8 : 0))
+                                       : (uint8_t)sample;
+               if (color_idx == 0)
+                    continue;
+               uint16_t color = read_pal16(gba, color_idx);
+               if (bg->priority <= prio_buf[x])
+               {
+                    line_buf[x] = color & 0x7FFF;
+                    prio_buf[x] = bg->priority;
+               }
+          }
+          bg->ref_x_latch += bg->pb_line;
+          bg->ref_y_latch += bg->pd_line;
+          return;
+     }
+
      uint32_t map_base = (uint32_t)bg->map_base * 0x800;
      uint32_t tile_base = (uint32_t)bg->tile_base * 0x4000;
 
@@ -378,6 +415,16 @@ static void render_mode3(struct gba *gba, uint16_t *line_buf, uint8_t line)
 {
      struct gba_gpu *gpu = &gba->gpu;
      struct gba_bg_layer *bg = &gpu->bg[2];
+
+     if (dma_fetch.owner == gba && dma_fetch.valid && dma_fetch.line == line)
+     {
+          for (int x = 0; x < GBA_LCD_W; x++)
+               line_buf[x] = dma_fetch.sample[x] & 0x7FFF;
+          bg->ref_x_latch += bg->pb_line;
+          bg->ref_y_latch += bg->pd_line;
+          return;
+     }
+
      int16_t pa = bg->pa_line;
      int16_t pb = bg->pb_line;
      int16_t pc = bg->pc_line;
@@ -411,6 +458,14 @@ static void render_mode3(struct gba *gba, uint16_t *line_buf, uint8_t line)
 static void render_mode4(struct gba *gba, uint16_t *line_buf, uint8_t line)
 {
      struct gba_gpu *gpu = &gba->gpu;
+
+     if (dma_fetch.owner == gba && dma_fetch.valid && dma_fetch.line == line)
+     {
+          for (int x = 0; x < GBA_LCD_W; x++)
+               line_buf[x] = read_pal16(gba, (uint8_t)dma_fetch.sample[x]) & 0x7FFF;
+          return;
+     }
+
      uint32_t base = gpu->frame_select ? 0xA000U : 0x0000U;
      base += (uint32_t)(line)*GBA_LCD_W;
      for (int x = 0; x < GBA_LCD_W; x++)
@@ -896,6 +951,42 @@ static void render_scanline(struct gba *gba, uint8_t line)
 
      /* Composite BG + OBJ with blending and window masking */
      composite_line(gba, line);
+
+     if (dma_fetch.owner == gba && dma_fetch.valid && dma_fetch.line == line)
+          dma_fetch.valid = false;
+}
+
+void gba_gpu_sample_hblank_vram_dma(struct gba *gba, uint32_t dst,
+                                    uint32_t transfer_index, uint16_t value)
+{
+     struct gba_gpu *gpu = &gba->gpu;
+
+     if ((dst & ~1U) != GBA_VRAM_BASE)
+          return;
+     if (!gpu->hblank || gpu->vblank || gpu->vcount + 1 >= GBA_LCD_H)
+          return;
+
+     uint8_t line = (uint8_t)(gpu->vcount + 1);
+     int fetch_cycles = (gpu->bg_mode == 2) ? 2 : 4;
+     int32_t sample_cycle = (int32_t)transfer_index * 2 - (226 + 32);
+     if (sample_cycle < 0)
+          return;
+
+     int x = sample_cycle / fetch_cycles;
+     int max_slots = (gpu->bg_mode == 2) ? GBA_DMA_FETCH_SLOTS : GBA_LCD_W;
+     if (x < 0 || x >= max_slots)
+          return;
+
+     if (dma_fetch.owner != gba || !dma_fetch.valid || dma_fetch.line != line)
+     {
+          dma_fetch.owner = gba;
+          dma_fetch.valid = true;
+          dma_fetch.line = line;
+          for (int i = 0; i < GBA_DMA_FETCH_SLOTS; i++)
+               dma_fetch.sample[i] = value;
+     }
+
+     dma_fetch.sample[x] = value;
 }
 
 /*

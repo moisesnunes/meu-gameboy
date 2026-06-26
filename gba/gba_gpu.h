@@ -120,5 +120,7 @@ uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr);
 void gba_gpu_write8(struct gba *gba, uint32_t addr, uint8_t val);
 void gba_gpu_write16(struct gba *gba, uint32_t addr, uint16_t val);
 void gba_gpu_write32(struct gba *gba, uint32_t addr, uint32_t val);
+void gba_gpu_sample_hblank_vram_dma(struct gba *gba, uint32_t dst,
+                                    uint32_t transfer_index, uint16_t value);
 
 #endif /* _GBA_GPU_H_ */

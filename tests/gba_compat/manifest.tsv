@@ -50,14 +50,14 @@ glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000	5c92b8b7b2c9b6c72684422a91
 {gba_root}/hw-test-master/bus/128kb-boundary/128kb-boundary.gba	visual	100000000	c97a26a6ee8bb9aba1a99e28311a5de44e2362e3
 {gba_root}/hw-test-master/archive/ppu/basic-timing/basic-timing.gba	visual	100000000
 {gba_root}/hw-test-master/archive/ppu/exact-timing/exact-timing.gba	visual	100000000
-{gba_root}/hw-test-master/archive/ppu/mode2/mode2.gba	visual	100000000
-{gba_root}/hw-test-master/archive/ppu/mode3/mode3.gba	visual	100000000
-{gba_root}/hw-test-master/archive/ppu/mode4/mode4.gba	visual	100000000
+{gba_root}/hw-test-master/archive/ppu/mode2/mode2.gba	visual	100000000	658f734eef8820849d0313be80d831744525ad04
+{gba_root}/hw-test-master/archive/ppu/mode3/mode3.gba	visual	100000000	e5eb02eaea02e58b171ef7a40285e4e3cc0c2471
+{gba_root}/hw-test-master/archive/ppu/mode4/mode4.gba	visual	100000000	eb53beb7ac78579bd30845f25c2efd2282053610
 {gba_root}/hw-test-master/ppu/bgx/bgx.gba	visual	100000000	818a426180275056faf9e9ca8799859a30b02c68
 {gba_root}/hw-test-master/ppu/bgpd/bgpd.gba	visual	100000000	7471ef956816360ff740c158b574c65d75fc7897
 {gba_root}/hw-test-master/ppu/dispcnt-latch/dispcnt-latch.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000	e32f30ed7a79450001c02cb7aac1ad64433236b1
 {gba_root}/hw-test-master/ppu/ram-access-timing/ram-access-timing.gba	visual	100000000
-{gba_root}/hw-test-master/ppu/sprite-hmosaic/sprite-hmosaic.gba	visual	100000000
+{gba_root}/hw-test-master/ppu/sprite-hmosaic/sprite-hmosaic.gba	visual	100000000	372fa4adf6f8c695dbd8f90376fbfe866818ebdf
 {gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/vram-mirror/vram-mirror.gba	visual	100000000	0053ced99f06938eac54b91080e6fc109dcc00ea
