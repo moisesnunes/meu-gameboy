@@ -17,7 +17,7 @@
 #include <stdbool.h>
 #include "hw_schematic_data.h"
 #include "hw_schematic_map.h"
-#include "../debug.h"
+#include "debug.h"
 
 /* -------------------------------------------------------------------------
  * Activity state — one float per net/component, 0..1

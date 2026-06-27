@@ -27,8 +27,8 @@ BUILD_GBA_DIR    = $(BUILD_DIR)/gba
 
 # -MMD -MP: gera arquivos .d de dependências automáticas para headers;
 # sem isso, mudar um .h não recompila os .c que o incluem
-CFLAGS   = -Wall -O2 -MMD -MP `pkg-config --cflags sdl3` -I . -I ui -I sm83 -I hw_schematic
-CXXFLAGS = -Wall -O2 -MMD -MP `pkg-config --cflags sdl3` -I . -I ui -I imgui -I imgui/backends -I sm83 -I hw_schematic
+CFLAGS   = -Wall -O2 -MMD -MP `pkg-config --cflags sdl3` -I . -I gb -I ui -I sm83 -I hw_schematic
+CXXFLAGS = -Wall -O2 -MMD -MP `pkg-config --cflags sdl3` -I . -I gb -I ui -I imgui -I imgui/backends -I sm83 -I hw_schematic
 
 ifdef WINDOWS
     NAME     = gameboy.exe
@@ -49,8 +49,9 @@ IMGUI_SRC = imgui/imgui.cpp \
             imgui/backends/imgui_impl_opengl3.cpp
 
 # Todos os fontes do frontend principal (GB/GBC com SDL3 + ImGui)
-C_SRC = main.c cpu.c memory.c cart.c gpu.c sync.c sdl.c input.c irq.c dma.c \
-        hdma.c timer.c spu.c debug.c disasm.c rtc.c state.c
+C_SRC = main.c sdl.c state.c \
+        gb/cpu.c gb/memory.c gb/cart.c gb/gpu.c gb/sync.c gb/input.c gb/irq.c gb/dma.c \
+        gb/hdma.c gb/timer.c gb/spu.c gb/debug.c gb/disasm.c gb/rtc.c
 
 # Painéis de debug ImGui do emulador GB (C++ para compatibilidade com ImGui)
 UI_SRC = ui/debug_ui.cpp ui/debug_ui_config.cpp ui/debug_ui_actions.cpp \
@@ -67,8 +68,8 @@ HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/hw_schematic_view.c
 
 # Núcleo GB/GBC: compartilhado por todos os frontends e ferramentas de teste
 # (exclui sdl.c e state.c que dependem de SDL3/ImGui)
-CORE_C_SRC = cpu.c memory.c cart.c gpu.c sync.c input.c irq.c dma.c \
-             hdma.c timer.c spu.c debug.c disasm.c rtc.c \
+CORE_C_SRC = gb/cpu.c gb/memory.c gb/cart.c gb/gpu.c gb/sync.c gb/input.c gb/irq.c gb/dma.c \
+             gb/hdma.c gb/timer.c gb/spu.c gb/debug.c gb/disasm.c gb/rtc.c \
              $(SM83_C_SRC) $(HW_SCH_C_SRC)
 
 # Núcleo headless: exclui hw_schematic_view.c (único módulo com chamadas OpenGL)
@@ -204,6 +205,11 @@ $(BUILD_CORE_DIR)/%.o: %.c
 	mkdir -p $(dir $@)
 	$(CC_C) -c $(CFLAGS) -o $@ $<
 
+$(BUILD_CORE_DIR)/gb/%.o: gb/%.c
+	$(info CC $@)
+	mkdir -p $(dir $@)
+	$(CC_C) -c $(CFLAGS) -o $@ $<
+
 $(BUILD_APP_DIR)/%.o: %.c
 	$(info CC $@)
 	mkdir -p $(dir $@)
@@ -214,7 +220,7 @@ $(BUILD_APP_DIR)/%.o: frontends/%.c
 	mkdir -p $(dir $@)
 	$(CC_C) -c $(CFLAGS) -o $@ $<
 
-$(BUILD_TEST_DIR)/%.o: %.c
+$(BUILD_TEST_DIR)/%.o: tests/%.c
 	$(info CC $@)
 	mkdir -p $(dir $@)
 	$(CC_C) -c $(CFLAGS) -o $@ $<

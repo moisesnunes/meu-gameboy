@@ -5309,7 +5309,7 @@ static HwSchematicView s_sch_view = {};
 static bool s_sch_view_init = false;
 static bool s_sch_show_wires = true;
 static bool s_sch_show_junctions = true;
-static bool s_sch_show_labels = true;
+static bool s_sch_show_labels = false;
 static bool s_sch_show_components = true;
 static bool s_sch_show_activity = true;
 static bool s_sch_paper_mode = false;
@@ -5959,7 +5959,7 @@ static bool s_sch_net_timeline_open = false;
 /* Frozen frame */
 static bool s_sch_frozen = false;
 static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
-static int  s_sch_replay_cursor = -1; /* -1 = live; 0..n_events-1 = frozen at event */
+static int s_sch_replay_cursor = -1;         /* -1 = live; 0..n_events-1 = frozen at event */
 static HwSchematicActivityState s_sch_replay_state;
 static bool s_sch_replay_dirty = false;
 
@@ -6435,8 +6435,8 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
 
 /* Dynamic waveform state: up to 16 net_ids pinned by the user */
 #define WAVE_MAX_NETS 16
-static int  s_wave_nets[WAVE_MAX_NETS];   /* net_ids; -1 = slot empty      */
-static int  s_wave_net_count = 0;
+static int s_wave_nets[WAVE_MAX_NETS]; /* net_ids; -1 = slot empty      */
+static int s_wave_net_count = 0;
 static bool s_wave_init = false;
 
 /* Called from schematic panel when the user clicks a wire */
@@ -6585,8 +6585,8 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
           ImU32 col = ROW_COLORS[row % N_ROW_COLORS];
 
           float y_mid = pos.y + 6.0f + row * row_h + row_h * 0.5f;
-          float y_hi  = y_mid - row_h * 0.32f;
-          float y_lo  = y_mid + row_h * 0.32f;
+          float y_hi = y_mid - row_h * 0.32f;
+          float y_lo = y_mid + row_h * 0.32f;
 
           /* Label */
           dl->AddText(ImVec2(pos.x + 4.0f, y_mid - 7.0f), col, name);
@@ -6755,7 +6755,9 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::SameLine(0, 14);
           ImGui::Checkbox("Kinds", &s_sch_show_kinds);
           ImGui::SameLine(0, 14);
+          ImGui::SetWindowFontScale(0.50f);
           ImGui::Checkbox("0/1", &s_sch_show_levels);
+          ImGui::SetWindowFontScale(1.00f);
           ImGui::SameLine(0, 16);
           /* Freeze button: captures current activity state */
           if (s_sch_frozen)
@@ -8248,181 +8250,181 @@ void draw_panel_hw_schematic(struct gb *gb)
 
           if (s_sch_net_timeline_open)
           {
-          struct gb_hw_trace *tl_tr = &gb->debug.hw_trace;
+               struct gb_hw_trace *tl_tr = &gb->debug.hw_trace;
 
-          /* Collect up to 64 events that touched this net, newest first */
-          static const int TL_CAP = 64;
-          struct TlEntry
-          {
-               const gb_hw_trace_event *ev;
-               bool touched_net;
-          };
-          TlEntry tl_buf[TL_CAP];
-          int tl_n = 0;
-
-          /* Walk ring buffer newest→oldest, keeping only events that actually
-           * touch this net (using the semantic map for real 0/1 derivation). */
-          uint32_t cap = GB_HW_TRACE_CAP;
-          uint32_t cnt = tl_tr->count < cap ? tl_tr->count : cap;
-          for (uint32_t k = 0; k < cnt && tl_n < TL_CAP; k++)
-          {
-               uint32_t idx = (tl_tr->head + cap - 1 - k) % cap;
-               const gb_hw_trace_event *ev = &tl_tr->events[idx];
-               if (hw_event_touches_net(ev, s_sch_sel_net))
-                    tl_buf[tl_n++] = {ev, true};
-          }
-
-          /* Timeline header */
-          ImGui::Separator();
-          ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
-                             "Timeline: net %s  (%d eventos relevantes)",
-                             sel_net->name, tl_n);
-
-          /* Horizontal mini-timeline strip — two rows: event type (top) + 0/1 level (bottom) */
-          float tl_h = 52.0f;
-          ImVec2 tl_pos = ImGui::GetCursorScreenPos();
-          ImVec2 tl_size = ImVec2(ImGui::GetContentRegionAvail().x, tl_h);
-          ImDrawList *tdl = ImGui::GetWindowDrawList();
-          tdl->AddRectFilled(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
-                             IM_COL32(10, 12, 18, 230));
-          tdl->AddRect(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
-                       IM_COL32(50, 55, 70, 180));
-
-          static int s_tl_sel = -1; /* selected event index in tl_buf */
-
-          if (tl_n > 0)
-          {
-               /* Find timestamp range — tl_buf is newest-first */
-               int32_t ts_min = tl_buf[tl_n - 1].ev->timestamp;
-               int32_t ts_max = tl_buf[0].ev->timestamp;
-               int32_t ts_span = ts_max - ts_min;
-               if (ts_span <= 0)
-                    ts_span = 1;
-
-               float bar_w = tl_size.x / (float)tl_n;
-               bool use_time_x = ts_span > tl_n * 4;
-
-               /* Midpoint separating type row (top) from level row (bottom) */
-               float type_y0 = tl_pos.y + 2.0f;
-               float type_h  = tl_h * 0.55f - 3.0f;
-               float lvl_y0  = tl_pos.y + tl_h * 0.55f;
-               float lvl_h   = tl_h * 0.45f - 3.0f;
-
-               /* Separator between rows */
-               tdl->AddLine(ImVec2(tl_pos.x, lvl_y0 - 1),
-                            ImVec2(tl_pos.x + tl_size.x, lvl_y0 - 1),
-                            IM_COL32(40, 45, 60, 160));
-
-               /* "0" / "1" labels */
-               tdl->AddText(ImVec2(tl_pos.x + 2, lvl_y0 + lvl_h * 0.5f - 7),
-                            IM_COL32(80, 80, 100, 180), "0/1");
-
-               int prev_level = -1;
-               float prev_x = tl_pos.x;
-
-               for (int ei = 0; ei < tl_n; ei++)
+               /* Collect up to 64 events that touched this net, newest first */
+               static const int TL_CAP = 64;
+               struct TlEntry
                {
-                    const gb_hw_trace_event *ev = tl_buf[ei].ev;
-                    float t = use_time_x
-                                  ? (float)(ev->timestamp - ts_min) / (float)ts_span
-                                  : (float)(tl_n - 1 - ei) / (float)(tl_n > 1 ? tl_n - 1 : 1);
-                    float bx = tl_pos.x + t * (tl_size.x - bar_w);
+                    const gb_hw_trace_event *ev;
+                    bool touched_net;
+               };
+               TlEntry tl_buf[TL_CAP];
+               int tl_n = 0;
 
-                    /* --- Type bar (top row) --- */
-                    const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
-                    ImU32 bcol = meta->color;
-                    bool local_sel = (s_tl_sel == ei);
-                    bool sel = local_sel ||
-                               (s_debug_sel.active && s_debug_sel.seq == ev->seq);
-                    ImVec2 b0 = ImVec2(bx, type_y0);
-                    ImVec2 b1 = ImVec2(bx + (bar_w > 2.0f ? bar_w - 1.0f : 1.5f), type_y0 + type_h);
-                    tdl->AddRectFilled(b0, b1, bcol, 1.5f);
-                    if (sel)
-                         tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 220), 1.5f, 0, 1.5f);
+               /* Walk ring buffer newest→oldest, keeping only events that actually
+                * touch this net (using the semantic map for real 0/1 derivation). */
+               uint32_t cap = GB_HW_TRACE_CAP;
+               uint32_t cnt = tl_tr->count < cap ? tl_tr->count : cap;
+               for (uint32_t k = 0; k < cnt && tl_n < TL_CAP; k++)
+               {
+                    uint32_t idx = (tl_tr->head + cap - 1 - k) % cap;
+                    const gb_hw_trace_event *ev = &tl_tr->events[idx];
+                    if (hw_event_touches_net(ev, s_sch_sel_net))
+                         tl_buf[tl_n++] = {ev, true};
+               }
 
-                    /* --- Logic level (bottom row) --- */
+               /* Timeline header */
+               ImGui::Separator();
+               ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
+                                  "Timeline: net %s  (%d eventos relevantes)",
+                                  sel_net->name, tl_n);
+
+               /* Horizontal mini-timeline strip — two rows: event type (top) + 0/1 level (bottom) */
+               float tl_h = 52.0f;
+               ImVec2 tl_pos = ImGui::GetCursorScreenPos();
+               ImVec2 tl_size = ImVec2(ImGui::GetContentRegionAvail().x, tl_h);
+               ImDrawList *tdl = ImGui::GetWindowDrawList();
+               tdl->AddRectFilled(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
+                                  IM_COL32(10, 12, 18, 230));
+               tdl->AddRect(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
+                            IM_COL32(50, 55, 70, 180));
+
+               static int s_tl_sel = -1; /* selected event index in tl_buf */
+
+               if (tl_n > 0)
+               {
+                    /* Find timestamp range — tl_buf is newest-first */
+                    int32_t ts_min = tl_buf[tl_n - 1].ev->timestamp;
+                    int32_t ts_max = tl_buf[0].ev->timestamp;
+                    int32_t ts_span = ts_max - ts_min;
+                    if (ts_span <= 0)
+                         ts_span = 1;
+
+                    float bar_w = tl_size.x / (float)tl_n;
+                    bool use_time_x = ts_span > tl_n * 4;
+
+                    /* Midpoint separating type row (top) from level row (bottom) */
+                    float type_y0 = tl_pos.y + 2.0f;
+                    float type_h = tl_h * 0.55f - 3.0f;
+                    float lvl_y0 = tl_pos.y + tl_h * 0.55f;
+                    float lvl_h = tl_h * 0.45f - 3.0f;
+
+                    /* Separator between rows */
+                    tdl->AddLine(ImVec2(tl_pos.x, lvl_y0 - 1),
+                                 ImVec2(tl_pos.x + tl_size.x, lvl_y0 - 1),
+                                 IM_COL32(40, 45, 60, 160));
+
+                    /* "0" / "1" labels */
+                    tdl->AddText(ImVec2(tl_pos.x + 2, lvl_y0 + lvl_h * 0.5f - 7),
+                                 IM_COL32(80, 80, 100, 180), "0/1");
+
+                    int prev_level = -1;
+                    float prev_x = tl_pos.x;
+
+                    for (int ei = 0; ei < tl_n; ei++)
+                    {
+                         const gb_hw_trace_event *ev = tl_buf[ei].ev;
+                         float t = use_time_x
+                                       ? (float)(ev->timestamp - ts_min) / (float)ts_span
+                                       : (float)(tl_n - 1 - ei) / (float)(tl_n > 1 ? tl_n - 1 : 1);
+                         float bx = tl_pos.x + t * (tl_size.x - bar_w);
+
+                         /* --- Type bar (top row) --- */
+                         const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+                         ImU32 bcol = meta->color;
+                         bool local_sel = (s_tl_sel == ei);
+                         bool sel = local_sel ||
+                                    (s_debug_sel.active && s_debug_sel.seq == ev->seq);
+                         ImVec2 b0 = ImVec2(bx, type_y0);
+                         ImVec2 b1 = ImVec2(bx + (bar_w > 2.0f ? bar_w - 1.0f : 1.5f), type_y0 + type_h);
+                         tdl->AddRectFilled(b0, b1, bcol, 1.5f);
+                         if (sel)
+                              tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 220), 1.5f, 0, 1.5f);
+
+                         /* --- Logic level (bottom row) --- */
+                         int level = hw_net_level_for_event(ev, s_sch_sel_net);
+
+                         if (level >= 0)
+                         {
+                              /* Draw step transition from previous level */
+                              if (prev_level >= 0 && prev_level != level)
+                              {
+                                   float py = prev_level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                                   float cy = level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                                   tdl->AddLine(ImVec2(bx, py), ImVec2(bx, cy),
+                                                IM_COL32(180, 220, 255, 220), 1.2f);
+                              }
+                              float ly = level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                              float end_x = ei + 1 < tl_n
+                                                ? (use_time_x
+                                                       ? tl_pos.x + (float)(tl_buf[ei + 1].ev->timestamp - ts_min) / (float)ts_span * (tl_size.x - bar_w)
+                                                       : tl_pos.x + (float)(tl_n - 1 - (ei + 1)) / (float)(tl_n > 1 ? tl_n - 1 : 1) * (tl_size.x - bar_w))
+                                                : tl_pos.x + tl_size.x;
+                              ImU32 lcol = level ? IM_COL32(80, 220, 120, 230) : IM_COL32(100, 110, 140, 200);
+                              tdl->AddLine(ImVec2(bx, ly), ImVec2(end_x, ly), lcol, 1.8f);
+                              prev_level = level;
+                              prev_x = end_x;
+                         }
+                         (void)prev_x;
+
+                         /* Hit-test for click */
+                         ImVec2 mpos = ImGui::GetIO().MousePos;
+                         if (mpos.x >= b0.x && mpos.x <= b1.x + bar_w &&
+                             mpos.y >= tl_pos.y && mpos.y <= tl_pos.y + tl_h)
+                         {
+                              if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                              {
+                                   s_tl_sel = local_sel ? -1 : ei;
+                                   if (!local_sel)
+                                        debug_select_trace_event(ev);
+                              }
+                              ImGui::BeginTooltip();
+                              ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(bcol), "%s", meta->name);
+                              ImGui::SameLine();
+                              ImGui::TextDisabled("ts=%d  seq=%llu", ev->timestamp, (unsigned long long)ev->seq);
+                              if (level >= 0)
+                                   ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.5f, 0.65f, 1.0f),
+                                                      "%s = %d", sel_net->name, level);
+                              if (hw_trace_event_has_addr(ev))
+                                   ImGui::TextDisabled("addr=%04X  data=%02X", ev->addr, ev->data);
+                              if (ev->pc)
+                                   ImGui::TextDisabled("PC=%04X  op=%02X", ev->pc, ev->opcode);
+                              ImGui::EndTooltip();
+                         }
+                    }
+               }
+               else
+               {
+                    tdl->AddText(ImVec2(tl_pos.x + 8, tl_pos.y + 16),
+                                 IM_COL32(100, 105, 120, 200),
+                                 "Nenhum evento toca este net — habilite o hw trace");
+               }
+
+               ImGui::Dummy(tl_size); /* advance cursor past the manual-drawn strip */
+
+               /* Inspector for selected event */
+               if (s_tl_sel >= 0 && s_tl_sel < tl_n)
+               {
+                    const gb_hw_trace_event *ev = tl_buf[s_tl_sel].ev;
                     int level = hw_net_level_for_event(ev, s_sch_sel_net);
-
+                    const HwTraceEvtMeta *emeta = hw_trace_event_meta(ev->type);
+                    ImGui::Indent(8.0f);
+                    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(emeta->color), "%s", emeta->name);
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(0.9f, 0.9f, 1.0f, 1.0f),
+                                       "seq=%llu  ts=%d", (unsigned long long)ev->seq, ev->timestamp);
                     if (level >= 0)
                     {
-                         /* Draw step transition from previous level */
-                         if (prev_level >= 0 && prev_level != level)
-                         {
-                              float py = prev_level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
-                              float cy = level       ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
-                              tdl->AddLine(ImVec2(bx, py), ImVec2(bx, cy),
-                                           IM_COL32(180, 220, 255, 220), 1.2f);
-                         }
-                         float ly = level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
-                         float end_x = ei + 1 < tl_n
-                                           ? (use_time_x
-                                                  ? tl_pos.x + (float)(tl_buf[ei + 1].ev->timestamp - ts_min) / (float)ts_span * (tl_size.x - bar_w)
-                                                  : tl_pos.x + (float)(tl_n - 1 - (ei + 1)) / (float)(tl_n > 1 ? tl_n - 1 : 1) * (tl_size.x - bar_w))
-                                           : tl_pos.x + tl_size.x;
-                         ImU32 lcol = level ? IM_COL32(80, 220, 120, 230) : IM_COL32(100, 110, 140, 200);
-                         tdl->AddLine(ImVec2(bx, ly), ImVec2(end_x, ly), lcol, 1.8f);
-                         prev_level = level;
-                         prev_x = end_x;
-                    }
-                    (void)prev_x;
-
-                    /* Hit-test for click */
-                    ImVec2 mpos = ImGui::GetIO().MousePos;
-                    if (mpos.x >= b0.x && mpos.x <= b1.x + bar_w &&
-                        mpos.y >= tl_pos.y && mpos.y <= tl_pos.y + tl_h)
-                    {
-                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                         {
-                              s_tl_sel = local_sel ? -1 : ei;
-                              if (!local_sel)
-                                   debug_select_trace_event(ev);
-                         }
-                         ImGui::BeginTooltip();
-                         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(bcol), "%s", meta->name);
                          ImGui::SameLine();
-                         ImGui::TextDisabled("ts=%d  seq=%llu", ev->timestamp, (unsigned long long)ev->seq);
-                         if (level >= 0)
-                              ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.5f, 0.65f, 1.0f),
-                                                 "%s = %d", sel_net->name, level);
-                         if (hw_trace_event_has_addr(ev))
-                              ImGui::TextDisabled("addr=%04X  data=%02X", ev->addr, ev->data);
-                         if (ev->pc)
-                              ImGui::TextDisabled("PC=%04X  op=%02X", ev->pc, ev->opcode);
-                         ImGui::EndTooltip();
+                         ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.55f, 0.7f, 1.0f),
+                                            "  %s=%d", sel_net->name, level);
                     }
+                    ImGui::TextDisabled("PC=%04X  addr=%04X  data=%02X  extra=%02X",
+                                        ev->pc, ev->addr, ev->data, ev->extra);
+                    ImGui::Unindent(8.0f);
                }
-          }
-          else
-          {
-               tdl->AddText(ImVec2(tl_pos.x + 8, tl_pos.y + 16),
-                            IM_COL32(100, 105, 120, 200),
-                            "Nenhum evento toca este net — habilite o hw trace");
-          }
-
-          ImGui::Dummy(tl_size); /* advance cursor past the manual-drawn strip */
-
-          /* Inspector for selected event */
-          if (s_tl_sel >= 0 && s_tl_sel < tl_n)
-          {
-               const gb_hw_trace_event *ev = tl_buf[s_tl_sel].ev;
-               int level = hw_net_level_for_event(ev, s_sch_sel_net);
-               const HwTraceEvtMeta *emeta = hw_trace_event_meta(ev->type);
-               ImGui::Indent(8.0f);
-               ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(emeta->color), "%s", emeta->name);
-               ImGui::SameLine();
-               ImGui::TextColored(ImVec4(0.9f, 0.9f, 1.0f, 1.0f),
-                                  "seq=%llu  ts=%d", (unsigned long long)ev->seq, ev->timestamp);
-               if (level >= 0)
-               {
-                    ImGui::SameLine();
-                    ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.55f, 0.7f, 1.0f),
-                                       "  %s=%d", sel_net->name, level);
-               }
-               ImGui::TextDisabled("PC=%04X  addr=%04X  data=%02X  extra=%02X",
-                                   ev->pc, ev->addr, ev->data, ev->extra);
-               ImGui::Unindent(8.0f);
-          }
-          ImGui::Separator();
+               ImGui::Separator();
           }
      }
 
@@ -8473,10 +8475,27 @@ void draw_panel_hw_schematic(struct gb *gb)
      {
           /* Write all buffered events to hw_trace_export.csv next to the binary */
           static const char *const EVT_NAMES[] = {
-              "NONE", "FETCH", "READ", "WRITE", "IRQ_REQ", "IRQ_ACK",
-              "ALU", "WRITEBACK", "DMA_RD", "DMA_WR", "PPU_MODE",
-              "APU_SMP", "VBLANK", "HBLANK", "OAM_DMA", "TIMER_OVF",
-              "APU_WR", "JOYPAD", "SER_START", "SER_DONE", "MBC_SW",
+              "NONE",
+              "FETCH",
+              "READ",
+              "WRITE",
+              "IRQ_REQ",
+              "IRQ_ACK",
+              "ALU",
+              "WRITEBACK",
+              "DMA_RD",
+              "DMA_WR",
+              "PPU_MODE",
+              "APU_SMP",
+              "VBLANK",
+              "HBLANK",
+              "OAM_DMA",
+              "TIMER_OVF",
+              "APU_WR",
+              "JOYPAD",
+              "SER_START",
+              "SER_DONE",
+              "MBC_SW",
           };
           static const int EVT_NAME_COUNT = (int)(sizeof(EVT_NAMES) / sizeof(EVT_NAMES[0]));
 
@@ -8497,8 +8516,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                     const gb_hw_trace_event *ev = &tr->events[idx2];
                     int etype = (int)ev->type;
                     const char *ename = (etype >= 0 && etype < EVT_NAME_COUNT)
-                                           ? EVT_NAMES[etype]
-                                           : "UNKNOWN";
+                                            ? EVT_NAMES[etype]
+                                            : "UNKNOWN";
 
                     /* Collect net names touched by this event */
                     char net_ids_buf[256] = {};
