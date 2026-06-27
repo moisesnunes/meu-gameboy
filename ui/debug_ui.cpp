@@ -121,6 +121,7 @@ static lcd_shader_params s_lcd_shader = {};
 static bool s_lcd_shader_inited = false;
 static float s_bg_color[3] = {0.10f, 0.10f, 0.10f};
 static bool s_show_call_stack = false;
+static bool s_show_global_timeline = false;
 static bool s_show_hw_viz = false;
 static bool s_show_cpu_viz = false;
 static bool s_show_transistor_viz = false;
@@ -177,6 +178,7 @@ static void apply_ui_config(const debug_ui_config &cfg)
      s_show_tilemap = cfg.show_tilemap;
      s_show_profiler = cfg.show_profiler;
      s_show_call_stack = cfg.show_call_stack;
+     s_show_global_timeline = cfg.show_global_timeline;
      s_show_status_bar = cfg.show_status_bar;
      s_show_hw_viz = cfg.show_hw_viz;
      s_show_cpu_viz = cfg.show_cpu_viz;
@@ -227,6 +229,7 @@ static void capture_ui_config(debug_ui_config *cfg)
      cfg->show_tilemap = s_show_tilemap;
      cfg->show_profiler = s_show_profiler;
      cfg->show_call_stack = s_show_call_stack;
+     cfg->show_global_timeline = s_show_global_timeline;
      cfg->show_status_bar = s_show_status_bar;
      cfg->show_hw_viz = s_show_hw_viz;
      cfg->show_cpu_viz = s_show_cpu_viz;
@@ -1183,6 +1186,7 @@ static void draw_main_menu(struct gb *gb)
           ImGui::MenuItem("Mem\xc3\xb3"
                           "ria",
                           nullptr, &s_show_memory, dbg);
+          ImGui::MenuItem("Timeline Central", nullptr, &s_show_global_timeline, dbg);
 
           ImGui::Separator();
 
@@ -1874,6 +1878,14 @@ extern "C" void debug_ui_render(struct gb *gb)
                     ImGui::SetNextWindowSize(ImVec2(420, 320), ImGuiCond_FirstUseEver);
                     ImGui::Begin("Pilha de Chamadas", &s_show_call_stack);
                     draw_panel_call_stack(gb);
+                    ImGui::End();
+               }
+
+               if (s_show_global_timeline)
+               {
+                    ImGui::SetNextWindowSize(ImVec2(780, 420), ImGuiCond_FirstUseEver);
+                    ImGui::Begin("Timeline Central", &s_show_global_timeline);
+                    draw_panel_global_timeline(gb);
                     ImGui::End();
                }
 

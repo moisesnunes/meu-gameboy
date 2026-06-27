@@ -17,6 +17,7 @@ struct debug_ui_config
      bool show_tilemap;
      bool show_profiler;
      bool show_call_stack;
+     bool show_global_timeline;
      bool show_status_bar;
      bool show_hw_viz;
      bool show_cpu_viz;

@@ -80,6 +80,7 @@ void debug_ui_config_defaults(debug_ui_config *cfg)
      cfg->show_tilemap = false;
      cfg->show_profiler = false;
      cfg->show_call_stack = false;
+     cfg->show_global_timeline = false;
      cfg->show_status_bar = true;
      cfg->show_hw_viz = false;
      cfg->show_cpu_viz = false;
@@ -166,6 +167,8 @@ bool debug_ui_config_load(debug_ui_config *cfg, const char *path)
                cfg->show_profiler = parse_bool(value, cfg->show_profiler);
           else if (key == "show_call_stack")
                cfg->show_call_stack = parse_bool(value, cfg->show_call_stack);
+          else if (key == "show_global_timeline")
+               cfg->show_global_timeline = parse_bool(value, cfg->show_global_timeline);
           else if (key == "show_status_bar")
                cfg->show_status_bar = parse_bool(value, cfg->show_status_bar);
           else if (key == "show_hw_viz")
@@ -284,6 +287,7 @@ bool debug_ui_config_save(const debug_ui_config *cfg, const char *path)
      out << "show_tilemap=" << cfg->show_tilemap << "\n";
      out << "show_profiler=" << cfg->show_profiler << "\n";
      out << "show_call_stack=" << cfg->show_call_stack << "\n";
+     out << "show_global_timeline=" << cfg->show_global_timeline << "\n";
      out << "show_status_bar=" << cfg->show_status_bar << "\n";
      out << "show_hw_viz=" << cfg->show_hw_viz << "\n";
      out << "show_cpu_viz=" << cfg->show_cpu_viz << "\n";

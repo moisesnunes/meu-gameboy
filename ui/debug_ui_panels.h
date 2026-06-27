@@ -24,6 +24,7 @@ void draw_panel_breakpoints(struct gb *gb);
 void draw_panel_watchpoints(struct gb *gb);
 void draw_panel_oam(struct gb *gb);
 void draw_panel_profiler(struct gb *gb);
+void draw_panel_global_timeline(struct gb *gb);
 void draw_panel_hw_viz(struct gb *gb);
 void draw_panel_cpu_viz(struct gb *gb);
 void draw_panel_transistor_viz(struct gb *gb);

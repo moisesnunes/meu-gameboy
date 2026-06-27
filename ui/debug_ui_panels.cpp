@@ -36,6 +36,111 @@ int g_mem_addr = 0xC000;
 int g_mem_mode = 0;
 bool g_show_rom_info = false;
 
+typedef struct
+{
+     bool active;
+     uint64_t seq;
+     int32_t timestamp;
+     gb_hw_trace_event_type type;
+     uint16_t pc;
+     uint16_t addr;
+     uint8_t opcode;
+     uint8_t data;
+     uint8_t extra;
+     bool write;
+     bool has_pc;
+     bool has_addr;
+} DebugUiSelection;
+
+static DebugUiSelection s_debug_sel = {};
+
+static const char *debug_event_name(gb_hw_trace_event_type type)
+{
+     switch (type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+          return "FETCH";
+     case GB_HW_EVT_CPU_READ:
+          return "READ";
+     case GB_HW_EVT_CPU_WRITE:
+          return "WRITE";
+     case GB_HW_EVT_IRQ_REQUEST:
+          return "IRQ_REQ";
+     case GB_HW_EVT_IRQ_ACK:
+          return "IRQ_ACK";
+     case GB_HW_EVT_CPU_ALU:
+          return "ALU";
+     case GB_HW_EVT_CPU_WRITEBACK:
+          return "WBACK";
+     case GB_HW_EVT_DMA_READ:
+          return "DMA_RD";
+     case GB_HW_EVT_DMA_WRITE:
+          return "DMA_WR";
+     case GB_HW_EVT_PPU_MODE:
+          return "PPU_MODE";
+     case GB_HW_EVT_APU_SAMPLE:
+          return "APU_SMP";
+     case GB_HW_EVT_PPU_VBLANK:
+          return "VBLANK";
+     case GB_HW_EVT_PPU_HBLANK:
+          return "HBLANK";
+     case GB_HW_EVT_OAM_DMA:
+          return "OAM_DMA";
+     case GB_HW_EVT_TIMER_OVF:
+          return "TMR_OVF";
+     case GB_HW_EVT_APU_WRITE:
+          return "APU_WR";
+     case GB_HW_EVT_JOYPAD:
+          return "JOYPAD";
+     case GB_HW_EVT_SERIAL_START:
+          return "SER_START";
+     case GB_HW_EVT_SERIAL_DONE:
+          return "SER_DONE";
+     case GB_HW_EVT_MBC_SWITCH:
+          return "MBC_SW";
+     default:
+          return "EVENT";
+     }
+}
+
+static bool debug_event_carries_addr(gb_hw_trace_event_type type)
+{
+     switch (type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+     case GB_HW_EVT_DMA_READ:
+     case GB_HW_EVT_DMA_WRITE:
+     case GB_HW_EVT_OAM_DMA:
+     case GB_HW_EVT_APU_WRITE:
+     case GB_HW_EVT_MBC_SWITCH:
+     case GB_HW_EVT_IRQ_ACK:
+     case GB_HW_EVT_PPU_MODE:
+          return true;
+     default:
+          return false;
+     }
+}
+
+static bool debug_event_carries_pc(gb_hw_trace_event_type type)
+{
+     switch (type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+     case GB_HW_EVT_CPU_ALU:
+     case GB_HW_EVT_CPU_WRITEBACK:
+          return true;
+     default:
+          return false;
+     }
+}
+
+static void debug_selection_clear(void);
+static void draw_debug_selection_banner(const char *scope_label);
+
 /* Estado local dos painéis */
 static char s_bp_input[8] = "0100";
 static char s_wp_input[8] = "0000";
@@ -168,6 +273,7 @@ void draw_panel_tile_viewer(struct gb *gb)
 {
      update_tile_texture(gb);
 
+     draw_debug_selection_banner("timeline");
      ImGui::TextColored(color_gray,
                         "VRAM 0x8000-0x97FF  \xc2\xb7  %d tiles  \xc2\xb7  %d colunas \xc3\x97 %d linhas",
                         TV_COLS * TV_ROWS, TV_COLS, TV_ROWS);
@@ -270,6 +376,7 @@ void draw_panel_tilemap_viewer(struct gb *gb)
 {
      update_tilemap_texture(gb);
 
+     draw_debug_selection_banner("timeline");
      struct gb_gpu *gpu = &gb->gpu;
 
      if (ImGui::RadioButton("BG", !s_show_win_map))
@@ -564,6 +671,8 @@ void draw_popup_rom_info(struct gb *gb)
 
 void draw_panel_call_stack(struct gb *gb)
 {
+     draw_debug_selection_banner("timeline");
+
      uint16_t sp = gb->cpu.sp;
      ImGui::TextColored(color_orange, "SP = 0x%04X", sp);
      ImGui::SameLine();
@@ -1001,6 +1110,7 @@ void draw_panel_registers(struct gb *gb)
 
 void draw_panel_cpu_control(struct gb *gb)
 {
+     draw_debug_selection_banner("trace");
      draw_cpu_toolbar(gb);
      ImGui::Separator();
      draw_cpu_register_editor(gb);
@@ -1035,6 +1145,45 @@ static int s_disasm_back_scroll = 0;
 static bool s_disasm_follow_pc = true;
 static char s_disasm_goto[8] = "";
 static char s_disasm_runto[8] = "";
+
+static void debug_selection_clear(void)
+{
+     memset(&s_debug_sel, 0, sizeof(s_debug_sel));
+}
+
+static void draw_debug_selection_banner(const char *scope_label)
+{
+     if (!s_debug_sel.active)
+          return;
+
+     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.09f, 0.12f, 0.92f));
+     ImGui::BeginChild("##debug_selection_banner", ImVec2(0, 42), true,
+                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+     ImGui::TextColored(color_cyan, "Selected %s event:", scope_label ? scope_label : "trace");
+     ImGui::SameLine();
+     ImGui::Text("%s", debug_event_name(s_debug_sel.type));
+     ImGui::SameLine();
+     ImGui::TextDisabled("seq=%llu  T=%d",
+                         (unsigned long long)s_debug_sel.seq, s_debug_sel.timestamp);
+     if (s_debug_sel.has_pc)
+     {
+          ImGui::SameLine();
+          ImGui::TextColored(color_yellow, "PC=%04X", s_debug_sel.pc);
+     }
+     if (s_debug_sel.has_addr)
+     {
+          ImGui::SameLine();
+          ImGui::TextColored(color_green, "addr=%04X", s_debug_sel.addr);
+     }
+     ImGui::SameLine();
+     ImGui::TextColored(s_debug_sel.write ? color_orange : color_skyblue,
+                        "data=%02X", s_debug_sel.data);
+     ImGui::SameLine();
+     if (ImGui::SmallButton("Clear##debug_selection"))
+          debug_selection_clear();
+     ImGui::EndChild();
+     ImGui::PopStyleColor();
+}
 
 static bool parse_hex_u16(const char *text, uint16_t *out)
 {
@@ -1228,6 +1377,7 @@ void draw_panel_disasm(struct gb *gb)
      bool pc_changed = (pc != s_prev_pc);
      s_prev_pc = pc;
 
+     draw_debug_selection_banner("trace");
      draw_disasm_controls(gb);
      ImGui::Separator();
 
@@ -1395,6 +1545,7 @@ void draw_panel_gpu(struct gb *gb)
      struct gb_gpu *gpu = &gb->gpu;
      int mode = gb_gpu_get_mode(gb);
 
+     draw_debug_selection_banner("timeline");
      ImGui::TextColored(color_cyan, "Modo: %s", gpu_mode_name(mode));
      ImGui::Text("LY:  %3d    LYC: %3d  %s",
                  gpu->ly, gpu->lyc,
@@ -1461,6 +1612,41 @@ static int s_mem_last_region_key = -1;
 static int s_mem_last_cpu_focus = -1;
 static uint8_t s_mem_prev[0x10000];
 static uint8_t s_mem_prev_valid[0x10000];
+
+static void debug_select_trace_event(const gb_hw_trace_event *ev)
+{
+     if (!ev)
+          return;
+
+     s_debug_sel.active = true;
+     s_debug_sel.seq = ev->seq;
+     s_debug_sel.timestamp = ev->timestamp;
+     s_debug_sel.type = ev->type;
+     s_debug_sel.pc = ev->pc;
+     s_debug_sel.addr = ev->addr;
+     s_debug_sel.opcode = ev->opcode;
+     s_debug_sel.data = ev->data;
+     s_debug_sel.extra = ev->extra;
+     s_debug_sel.write = ev->write;
+     s_debug_sel.has_pc = debug_event_carries_pc(ev->type);
+     s_debug_sel.has_addr = debug_event_carries_addr(ev->type);
+
+     if (s_debug_sel.has_pc)
+     {
+          s_disasm_selected_addr = (int)s_debug_sel.pc;
+          s_disasm_scroll_addr = (int)s_debug_sel.pc;
+     }
+
+     if (s_debug_sel.has_addr)
+     {
+          g_mem_mode = 0;
+          g_mem_addr = (int)s_debug_sel.addr;
+          s_mem_region = MEM_REGION_CPU;
+          s_mem_selection_start = s_mem_selection_end = (uint32_t)s_debug_sel.addr;
+          s_mem_scroll_to = (int)s_debug_sel.addr;
+          s_mem_last_cpu_focus = (int)s_debug_sel.addr;
+     }
+}
 
 static const char *mem_region_name(int region)
 {
@@ -1930,6 +2116,8 @@ void draw_panel_memory(struct gb *gb)
 {
      struct gb_cart *cart = &gb->cart;
 
+     draw_debug_selection_banner("trace");
+
      ImGui::TextColored(color_cyan, "BANKS:");
      ImGui::SameLine();
      ImGui::TextColored(color_skyblue, "ROM");
@@ -2240,6 +2428,8 @@ void draw_panel_oam(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
 
+     draw_debug_selection_banner("timeline");
+
      ImGuiTableFlags flags =
          ImGuiTableFlags_BordersOuter |
          ImGuiTableFlags_BordersInnerV |
@@ -2407,6 +2597,8 @@ static int cmp_opcode_desc(const void *a, const void *b)
 void draw_panel_profiler(struct gb *gb)
 {
      struct gb_debug *dbg = &gb->debug;
+
+     draw_debug_selection_banner("timeline");
 
      if (ImGui::Button("Reset"))
           gb_debug_reset_profiler(gb);
@@ -2688,6 +2880,8 @@ static const char *gpu_mode_str(uint8_t mode)
 void draw_panel_hw_viz(struct gb *gb)
 {
      float dt = ImGui::GetIO().DeltaTime;
+
+     draw_debug_selection_banner("timeline");
 
      ImVec2 win_size = ImGui::GetWindowSize();
      if (win_size.x < 960.0f || win_size.y < 660.0f)
@@ -3084,6 +3278,8 @@ void draw_panel_hw_viz(struct gb *gb)
 
 void draw_panel_cpu_viz(struct gb *gb)
 {
+     draw_debug_selection_banner("trace");
+
      float dt = ImGui::GetIO().DeltaTime;
      struct gb_cpu_viz *cv = &gb->debug.cpu_viz;
 
@@ -3689,6 +3885,8 @@ static void rebuild_highlight(void)
 
 void draw_panel_transistor_viz(struct gb *gb)
 {
+     draw_debug_selection_banner("timeline");
+
      /* Initialize transform and sim once */
      if (!s_die_view_init)
      {
@@ -5318,66 +5516,459 @@ static uint8_t hw_bus_mask_for_event(const gb_hw_trace_event *ev, int *bytes)
      }
 }
 
-static int hw_wave_signal_value(const gb_hw_trace_event *ev, int signal)
+enum GlobalTimelineLane
 {
-     switch (signal)
+     GT_CPU = 0,
+     GT_DMA,
+     GT_PPU,
+     GT_IRQ,
+     GT_APU,
+     GT_SERIAL,
+     GT_MBC,
+     GT_MISC,
+     GT_LANE_COUNT
+};
+
+typedef struct
+{
+     const char *name;
+     ImU32 color;
+} GlobalTimelineLaneMeta;
+
+static const GlobalTimelineLaneMeta GT_LANE_META[GT_LANE_COUNT] = {
+    {"CPU", IM_COL32(120, 180, 255, 230)},
+    {"DMA", IM_COL32(205, 120, 255, 230)},
+    {"PPU", IM_COL32(60, 210, 180, 230)},
+    {"IRQ", IM_COL32(255, 90, 105, 230)},
+    {"APU", IM_COL32(255, 150, 50, 230)},
+    {"Serial", IM_COL32(75, 200, 235, 230)},
+    {"MBC", IM_COL32(220, 200, 60, 230)},
+    {"Misc", IM_COL32(150, 160, 175, 210)},
+};
+
+static int global_timeline_lane_for_event(gb_hw_trace_event_type type)
+{
+     switch (type)
      {
-     case 0: /* /RD */
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+     case GB_HW_EVT_CPU_ALU:
+     case GB_HW_EVT_CPU_WRITEBACK:
+          return GT_CPU;
+     case GB_HW_EVT_DMA_READ:
+     case GB_HW_EVT_DMA_WRITE:
+     case GB_HW_EVT_OAM_DMA:
+          return GT_DMA;
+     case GB_HW_EVT_PPU_MODE:
+     case GB_HW_EVT_PPU_VBLANK:
+     case GB_HW_EVT_PPU_HBLANK:
+          return GT_PPU;
+     case GB_HW_EVT_IRQ_REQUEST:
+     case GB_HW_EVT_IRQ_ACK:
+          return GT_IRQ;
+     case GB_HW_EVT_APU_SAMPLE:
+     case GB_HW_EVT_APU_WRITE:
+          return GT_APU;
+     case GB_HW_EVT_SERIAL_START:
+     case GB_HW_EVT_SERIAL_DONE:
+          return GT_SERIAL;
+     case GB_HW_EVT_MBC_SWITCH:
+          return GT_MBC;
+     default:
+          return GT_MISC;
+     }
+}
+
+static bool global_timeline_event_passes_lane_filter(const gb_hw_trace_event *ev, uint16_t lane_mask)
+{
+     int lane = global_timeline_lane_for_event(ev->type);
+     return lane >= 0 && lane < GT_LANE_COUNT && (lane_mask & (uint16_t)(1u << lane));
+}
+
+static void global_timeline_event_summary(const gb_hw_trace_event *ev, char *buf, size_t cap)
+{
+     if (!ev || !buf || cap == 0)
+          return;
+
+     switch (ev->type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+          snprintf(buf, cap, "PC:%04X op:%02X", ev->pc, ev->opcode);
+          break;
+     case GB_HW_EVT_CPU_READ:
+          snprintf(buf, cap, "PC:%04X [%04X]->%02X", ev->pc, ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_CPU_WRITE:
+          snprintf(buf, cap, "PC:%04X [%04X]<-%02X", ev->pc, ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_DMA_READ:
+          snprintf(buf, cap, "[%04X]->%02X", ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_DMA_WRITE:
+          snprintf(buf, cap, "OAM[%02X]<-%02X", ev->extra, ev->data);
+          break;
+     case GB_HW_EVT_OAM_DMA:
+          snprintf(buf, cap, "[FE%02X]<-%02X", ev->extra, ev->data);
+          break;
+     case GB_HW_EVT_PPU_MODE:
+          snprintf(buf, cap, "LY:%u mode:%u", ev->addr & 0xFFu, ev->data & 3u);
+          break;
+     case GB_HW_EVT_PPU_VBLANK:
+     case GB_HW_EVT_PPU_HBLANK:
+          snprintf(buf, cap, "LY:%u", ev->data);
+          break;
+     case GB_HW_EVT_IRQ_REQUEST:
+          snprintf(buf, cap, "IF:%02X IE:%02X", ev->data, ev->extra);
+          break;
+     case GB_HW_EVT_IRQ_ACK:
+          snprintf(buf, cap, "vec:%04X IF:%02X", ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_APU_SAMPLE:
+          snprintf(buf, cap, "L:%d R:%d", (int8_t)ev->data, (int8_t)ev->extra);
+          break;
+     case GB_HW_EVT_APU_WRITE:
+          snprintf(buf, cap, "[%04X]<-%02X", ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_SERIAL_START:
+     case GB_HW_EVT_SERIAL_DONE:
+          snprintf(buf, cap, "SB:%02X SC:%02X", ev->data, ev->extra);
+          break;
+     case GB_HW_EVT_MBC_SWITCH:
+          snprintf(buf, cap, "[%04X]<-%02X", ev->addr, ev->data);
+          break;
+     case GB_HW_EVT_TIMER_OVF:
+          snprintf(buf, cap, "TMA:%02X", ev->data);
+          break;
+     case GB_HW_EVT_JOYPAD:
+          snprintf(buf, cap, "state:%02X %s", ev->data, ev->write ? "down" : "up");
+          break;
+     default:
+          snprintf(buf, cap, "T:%d", ev->timestamp);
+          break;
+     }
+}
+
+void draw_panel_global_timeline(struct gb *gb)
+{
+     if (!gb)
+          return;
+
+     struct gb_hw_trace *tr = &gb->debug.hw_trace;
+     bool trace_on = tr->enabled;
+     if (ImGui::Checkbox("HW Trace", &trace_on))
+          tr->enabled = trace_on;
+
+     ImGui::SameLine();
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+     ImGui::TextDisabled("%u events", n_total);
+     ImGui::SameLine();
+     if (ImGui::SmallButton("Clear##global_timeline"))
+     {
+          tr->head = 0;
+          tr->count = 0;
+          debug_selection_clear();
+          n_total = 0;
+     }
+
+     static uint16_t s_lane_mask = (uint16_t)((1u << GT_LANE_COUNT) - 1u);
+     static int s_visible_events = 256;
+     static bool s_follow_latest = true;
+
+     ImGui::SameLine();
+     ImGui::Checkbox("Follow", &s_follow_latest);
+     ImGui::SameLine();
+     ImGui::SetNextItemWidth(120.0f);
+     ImGui::SliderInt("Window", &s_visible_events, 64, 1024);
+
+     draw_debug_selection_banner("timeline");
+
+     for (int lane = 0; lane < GT_LANE_COUNT; lane++)
+     {
+          bool on = (s_lane_mask & (uint16_t)(1u << lane)) != 0;
+          ImGui::PushStyleColor(ImGuiCol_CheckMark, GT_LANE_META[lane].color);
+          if (ImGui::Checkbox(GT_LANE_META[lane].name, &on))
+          {
+               if (on)
+                    s_lane_mask |= (uint16_t)(1u << lane);
+               else
+                    s_lane_mask &= (uint16_t)~(1u << lane);
+          }
+          ImGui::PopStyleColor();
+          if (lane + 1 < GT_LANE_COUNT)
+               ImGui::SameLine();
+     }
+
+     if (n_total == 0)
+     {
+          ImGui::TextDisabled("No events in buffer.");
+          return;
+     }
+
+     uint32_t oldest = (tr->head + GB_HW_TRACE_CAP - n_total) & (GB_HW_TRACE_CAP - 1);
+     uint32_t draw_count = n_total;
+     if (draw_count > (uint32_t)s_visible_events)
+          draw_count = (uint32_t)s_visible_events;
+     uint32_t start_offset = s_follow_latest ? (n_total - draw_count) : 0;
+
+     int32_t ts_min = tr->events[(oldest + start_offset) & (GB_HW_TRACE_CAP - 1)].timestamp;
+     int32_t ts_max = ts_min;
+     for (uint32_t i = 0; i < draw_count; i++)
+     {
+          uint32_t idx = (oldest + start_offset + i) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          if (!global_timeline_event_passes_lane_filter(ev, s_lane_mask))
+               continue;
+          if (ev->timestamp < ts_min)
+               ts_min = ev->timestamp;
+          if (ev->timestamp > ts_max)
+               ts_max = ev->timestamp;
+     }
+     int32_t ts_span = ts_max - ts_min;
+     if (ts_span <= 0)
+          ts_span = 1;
+
+     const float lane_h = 24.0f;
+     const float label_w = 58.0f;
+     const float pad = 6.0f;
+     float timeline_h = pad * 2.0f + lane_h * (float)GT_LANE_COUNT;
+     ImVec2 pos = ImGui::GetCursorScreenPos();
+     ImVec2 size(ImGui::GetContentRegionAvail().x, timeline_h);
+     ImDrawList *dl = ImGui::GetWindowDrawList();
+     ImVec2 end(pos.x + size.x, pos.y + size.y);
+
+     dl->AddRectFilled(pos, end, IM_COL32(9, 11, 16, 245));
+     dl->AddRect(pos, end, IM_COL32(55, 60, 76, 180));
+
+     for (int lane = 0; lane < GT_LANE_COUNT; lane++)
+     {
+          float y0 = pos.y + pad + lane_h * (float)lane;
+          ImU32 bg = (lane & 1) ? IM_COL32(18, 21, 29, 210) : IM_COL32(14, 17, 24, 210);
+          dl->AddRectFilled(ImVec2(pos.x + label_w, y0),
+                            ImVec2(end.x, y0 + lane_h - 2.0f), bg);
+          dl->AddText(ImVec2(pos.x + 6.0f, y0 + 4.0f),
+                      GT_LANE_META[lane].color, GT_LANE_META[lane].name);
+     }
+
+     ImVec2 mouse = ImGui::GetIO().MousePos;
+     bool canvas_hovered = mouse.x >= pos.x && mouse.x <= end.x && mouse.y >= pos.y && mouse.y <= end.y;
+     int filtered_count = 0;
+
+     for (uint32_t i = 0; i < draw_count; i++)
+     {
+          uint32_t idx = (oldest + start_offset + i) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          if (!global_timeline_event_passes_lane_filter(ev, s_lane_mask))
+               continue;
+          filtered_count++;
+
+          int lane = global_timeline_lane_for_event(ev->type);
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+          float tx = (float)(ev->timestamp - ts_min) / (float)ts_span;
+          if (tx < 0.0f)
+               tx = 0.0f;
+          if (tx > 1.0f)
+               tx = 1.0f;
+          float x = pos.x + label_w + 4.0f + tx * (size.x - label_w - 10.0f);
+          float y = pos.y + pad + lane_h * (float)lane + 4.0f;
+          float w = draw_count > 350 ? 2.0f : 4.0f;
+          ImVec2 b0(x, y);
+          ImVec2 b1(x + w, y + lane_h - 9.0f);
+          bool selected = s_debug_sel.active && s_debug_sel.seq == ev->seq;
+          dl->AddRectFilled(b0, b1, meta->color, 1.5f);
+          if (selected)
+               dl->AddRect(ImVec2(b0.x - 2.0f, b0.y - 2.0f),
+                           ImVec2(b1.x + 2.0f, b1.y + 2.0f),
+                           IM_COL32(255, 255, 255, 235), 2.0f, 0, 1.6f);
+
+          bool hit = canvas_hovered && mouse.x >= b0.x - 3.0f && mouse.x <= b1.x + 4.0f &&
+                     mouse.y >= b0.y - 3.0f && mouse.y <= b1.y + 4.0f;
+          if (hit)
+          {
+               if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    debug_select_trace_event(ev);
+               char summary[96];
+               global_timeline_event_summary(ev, summary, sizeof(summary));
+               ImGui::BeginTooltip();
+               ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color), "%s", meta->name);
+               ImGui::SameLine();
+               ImGui::TextDisabled("%s", GT_LANE_META[lane].name);
+               ImGui::TextDisabled("seq=%llu T=%d", (unsigned long long)ev->seq, ev->timestamp);
+               ImGui::Text("%s", summary);
+               ImGui::EndTooltip();
+          }
+     }
+
+     ImGui::Dummy(size);
+     ImGui::TextDisabled("visible=%u filtered=%d  T:%d..%d",
+                         draw_count, filtered_count, ts_min, ts_max);
+
+     ImGui::Separator();
+     ImGui::BeginChild("##global_timeline_events", ImVec2(0, 0), true,
+                       ImGuiWindowFlags_HorizontalScrollbar);
+     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
+
+     for (uint32_t k = 0; k < n_total; k++)
+     {
+          uint32_t reverse_i = n_total - 1u - k;
+          uint32_t idx = (oldest + reverse_i) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          if (!global_timeline_event_passes_lane_filter(ev, s_lane_mask))
+               continue;
+
+          int lane = global_timeline_lane_for_event(ev->type);
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(meta->color);
+          bool selected = s_debug_sel.active && s_debug_sel.seq == ev->seq;
+
+          char summary[96];
+          global_timeline_event_summary(ev, summary, sizeof(summary));
+          char row_id[48];
+          snprintf(row_id, sizeof(row_id), "##gt_ev_%u", k);
+
+          ImGui::TextColored(cv, "%-9s", meta->name);
+          ImGui::SameLine();
+          ImGui::TextDisabled("%-6s", GT_LANE_META[lane].name);
+          ImGui::SameLine();
+          ImGui::Text("T:%-8d %s", ev->timestamp, summary);
+          ImGui::SameLine(0, 0);
+          float row_w = ImGui::GetContentRegionAvail().x;
+          if (ImGui::Selectable(row_id, selected,
+                                ImGuiSelectableFlags_SpanAllColumns |
+                                    ImGuiSelectableFlags_AllowOverlap,
+                                ImVec2(row_w, 0)))
+               debug_select_trace_event(ev);
+     }
+
+     ImGui::PopStyleVar();
+     ImGui::EndChild();
+}
+
+/* Returns the 0/1 logic level that net_id carries for this event, or -1 if
+ * the event does not touch the net at all.  Uses the semantic map to derive
+ * the level from address/data/control bits. */
+static int hw_net_level_for_event(const gb_hw_trace_event *ev, int net_id)
+{
+     if (net_id < 0 || net_id >= HW_NET_COUNT)
+          return -1;
+     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     if (!sem)
+          return -1;
+
+     bool has_addr = hw_trace_event_has_addr(ev);
+
+     switch (sem->kind)
+     {
+     case HW_SIG_ADDR:
+          if (!has_addr || sem->bit < 0)
+               return -1;
+          return (ev->addr >> sem->bit) & 1;
+
+     case HW_SIG_DATA:
+          if (sem->bit < 0)
+               return -1;
+          /* For FETCH events, use opcode as data */
+          {
+               uint8_t d = (ev->type == GB_HW_EVT_CPU_FETCH) ? ev->opcode : ev->data;
+               if (ev->type == GB_HW_EVT_PPU_MODE || ev->type == GB_HW_EVT_PPU_VBLANK ||
+                   ev->type == GB_HW_EVT_PPU_HBLANK || ev->type == GB_HW_EVT_IRQ_REQUEST ||
+                   ev->type == GB_HW_EVT_IRQ_ACK || ev->type == GB_HW_EVT_TIMER_OVF ||
+                   ev->type == GB_HW_EVT_JOYPAD || ev->type == GB_HW_EVT_SERIAL_START ||
+                   ev->type == GB_HW_EVT_SERIAL_DONE)
+                    return -1;
+               return (d >> sem->bit) & 1;
+          }
+
+     case HW_SIG_CTRL_RD:
+          /* /RD is asserted (=0) on reads and fetches */
+          if (!has_addr)
+               return 1;
           return (ev->type == GB_HW_EVT_CPU_FETCH || ev->type == GB_HW_EVT_CPU_READ ||
                   ev->type == GB_HW_EVT_DMA_READ)
                      ? 0
                      : 1;
-     case 1: /* /WR */
+
+     case HW_SIG_CTRL_WR:
+          /* /WR is asserted (=0) on writes */
+          if (!has_addr)
+               return 1;
           return (ev->type == GB_HW_EVT_CPU_WRITE || ev->type == GB_HW_EVT_DMA_WRITE ||
                   ev->type == GB_HW_EVT_OAM_DMA || ev->type == GB_HW_EVT_APU_WRITE ||
                   ev->type == GB_HW_EVT_MBC_SWITCH)
                      ? 0
                      : 1;
-     case 2:
-     case 3:
-     case 4:
-     case 5:
-          if (!hw_trace_event_has_addr(ev))
+
+     case HW_SIG_IRQ:
+          if (ev->type == GB_HW_EVT_IRQ_REQUEST || ev->type == GB_HW_EVT_IRQ_ACK ||
+              ev->type == GB_HW_EVT_TIMER_OVF)
+               return 1;
+          return -1;
+
+     case HW_SIG_LCD:
+          if (ev->type == GB_HW_EVT_PPU_MODE || ev->type == GB_HW_EVT_PPU_VBLANK ||
+              ev->type == GB_HW_EVT_PPU_HBLANK)
+               return 1;
+          return -1;
+
+     case HW_SIG_AUDIO:
+          if (ev->type == GB_HW_EVT_APU_WRITE || ev->type == GB_HW_EVT_APU_SAMPLE)
+               return 1;
+          return -1;
+
+     case HW_SIG_SERIAL:
+          if (ev->type == GB_HW_EVT_SERIAL_START || ev->type == GB_HW_EVT_SERIAL_DONE)
+               return 1;
+          return -1;
+
+     case HW_SIG_JOYPAD:
+          if (ev->type == GB_HW_EVT_JOYPAD)
+               return ev->write ? 1 : 0;
+          return -1;
+
+     case HW_SIG_WRAM_ADDR:
+          if (sem->bit < 0 || ev->type == GB_HW_EVT_NONE)
                return -1;
-          return (ev->addr >> (15 - (signal - 2))) & 1;
-     case 6:
-          if (ev->type == GB_HW_EVT_CPU_FETCH)
-               return (ev->opcode >> 7) & 1;
-          return (ev->data >> 7) & 1;
-     case 7:
-          if (ev->type == GB_HW_EVT_CPU_FETCH)
-               return ev->opcode & 1;
-          return ev->data & 1;
-     case 8:
-          return (ev->type == GB_HW_EVT_DMA_READ || ev->type == GB_HW_EVT_DMA_WRITE ||
-                  ev->type == GB_HW_EVT_OAM_DMA)
-                     ? 1
-                     : 0;
-     case 9:
-          return (ev->type == GB_HW_EVT_PPU_MODE || ev->type == GB_HW_EVT_PPU_VBLANK ||
-                  ev->type == GB_HW_EVT_PPU_HBLANK)
-                     ? 1
-                     : 0;
-     case 10:
-          return (ev->type == GB_HW_EVT_IRQ_REQUEST || ev->type == GB_HW_EVT_IRQ_ACK ||
-                  ev->type == GB_HW_EVT_TIMER_OVF)
-                     ? 1
-                     : 0;
-     case 11:
-          return (ev->type == GB_HW_EVT_SERIAL_START || ev->type == GB_HW_EVT_SERIAL_DONE)
-                     ? 1
-                     : 0;
+          if (ev->addr >= 0xC000 && ev->addr <= 0xFDFF)
+               return (ev->addr >> sem->bit) & 1;
+          return -1;
+
+     case HW_SIG_WRAM_DATA:
+          if (sem->bit < 0)
+               return -1;
+          if (ev->addr >= 0xC000 && ev->addr <= 0xFDFF &&
+              (ev->type == GB_HW_EVT_CPU_READ || ev->type == GB_HW_EVT_CPU_WRITE))
+               return (ev->data >> sem->bit) & 1;
+          return -1;
+
      default:
           return -1;
      }
 }
 
+/* Returns true if a net_id's semantic kind is touched by this event type */
+static bool hw_event_touches_net(const gb_hw_trace_event *ev, int net_id)
+{
+     return hw_net_level_for_event(ev, net_id) >= 0;
+}
+
 static bool s_sch_show_kinds = true;
 static bool s_sch_show_levels = true; /* net 0/1 labels on wires */
+static bool s_sch_trace_pane_open = false;
+static bool s_sch_net_timeline_open = false;
 
 /* Frozen frame */
 static bool s_sch_frozen = false;
 static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
+static int  s_sch_replay_cursor = -1; /* -1 = live; 0..n_events-1 = frozen at event */
+static HwSchematicActivityState s_sch_replay_state;
+static bool s_sch_replay_dirty = false;
+
+static void hw_schematic_set_live_mode(void)
+{
+     s_sch_replay_cursor = -1;
+     s_sch_replay_dirty = false;
+     s_sch_frozen = false;
+}
 
 static ImU32 sch_wire_color(int anim_group)
 {
@@ -5569,6 +6160,9 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
      s_sch_view.pan_y = (ny0 + ny1) * 0.5f - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
 }
 
+/* Forward declarations for functions defined after this block */
+static void wave_add_net(int net_id);
+
 static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
 {
      uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
@@ -5580,6 +6174,7 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
 
      static int s_bins = 96;
      static bool s_show_events = false;
+     static int s_drill_class = -1;
      ImGui::TextDisabled("Bus activity");
      ImGui::SameLine();
      ImGui::SetNextItemWidth(120.0f);
@@ -5687,52 +6282,268 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
                                             bytes[c][bin], events[c][bin]);
                ImGui::EndTooltip();
           }
+
+          /* Click on a row in the chart to toggle drill-down for that class */
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+          {
+               float ry = m.y - pos.y - 6.0f;
+               int clicked_class = (int)(ry / row_h);
+               if (clicked_class >= 0 && clicked_class < HW_BUS_CLASS_COUNT)
+                    s_drill_class = (s_drill_class == clicked_class) ? -1 : clicked_class;
+          }
      }
 
      float span_cycles = (float)ts_span;
      for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
      {
-          ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(HW_BUS_CLASS_META[c].color),
-                             "%s %.3f B/cyc",
-                             HW_BUS_CLASS_META[c].name,
-                             span_cycles > 0.0f ? (float)total_bytes[c] / span_cycles : 0.0f);
+          bool is_drill = (s_drill_class == c);
+          ImVec4 tv = ImGui::ColorConvertU32ToFloat4(HW_BUS_CLASS_META[c].color);
+          char lbl[64];
+          snprintf(lbl, sizeof(lbl), "%s %.3f B/cyc%s##bdc%d",
+                   HW_BUS_CLASS_META[c].name,
+                   span_cycles > 0.0f ? (float)total_bytes[c] / span_cycles : 0.0f,
+                   is_drill ? " [x]" : "", c);
+          ImGui::TextColored(tv, "%s", lbl);
+          if (ImGui::IsItemClicked())
+               s_drill_class = (s_drill_class == c) ? -1 : c;
+          if (ImGui::IsItemHovered())
+               ImGui::SetTooltip("Clique para ver nets/endereços desta classe");
           if (c + 1 < HW_BUS_CLASS_COUNT)
                ImGui::SameLine();
      }
+
+     /* Drill-down: top nets + address pages for selected class */
+     if (s_drill_class >= 0 && s_drill_class < HW_BUS_CLASS_COUNT)
+     {
+          int dc = s_drill_class;
+          ImVec4 hdr_col = ImGui::ColorConvertU32ToFloat4(HW_BUS_CLASS_META[dc].color);
+          ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                                ImVec4(hdr_col.x * 0.08f, hdr_col.y * 0.08f, hdr_col.z * 0.08f, 0.6f));
+          ImGui::BeginChild("##bus_drill", ImVec2(0, 148), true);
+          ImGui::TextColored(hdr_col, "Drill-down: %s", HW_BUS_CLASS_META[dc].name);
+          ImGui::SameLine();
+          ImGui::TextDisabled("(clique num net = waveform)");
+          ImGui::Separator();
+
+          static const int DD_TOP = 8;
+          int net_hits[HW_NET_COUNT] = {};
+          int addr_page_hits[256] = {};
+          int ev_count_class = 0;
+
+          uint32_t oldest2 = (tr->head + GB_HW_TRACE_CAP - n_total) & (GB_HW_TRACE_CAP - 1);
+          for (uint32_t i = 0; i < n_total; i++)
+          {
+               uint32_t idx2 = (oldest2 + i) & (GB_HW_TRACE_CAP - 1);
+               const gb_hw_trace_event *ev = &tr->events[idx2];
+               int dummy_b = 0;
+               uint8_t mask = hw_bus_mask_for_event(ev, &dummy_b);
+               if (!(mask & (1u << dc)))
+                    continue;
+               ev_count_class++;
+               for (int ni = 0; ni < hw_net_map_count; ni++)
+               {
+                    int nid = hw_net_map[ni].net_id;
+                    if (nid >= 0 && nid < HW_NET_COUNT && hw_net_level_for_event(ev, nid) >= 0)
+                         net_hits[nid]++;
+               }
+               if (hw_trace_event_has_addr(ev))
+                    addr_page_hits[(ev->addr >> 8) & 0xFF]++;
+          }
+
+          ImGui::TextDisabled("%d eventos — nets ativas:", ev_count_class);
+
+          struct NHit
+          {
+               int nid;
+               int hits;
+          } top_nets[DD_TOP];
+          int top_n = 0;
+          for (int ni = 0; ni < HW_NET_COUNT; ni++)
+          {
+               if (net_hits[ni] <= 0)
+                    continue;
+               if (top_n < DD_TOP)
+               {
+                    top_nets[top_n++] = {ni, net_hits[ni]};
+               }
+               else if (net_hits[ni] > top_nets[top_n - 1].hits)
+               {
+                    top_nets[top_n - 1] = {ni, net_hits[ni]};
+               }
+               for (int a = top_n - 1; a > 0 && top_nets[a].hits > top_nets[a - 1].hits; a--)
+               {
+                    NHit tmp = top_nets[a];
+                    top_nets[a] = top_nets[a - 1];
+                    top_nets[a - 1] = tmp;
+               }
+          }
+          for (int t = 0; t < top_n; t++)
+          {
+               int nid = top_nets[t].nid;
+               const HwNetSemantic *sem = hw_map_find_net(nid);
+               const char *nm = (sem && sem->canonical_name) ? sem->canonical_name : hw_nets[nid].name;
+               char nlbl[40];
+               snprintf(nlbl, sizeof(nlbl), "%s:%d##ddnet%d", nm, top_nets[t].hits, t);
+               ImGui::TextColored(hdr_col, "%s", nlbl);
+               if (ImGui::IsItemClicked())
+                    wave_add_net(nid);
+               if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("net #%d  %d hits — clique p/ waveform", nid, top_nets[t].hits);
+               if (t + 1 < top_n)
+                    ImGui::SameLine(0, 16);
+          }
+
+          int shown = 0;
+          ImGui::TextDisabled("Páginas (0xPP__):");
+          struct PHit
+          {
+               int page;
+               int hits;
+          } top_pages[DD_TOP];
+          int top_p = 0;
+          for (int p = 0; p < 256; p++)
+          {
+               if (addr_page_hits[p] == 0)
+                    continue;
+               if (top_p < DD_TOP)
+               {
+                    top_pages[top_p++] = {p, addr_page_hits[p]};
+               }
+               else if (addr_page_hits[p] > top_pages[top_p - 1].hits)
+               {
+                    top_pages[top_p - 1] = {p, addr_page_hits[p]};
+               }
+               for (int a = top_p - 1; a > 0 && top_pages[a].hits > top_pages[a - 1].hits; a--)
+               {
+                    PHit tmp = top_pages[a];
+                    top_pages[a] = top_pages[a - 1];
+                    top_pages[a - 1] = tmp;
+               }
+          }
+          for (int p = 0; p < top_p; p++)
+          {
+               ImGui::TextDisabled("0x%02X__:%d", top_pages[p].page, top_pages[p].hits);
+               shown++;
+               if (shown < top_p)
+                    ImGui::SameLine(0, 14);
+          }
+
+          ImGui::EndChild();
+          ImGui::PopStyleColor();
+     }
+}
+
+/* Dynamic waveform state: up to 16 net_ids pinned by the user */
+#define WAVE_MAX_NETS 16
+static int  s_wave_nets[WAVE_MAX_NETS];   /* net_ids; -1 = slot empty      */
+static int  s_wave_net_count = 0;
+static bool s_wave_init = false;
+
+/* Called from schematic panel when the user clicks a wire */
+static void wave_add_net(int net_id)
+{
+     if (net_id < 0 || net_id >= HW_NET_COUNT)
+          return;
+     /* Already pinned? */
+     for (int i = 0; i < s_wave_net_count; i++)
+          if (s_wave_nets[i] == net_id)
+               return;
+     if (s_wave_net_count < WAVE_MAX_NETS)
+          s_wave_nets[s_wave_net_count++] = net_id;
+}
+
+static void wave_remove_net(int idx)
+{
+     if (idx < 0 || idx >= s_wave_net_count)
+          return;
+     for (int i = idx; i < s_wave_net_count - 1; i++)
+          s_wave_nets[i] = s_wave_nets[i + 1];
+     s_wave_net_count--;
 }
 
 static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
 {
-     static const char *const signal_names[] = {
-         "/RD", "/WR", "A15", "A14", "A13", "A12",
-         "D7", "D0", "DMA", "PPU", "IRQ", "SER",
-     };
-     static bool enabled[12] = {
-         true, true, true, true, false, false,
-         true, true, true, true, true, true,
-     };
+     /* Seed default channels on first open */
+     if (!s_wave_init)
+     {
+          s_wave_init = true;
+          /* Find net_ids for /RD, /WR, A15, D7 by canonical name */
+          static const char *defaults[] = {"nRD", "nWR", "A15", "A14", "D7", "D0"};
+          for (int d = 0; d < (int)(sizeof(defaults) / sizeof(defaults[0])); d++)
+          {
+               for (int ni = 0; ni < hw_net_map_count; ni++)
+               {
+                    if (strcmp(hw_net_map[ni].canonical_name, defaults[d]) == 0)
+                    {
+                         wave_add_net(hw_net_map[ni].net_id);
+                         break;
+                    }
+               }
+          }
+     }
+
      static int sample_count = 192;
 
      uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+
+     /* Controls row */
      ImGui::TextDisabled("Waveform");
      ImGui::SameLine();
      ImGui::SetNextItemWidth(120.0f);
      ImGui::SliderInt("samples##wave_samples", &sample_count, 48, 384);
-
-     for (int i = 0; i < 12; i++)
+     ImGui::SameLine();
+     /* Add-net input: type net name */
+     static char s_wave_add_buf[32] = {};
+     ImGui::SetNextItemWidth(80.0f);
+     if (ImGui::InputText("##wave_add", s_wave_add_buf, sizeof(s_wave_add_buf),
+                          ImGuiInputTextFlags_EnterReturnsTrue))
      {
-          ImGui::Checkbox(signal_names[i], &enabled[i]);
-          if (i + 1 < 12)
+          /* Search by canonical or schematic name */
+          for (int ni = 0; ni < hw_net_map_count; ni++)
+          {
+               if (strcmp(hw_net_map[ni].canonical_name, s_wave_add_buf) == 0 ||
+                   strcmp(hw_net_map[ni].schematic_name, s_wave_add_buf) == 0)
+               {
+                    wave_add_net(hw_net_map[ni].net_id);
+                    break;
+               }
+          }
+          s_wave_add_buf[0] = '\0';
+     }
+     if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("Digite nome de net (ex: A3, nRD, D5) e pressione Enter\nOu clique em um fio no esquemático");
+     ImGui::SameLine();
+     if (ImGui::SmallButton("Clear##wave_clear"))
+     {
+          s_wave_net_count = 0;
+          s_wave_init = false;
+     }
+     if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("Remove todos os sinais do waveform");
+
+     /* Chip buttons per pinned net */
+     for (int s = 0; s < s_wave_net_count; s++)
+     {
+          int nid = s_wave_nets[s];
+          const HwNetSemantic *sem = hw_map_find_net(nid);
+          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < HW_NET_COUNT ? hw_nets[nid].name : "?");
+          char btn_label[32];
+          snprintf(btn_label, sizeof(btn_label), "%s x##wv%d", name, s);
+          ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(35, 40, 55, 220));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(60, 65, 90, 240));
+          if (ImGui::SmallButton(btn_label))
+               wave_remove_net(s);
+          ImGui::PopStyleColor(2);
+          if (s + 1 < s_wave_net_count)
                ImGui::SameLine();
      }
 
-     int rows = 0;
-     for (int i = 0; i < 12; i++)
-          if (enabled[i])
-               rows++;
+     int rows = s_wave_net_count;
      if (rows == 0 || n_total == 0)
      {
-          ImGui::TextDisabled(rows == 0 ? "Nenhum sinal selecionado" : "Sem eventos no buffer");
+          ImGui::TextDisabled(rows == 0
+                                  ? "Sem sinais — clique num fio ou escreva o nome acima"
+                                  : "Sem eventos no buffer");
           return;
      }
 
@@ -5741,41 +6552,57 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
           samples = (int)n_total;
      uint32_t start_idx = (tr->head + GB_HW_TRACE_CAP - (uint32_t)samples) & (GB_HW_TRACE_CAP - 1);
 
+     float label_w = 52.0f;
+     float row_h = 22.0f;
      ImVec2 pos = ImGui::GetCursorScreenPos();
-     ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x, 20.0f + rows * 23.0f);
+     ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x, 8.0f + rows * row_h);
      ImDrawList *dl = ImGui::GetWindowDrawList();
      dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(10, 12, 18, 235), 3.0f);
      dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(70, 75, 92, 180), 3.0f);
 
-     float label_w = 48.0f;
      float x0 = pos.x + label_w;
      float w = size.x - label_w - 8.0f;
      float step = samples > 1 ? w / (float)(samples - 1) : w;
-     int row = 0;
-     for (int s = 0; s < 12; s++)
-     {
-          if (!enabled[s])
-               continue;
-          float y_mid = pos.y + 16.0f + row * 23.0f;
-          float y_hi = y_mid - 6.0f;
-          float y_lo = y_mid + 6.0f;
-          ImU32 col = (s < 2) ? IM_COL32(255, 180, 90, 235)
-                              : (s < 6) ? IM_COL32(95, 175, 255, 235)
-                                        : (s < 8) ? IM_COL32(100, 230, 130, 235)
-                                                  : IM_COL32(210, 170, 255, 235);
 
-          dl->AddText(ImVec2(pos.x + 8.0f, y_mid - 8.0f), col, signal_names[s]);
+     /* Colour palette for net rows */
+     static const ImU32 ROW_COLORS[] = {
+         IM_COL32(255, 180, 90, 235),  /* amber   */
+         IM_COL32(95, 175, 255, 235),  /* blue    */
+         IM_COL32(100, 230, 130, 235), /* green   */
+         IM_COL32(210, 170, 255, 235), /* violet  */
+         IM_COL32(255, 110, 110, 235), /* red     */
+         IM_COL32(60, 210, 200, 235),  /* teal    */
+         IM_COL32(255, 230, 60, 235),  /* yellow  */
+         IM_COL32(200, 140, 255, 235), /* purple  */
+     };
+     static const int N_ROW_COLORS = (int)(sizeof(ROW_COLORS) / sizeof(ROW_COLORS[0]));
+
+     for (int row = 0; row < rows; row++)
+     {
+          int nid = s_wave_nets[row];
+          const HwNetSemantic *sem = hw_map_find_net(nid);
+          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < HW_NET_COUNT ? hw_nets[nid].name : "?");
+          ImU32 col = ROW_COLORS[row % N_ROW_COLORS];
+
+          float y_mid = pos.y + 6.0f + row * row_h + row_h * 0.5f;
+          float y_hi  = y_mid - row_h * 0.32f;
+          float y_lo  = y_mid + row_h * 0.32f;
+
+          /* Label */
+          dl->AddText(ImVec2(pos.x + 4.0f, y_mid - 7.0f), col, name);
+          /* Baseline */
           dl->AddLine(ImVec2(x0, y_mid), ImVec2(x0 + w, y_mid),
-                      IM_COL32(42, 45, 58, 180), 1.0f);
+                      IM_COL32(42, 45, 58, 140), 0.8f);
 
           int last = 0;
           bool have_last = false;
-          ImVec2 prev = ImVec2(x0, y_lo);
+          ImVec2 prev = {};
+
           for (int i = 0; i < samples; i++)
           {
                uint32_t idx = (start_idx + (uint32_t)i) & (GB_HW_TRACE_CAP - 1);
                const gb_hw_trace_event *ev = &tr->events[idx];
-               int v = hw_wave_signal_value(ev, s);
+               int v = hw_net_level_for_event(ev, nid);
                if (v < 0)
                     v = have_last ? last : 0;
                float x = x0 + i * step;
@@ -5785,22 +6612,19 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
                     prev = ImVec2(x, y);
                     have_last = true;
                }
+               else if (y != prev.y)
+               {
+                    dl->AddLine(prev, ImVec2(x, prev.y), col, 1.4f);
+                    dl->AddLine(ImVec2(x, prev.y), ImVec2(x, y), col, 1.4f);
+                    prev = ImVec2(x, y);
+               }
                else
                {
-                    if (y != prev.y)
-                    {
-                         dl->AddLine(prev, ImVec2(x, prev.y), col, 1.4f);
-                         dl->AddLine(ImVec2(x, prev.y), ImVec2(x, y), col, 1.4f);
-                    }
-                    else
-                    {
-                         dl->AddLine(prev, ImVec2(x, y), col, 1.4f);
-                    }
+                    dl->AddLine(prev, ImVec2(x, y), col, 1.4f);
                     prev = ImVec2(x, y);
                }
                last = v;
           }
-          row++;
      }
 
      ImGui::InvisibleButton("##waveform_graph", size);
@@ -5813,19 +6637,24 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
                uint32_t idx = (start_idx + (uint32_t)sample) & (GB_HW_TRACE_CAP - 1);
                const gb_hw_trace_event *ev = &tr->events[idx];
                const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+               if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    debug_select_trace_event(ev);
                ImGui::BeginTooltip();
-               ImGui::Text("%s  seq=%llu  T=%d",
-                           meta->name, (unsigned long long)ev->seq, ev->timestamp);
-               ImGui::TextDisabled("PC=%04X addr=%04X data=%02X op=%02X",
+               ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color), "%s", meta->name);
+               ImGui::SameLine();
+               ImGui::TextDisabled("seq=%llu  T=%d", (unsigned long long)ev->seq, ev->timestamp);
+               ImGui::TextDisabled("PC=%04X  addr=%04X  data=%02X  op=%02X",
                                    ev->pc, ev->addr, ev->data, ev->opcode);
-               for (int s = 0; s < 12; s++)
+               for (int s = 0; s < rows; s++)
                {
-                    if (!enabled[s])
-                         continue;
-                    int v = hw_wave_signal_value(ev, s);
+                    int nid = s_wave_nets[s];
+                    int v = hw_net_level_for_event(ev, nid);
+                    const HwNetSemantic *sem = hw_map_find_net(nid);
+                    const char *nm = sem ? sem->canonical_name : "?";
                     if (v >= 0)
                     {
-                         ImGui::Text("%s=%d", signal_names[s], v);
+                         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ROW_COLORS[s % N_ROW_COLORS]),
+                                            "%s=%d", nm, v);
                          ImGui::SameLine();
                     }
                }
@@ -5837,6 +6666,8 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
 void draw_panel_hw_schematic(struct gb *gb)
 {
      float dt = ImGui::GetIO().DeltaTime;
+
+     draw_debug_selection_banner("timeline");
 
      /* Cross-link flash timer decay */
      if (s_sch_cross_timer > 0.0f)
@@ -5897,9 +6728,6 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (gb && gb->debug.hw_trace.enabled)
           hw_activity_consume_trace(&s_hw_activity, &gb->debug.hw_trace, &s_hw_last_seq);
 
-     /* When frozen, all rendering reads from the snapshot instead of live state */
-     const HwSchematicActivityState *act = s_sch_frozen ? &s_hw_frozen : &s_hw_activity;
-
      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
      if (ImGui::Button("Fit"))
           hw_schematic_view_fit(&s_sch_view);
@@ -5935,13 +6763,15 @@ void draw_panel_hw_schematic(struct gb *gb)
                ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(80, 40, 10, 220));
                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(120, 60, 15, 240));
                if (ImGui::Button("Unfreeze"))
-                    s_sch_frozen = false;
+                    hw_schematic_set_live_mode();
                ImGui::PopStyleColor(2);
           }
           else
           {
                if (ImGui::Button("Freeze"))
                {
+                    s_sch_replay_cursor = -1;
+                    s_sch_replay_dirty = false;
                     s_hw_frozen = s_hw_activity;
                     s_sch_frozen = true;
                }
@@ -5951,21 +6781,102 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::TextDisabled("zoom:%.0f", s_sch_view.zoom);
      ImGui::PopStyleVar();
 
-     /* Canvas child (resizable — drag bottom border to resize) */
-     static float s_canvas_child_h = 420.0f;
+     if (gb && !s_sch_paper_mode)
+     {
+          const struct gb_hw_trace *rtr = &gb->debug.hw_trace;
+          uint32_t rn = rtr->count < GB_HW_TRACE_CAP ? rtr->count : (uint32_t)GB_HW_TRACE_CAP;
+
+          ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 3));
+          ImGui::TextDisabled("Replay:");
+          ImGui::SameLine();
+
+          bool is_live = (s_sch_replay_cursor < 0 && !s_sch_frozen);
+          if (is_live)
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(30, 120, 30, 220));
+          else
+               ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(50, 50, 60, 180));
+          if (ImGui::SmallButton("Live##replay"))
+               hw_schematic_set_live_mode();
+          ImGui::PopStyleColor();
+          ImGui::SameLine();
+
+          if ((int)rn > 0)
+          {
+               if (s_sch_replay_cursor >= (int)rn)
+               {
+                    s_sch_replay_cursor = (int)rn - 1;
+                    s_sch_replay_dirty = s_sch_frozen;
+               }
+
+               int cursor = (s_sch_replay_cursor < 0) ? (int)rn - 1 : s_sch_replay_cursor;
+               ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 120.0f);
+               if (ImGui::SliderInt("##replay_slider", &cursor, 0, (int)rn - 1))
+               {
+                    s_sch_replay_cursor = cursor;
+                    s_sch_replay_dirty = true;
+                    s_sch_frozen = true;
+               }
+
+               /* Rebuild activity state up to cursor when dirty */
+               if (s_sch_replay_dirty && s_sch_replay_cursor >= 0)
+               {
+                    hw_activity_reset(&s_sch_replay_state);
+                    uint32_t oldest_r = (rtr->head + GB_HW_TRACE_CAP - rn) & (GB_HW_TRACE_CAP - 1);
+                    for (int k = 0; k <= s_sch_replay_cursor && k < (int)rn; k++)
+                    {
+                         uint32_t ridx = (oldest_r + (uint32_t)k) & (GB_HW_TRACE_CAP - 1);
+                         hw_project_event(&s_sch_replay_state, &rtr->events[ridx]);
+                    }
+                    s_hw_frozen = s_sch_replay_state;
+                    if (s_sch_replay_cursor < (int)rn)
+                    {
+                         uint32_t ridx = (oldest_r + (uint32_t)s_sch_replay_cursor) & (GB_HW_TRACE_CAP - 1);
+                         debug_select_trace_event(&rtr->events[ridx]);
+                    }
+                    s_sch_replay_dirty = false;
+               }
+
+               /* Show event info at cursor */
+               if (s_sch_replay_cursor >= 0 && s_sch_replay_cursor < (int)rn)
+               {
+                    ImGui::SameLine();
+                    uint32_t oldest_r = (rtr->head + GB_HW_TRACE_CAP - rn) & (GB_HW_TRACE_CAP - 1);
+                    uint32_t ridx = (oldest_r + (uint32_t)s_sch_replay_cursor) & (GB_HW_TRACE_CAP - 1);
+                    const gb_hw_trace_event *rev = &rtr->events[ridx];
+                    const HwTraceEvtMeta *rmeta = hw_trace_event_meta(rev->type);
+                    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(rmeta->color),
+                                       "[%d/%d] %s  T=%d  PC=%04X  addr=%04X",
+                                       s_sch_replay_cursor, (int)rn - 1,
+                                       rmeta->name, rev->timestamp, rev->pc, rev->addr);
+               }
+          }
+          else
+          {
+               hw_schematic_set_live_mode();
+               ImGui::TextDisabled("(sem eventos no buffer)");
+          }
+          ImGui::PopStyleVar();
+     }
+
+     /* When frozen, all rendering reads from the final snapshot chosen above. */
+     const HwSchematicActivityState *act = s_sch_frozen ? &s_hw_frozen : &s_hw_activity;
+
+     /* Canvas is the primary surface; lower analysis drawers reserve bounded space. */
      ImVec2 total_avail = ImGui::GetContentRegionAvail();
-     if (s_canvas_child_h > total_avail.y - 80.0f)
-          s_canvas_child_h = total_avail.y - 80.0f;
-     if (s_canvas_child_h < 200.0f)
-          s_canvas_child_h = 200.0f;
+     float reserved_trace_h = s_sch_trace_pane_open ? 170.0f : 36.0f;
+     float reserved_net_h = (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+                                ? (s_sch_net_timeline_open ? 104.0f : 30.0f)
+                                : 0.0f;
+     float canvas_child_h = total_avail.y - reserved_trace_h - reserved_net_h;
+     if (canvas_child_h < 180.0f)
+          canvas_child_h = total_avail.y > 230.0f ? 180.0f : total_avail.y - 44.0f;
+     if (canvas_child_h < 120.0f)
+          canvas_child_h = 120.0f;
 
      ImGui::BeginChild("##sch_canvas_child",
-                       ImVec2(0.0f, s_canvas_child_h),
-                       ImGuiChildFlags_ResizeY,
+                       ImVec2(0.0f, canvas_child_h),
+                       ImGuiChildFlags_Borders,
                        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-
-     /* Sync stored height with the child's actual size after user resizes */
-     s_canvas_child_h = ImGui::GetContentRegionAvail().y;
 
      /* Canvas */
      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
@@ -6161,12 +7072,15 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
      }
 
-     /* Left-click on wire selects its net; clicking same net again deselects */
+     /* Left-click on wire selects its net; clicking same net again deselects.
+      * Also pins the net in the dynamic waveform viewer. */
      if (s_sch_hover_wire >= 0 && ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
      {
           int nid = hw_wires[s_sch_hover_wire].net_id;
           s_sch_sel_net = (s_sch_sel_net == nid) ? -1 : nid;
-          s_sch_sel_comp = -1; /* clear component selection */
+          s_sch_sel_comp = -1;
+          if (s_sch_sel_net >= 0)
+               wave_add_net(s_sch_sel_net); /* auto-pin in waveform */
      }
 
      /* Zoom-to-selected net (F key) */
@@ -7326,6 +8240,14 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (gb && s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
      {
           const HwNet *sel_net = &hw_nets[s_sch_sel_net];
+          ImGui::Separator();
+          if (ImGui::SmallButton(s_sch_net_timeline_open ? "Net timeline [-]##sch_net_timeline" : "Net timeline [+]##sch_net_timeline"))
+               s_sch_net_timeline_open = !s_sch_net_timeline_open;
+          ImGui::SameLine();
+          ImGui::TextDisabled("%s", sel_net->name);
+
+          if (s_sch_net_timeline_open)
+          {
           struct gb_hw_trace *tl_tr = &gb->debug.hw_trace;
 
           /* Collect up to 64 events that touched this net, newest first */
@@ -7338,71 +8260,65 @@ void draw_panel_hw_schematic(struct gb *gb)
           TlEntry tl_buf[TL_CAP];
           int tl_n = 0;
 
-          /* Walk ring buffer newest→oldest */
+          /* Walk ring buffer newest→oldest, keeping only events that actually
+           * touch this net (using the semantic map for real 0/1 derivation). */
           uint32_t cap = GB_HW_TRACE_CAP;
           uint32_t cnt = tl_tr->count < cap ? tl_tr->count : cap;
           for (uint32_t k = 0; k < cnt && tl_n < TL_CAP; k++)
           {
                uint32_t idx = (tl_tr->head + cap - 1 - k) % cap;
                const gb_hw_trace_event *ev = &tl_tr->events[idx];
-               /* Include event if it references this net via address bits */
-               bool relevant = false;
-               switch (ev->type)
-               {
-               case GB_HW_EVT_CPU_READ:
-               case GB_HW_EVT_CPU_WRITE:
-               case GB_HW_EVT_CPU_FETCH:
-               case GB_HW_EVT_DMA_READ:
-               case GB_HW_EVT_DMA_WRITE:
-                    relevant = true;
-                    break;
-               case GB_HW_EVT_PPU_MODE:
-               case GB_HW_EVT_PPU_VBLANK:
-               case GB_HW_EVT_PPU_HBLANK:
-               case GB_HW_EVT_TIMER_OVF:
-               case GB_HW_EVT_APU_WRITE:
-               case GB_HW_EVT_JOYPAD:
-               case GB_HW_EVT_SERIAL_START:
-               case GB_HW_EVT_SERIAL_DONE:
-               case GB_HW_EVT_MBC_SWITCH:
-               case GB_HW_EVT_IRQ_REQUEST:
-               case GB_HW_EVT_IRQ_ACK:
-                    relevant = true;
-                    break;
-               default:
-                    break;
-               }
-               if (relevant)
+               if (hw_event_touches_net(ev, s_sch_sel_net))
                     tl_buf[tl_n++] = {ev, true};
           }
 
           /* Timeline header */
           ImGui::Separator();
           ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
-                             "Timeline: net %s  (últimos %d eventos do buffer)",
+                             "Timeline: net %s  (%d eventos relevantes)",
                              sel_net->name, tl_n);
 
-          /* Horizontal mini-timeline strip */
-          float tl_h = 36.0f;
+          /* Horizontal mini-timeline strip — two rows: event type (top) + 0/1 level (bottom) */
+          float tl_h = 52.0f;
           ImVec2 tl_pos = ImGui::GetCursorScreenPos();
           ImVec2 tl_size = ImVec2(ImGui::GetContentRegionAvail().x, tl_h);
           ImDrawList *tdl = ImGui::GetWindowDrawList();
           tdl->AddRectFilled(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
-                             IM_COL32(14, 16, 22, 220));
+                             IM_COL32(10, 12, 18, 230));
+          tdl->AddRect(tl_pos, ImVec2(tl_pos.x + tl_size.x, tl_pos.y + tl_size.y),
+                       IM_COL32(50, 55, 70, 180));
 
           static int s_tl_sel = -1; /* selected event index in tl_buf */
 
           if (tl_n > 0)
           {
-               /* Find timestamp range */
+               /* Find timestamp range — tl_buf is newest-first */
                int32_t ts_min = tl_buf[tl_n - 1].ev->timestamp;
                int32_t ts_max = tl_buf[0].ev->timestamp;
                int32_t ts_span = ts_max - ts_min;
                if (ts_span <= 0)
                     ts_span = 1;
 
-               float bar_w = tl_size.x / (float)tl_n; /* equal-width bars when timestamps close */
-               bool use_time_x = ts_span > tl_n * 4;  /* spread by time when events are sparse */
+               float bar_w = tl_size.x / (float)tl_n;
+               bool use_time_x = ts_span > tl_n * 4;
+
+               /* Midpoint separating type row (top) from level row (bottom) */
+               float type_y0 = tl_pos.y + 2.0f;
+               float type_h  = tl_h * 0.55f - 3.0f;
+               float lvl_y0  = tl_pos.y + tl_h * 0.55f;
+               float lvl_h   = tl_h * 0.45f - 3.0f;
+
+               /* Separator between rows */
+               tdl->AddLine(ImVec2(tl_pos.x, lvl_y0 - 1),
+                            ImVec2(tl_pos.x + tl_size.x, lvl_y0 - 1),
+                            IM_COL32(40, 45, 60, 160));
+
+               /* "0" / "1" labels */
+               tdl->AddText(ImVec2(tl_pos.x + 2, lvl_y0 + lvl_h * 0.5f - 7),
+                            IM_COL32(80, 80, 100, 180), "0/1");
+
+               int prev_level = -1;
+               float prev_x = tl_pos.x;
 
                for (int ei = 0; ei < tl_n; ei++)
                {
@@ -7411,94 +8327,76 @@ void draw_panel_hw_schematic(struct gb *gb)
                                   ? (float)(ev->timestamp - ts_min) / (float)ts_span
                                   : (float)(tl_n - 1 - ei) / (float)(tl_n > 1 ? tl_n - 1 : 1);
                     float bx = tl_pos.x + t * (tl_size.x - bar_w);
-                    float by = tl_pos.y + 2.0f;
 
-                    /* Colour by event type */
-                    ImU32 bcol;
-                    switch (ev->type)
-                    {
-                    case GB_HW_EVT_CPU_FETCH:
-                         bcol = IM_COL32(255, 220, 60, 220);
-                         break;
-                    case GB_HW_EVT_CPU_READ:
-                         bcol = IM_COL32(60, 200, 255, 220);
-                         break;
-                    case GB_HW_EVT_CPU_WRITE:
-                         bcol = IM_COL32(255, 120, 60, 220);
-                         break;
-                    case GB_HW_EVT_DMA_READ:
-                    case GB_HW_EVT_DMA_WRITE:
-                         bcol = IM_COL32(200, 80, 255, 220);
-                         break;
-                    case GB_HW_EVT_IRQ_REQUEST:
-                    case GB_HW_EVT_IRQ_ACK:
-                         bcol = IM_COL32(255, 60, 60, 220);
-                         break;
-                    case GB_HW_EVT_PPU_MODE:
-                    case GB_HW_EVT_PPU_VBLANK:
-                    case GB_HW_EVT_PPU_HBLANK:
-                         bcol = IM_COL32(60, 210, 180, 220);
-                         break;
-                    case GB_HW_EVT_APU_WRITE:
-                         bcol = IM_COL32(255, 160, 60, 220);
-                         break;
-                    case GB_HW_EVT_TIMER_OVF:
-                         bcol = IM_COL32(200, 140, 255, 220);
-                         break;
-                    case GB_HW_EVT_SERIAL_START:
-                    case GB_HW_EVT_SERIAL_DONE:
-                         bcol = IM_COL32(60, 200, 230, 220);
-                         break;
-                    case GB_HW_EVT_MBC_SWITCH:
-                         bcol = IM_COL32(220, 200, 60, 220);
-                         break;
-                    case GB_HW_EVT_JOYPAD:
-                         bcol = IM_COL32(200, 230, 80, 220);
-                         break;
-                    default:
-                         bcol = IM_COL32(120, 120, 130, 180);
-                         break;
-                    }
-
-                    bool sel = (s_tl_sel == ei);
-                    float bar_h = tl_h - 4.0f;
-                    ImVec2 b0 = ImVec2(bx, by);
-                    ImVec2 b1 = ImVec2(bx + (bar_w > 2.0f ? bar_w - 1.0f : 1.5f), by + bar_h);
+                    /* --- Type bar (top row) --- */
+                    const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+                    ImU32 bcol = meta->color;
+                    bool local_sel = (s_tl_sel == ei);
+                    bool sel = local_sel ||
+                               (s_debug_sel.active && s_debug_sel.seq == ev->seq);
+                    ImVec2 b0 = ImVec2(bx, type_y0);
+                    ImVec2 b1 = ImVec2(bx + (bar_w > 2.0f ? bar_w - 1.0f : 1.5f), type_y0 + type_h);
                     tdl->AddRectFilled(b0, b1, bcol, 1.5f);
                     if (sel)
-                         tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 200), 1.5f, 0, 1.5f);
+                         tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 220), 1.5f, 0, 1.5f);
+
+                    /* --- Logic level (bottom row) --- */
+                    int level = hw_net_level_for_event(ev, s_sch_sel_net);
+
+                    if (level >= 0)
+                    {
+                         /* Draw step transition from previous level */
+                         if (prev_level >= 0 && prev_level != level)
+                         {
+                              float py = prev_level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                              float cy = level       ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                              tdl->AddLine(ImVec2(bx, py), ImVec2(bx, cy),
+                                           IM_COL32(180, 220, 255, 220), 1.2f);
+                         }
+                         float ly = level ? lvl_y0 + 2.0f : lvl_y0 + lvl_h - 2.0f;
+                         float end_x = ei + 1 < tl_n
+                                           ? (use_time_x
+                                                  ? tl_pos.x + (float)(tl_buf[ei + 1].ev->timestamp - ts_min) / (float)ts_span * (tl_size.x - bar_w)
+                                                  : tl_pos.x + (float)(tl_n - 1 - (ei + 1)) / (float)(tl_n > 1 ? tl_n - 1 : 1) * (tl_size.x - bar_w))
+                                           : tl_pos.x + tl_size.x;
+                         ImU32 lcol = level ? IM_COL32(80, 220, 120, 230) : IM_COL32(100, 110, 140, 200);
+                         tdl->AddLine(ImVec2(bx, ly), ImVec2(end_x, ly), lcol, 1.8f);
+                         prev_level = level;
+                         prev_x = end_x;
+                    }
+                    (void)prev_x;
 
                     /* Hit-test for click */
                     ImVec2 mpos = ImGui::GetIO().MousePos;
-                    if (mpos.x >= b0.x && mpos.x <= b1.x &&
-                        mpos.y >= b0.y && mpos.y <= b1.y)
+                    if (mpos.x >= b0.x && mpos.x <= b1.x + bar_w &&
+                        mpos.y >= tl_pos.y && mpos.y <= tl_pos.y + tl_h)
                     {
                          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                              s_tl_sel = sel ? -1 : ei;
-                         /* Tooltip */
+                         {
+                              s_tl_sel = local_sel ? -1 : ei;
+                              if (!local_sel)
+                                   debug_select_trace_event(ev);
+                         }
                          ImGui::BeginTooltip();
-                         static const char *evt_names[] = {
-                             "NONE", "FETCH", "READ", "WRITE", "IRQ_REQ", "IRQ_ACK",
-                             "ALU", "WRITEBACK", "DMA_RD", "DMA_WR", "PPU_MODE",
-                             "APU_SMP", "VBLANK", "HBLANK", "OAM_DMA", "TIMER_OVF",
-                             "APU_WR", "JOYPAD", "SER_START", "SER_DONE", "MBC_SW"};
-                         int etype = (int)ev->type;
-                         const char *ename = (etype >= 0 && etype < 21) ? evt_names[etype] : "?";
-                         ImGui::Text("%s  ts=%d  seq=%llu",
-                                     ename, ev->timestamp, (unsigned long long)ev->seq);
-                         if (ev->addr)
-                              ImGui::TextDisabled("addr=0x%04X  data=0x%02X", ev->addr, ev->data);
+                         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(bcol), "%s", meta->name);
+                         ImGui::SameLine();
+                         ImGui::TextDisabled("ts=%d  seq=%llu", ev->timestamp, (unsigned long long)ev->seq);
+                         if (level >= 0)
+                              ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.5f, 0.65f, 1.0f),
+                                                 "%s = %d", sel_net->name, level);
+                         if (hw_trace_event_has_addr(ev))
+                              ImGui::TextDisabled("addr=%04X  data=%02X", ev->addr, ev->data);
                          if (ev->pc)
-                              ImGui::TextDisabled("PC=0x%04X  op=0x%02X", ev->pc, ev->opcode);
+                              ImGui::TextDisabled("PC=%04X  op=%02X", ev->pc, ev->opcode);
                          ImGui::EndTooltip();
                     }
                }
           }
           else
           {
-               tdl->AddText(ImVec2(tl_pos.x + 8, tl_pos.y + 10),
+               tdl->AddText(ImVec2(tl_pos.x + 8, tl_pos.y + 16),
                             IM_COL32(100, 105, 120, 200),
-                            "Nenhum evento no buffer — habilite o hw trace");
+                            "Nenhum evento toca este net — habilite o hw trace");
           }
 
           ImGui::Dummy(tl_size); /* advance cursor past the manual-drawn strip */
@@ -7507,34 +8405,57 @@ void draw_panel_hw_schematic(struct gb *gb)
           if (s_tl_sel >= 0 && s_tl_sel < tl_n)
           {
                const gb_hw_trace_event *ev = tl_buf[s_tl_sel].ev;
+               int level = hw_net_level_for_event(ev, s_sch_sel_net);
+               const HwTraceEvtMeta *emeta = hw_trace_event_meta(ev->type);
                ImGui::Indent(8.0f);
+               ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(emeta->color), "%s", emeta->name);
+               ImGui::SameLine();
                ImGui::TextColored(ImVec4(0.9f, 0.9f, 1.0f, 1.0f),
-                                  "seq=%llu  ts=%d  PC=0x%04X  op=0x%02X",
-                                  (unsigned long long)ev->seq,
-                                  ev->timestamp, ev->pc, ev->opcode);
-               ImGui::TextDisabled("addr=0x%04X  data=0x%02X  extra=0x%02X  write=%d",
-                                   ev->addr, ev->data, ev->extra, (int)ev->write);
+                                  "seq=%llu  ts=%d", (unsigned long long)ev->seq, ev->timestamp);
+               if (level >= 0)
+               {
+                    ImGui::SameLine();
+                    ImGui::TextColored(level ? ImVec4(0.3f, 0.9f, 0.5f, 1.0f) : ImVec4(0.5f, 0.55f, 0.7f, 1.0f),
+                                       "  %s=%d", sel_net->name, level);
+               }
+               ImGui::TextDisabled("PC=%04X  addr=%04X  data=%02X  extra=%02X",
+                                   ev->pc, ev->addr, ev->data, ev->extra);
                ImGui::Unindent(8.0f);
           }
           ImGui::Separator();
+          }
      }
 
-     /* HW Trace + Audit panel (scrollable, fills remaining space) */
+     /* HW Trace + Audit panel: explicit drawer so live trace never swallows the schematic. */
      if (!gb)
           return;
 
-     ImGui::BeginChild("##sch_trace_child", ImVec2(0, 0), ImGuiChildFlags_None,
-                       ImGuiWindowFlags_None);
-
      struct gb_hw_trace *tr = &gb->debug.hw_trace;
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+
+     ImGui::Separator();
+     if (ImGui::SmallButton(s_sch_trace_pane_open ? "Trace [-]##sch_trace_pane" : "Trace [+]##sch_trace_pane"))
+          s_sch_trace_pane_open = !s_sch_trace_pane_open;
+     ImGui::SameLine();
+     ImGui::TextDisabled("%u events  %s", n_total, tr->enabled ? "live" : "off");
+
+     if (!s_sch_trace_pane_open)
+          return;
+
+     float trace_h = ImGui::GetContentRegionAvail().y;
+     if (trace_h > 260.0f)
+          trace_h = 260.0f;
+     if (trace_h < 120.0f)
+          trace_h = 120.0f;
+
+     ImGui::BeginChild("##sch_trace_child", ImVec2(0, trace_h), ImGuiChildFlags_Borders,
+                       ImGuiWindowFlags_HorizontalScrollbar);
 
      /*  Controls row */
-     ImGui::Separator();
      bool trace_on = tr->enabled;
      if (ImGui::Checkbox("HW Trace", &trace_on))
           tr->enabled = trace_on;
      ImGui::SameLine();
-     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
      ImGui::TextDisabled("%u events", n_total);
      ImGui::SameLine();
      if (ImGui::SmallButton("Clear"))
@@ -7542,7 +8463,94 @@ void draw_panel_hw_schematic(struct gb *gb)
           tr->head = 0;
           tr->count = 0;
           s_hw_last_seq = 0;
+          hw_schematic_set_live_mode();
+          debug_selection_clear();
           hw_activity_reset(&s_hw_activity);
+          n_total = 0;
+     }
+     ImGui::SameLine();
+     if (ImGui::SmallButton("Export CSV"))
+     {
+          /* Write all buffered events to hw_trace_export.csv next to the binary */
+          static const char *const EVT_NAMES[] = {
+              "NONE", "FETCH", "READ", "WRITE", "IRQ_REQ", "IRQ_ACK",
+              "ALU", "WRITEBACK", "DMA_RD", "DMA_WR", "PPU_MODE",
+              "APU_SMP", "VBLANK", "HBLANK", "OAM_DMA", "TIMER_OVF",
+              "APU_WR", "JOYPAD", "SER_START", "SER_DONE", "MBC_SW",
+          };
+          static const int EVT_NAME_COUNT = (int)(sizeof(EVT_NAMES) / sizeof(EVT_NAMES[0]));
+
+          FILE *f = fopen("hw_trace_export.csv", "w");
+          if (f)
+          {
+               /* Header */
+               fprintf(f, "seq,timestamp,type,pc,addr,data,opcode,write,extra,"
+                          "nets_touched,net_names\n");
+
+               uint32_t cap2 = GB_HW_TRACE_CAP;
+               uint32_t cnt2 = tr->count < cap2 ? tr->count : cap2;
+               uint32_t oldest_e = (tr->head + cap2 - cnt2) & (cap2 - 1);
+
+               for (uint32_t i = 0; i < cnt2; i++)
+               {
+                    uint32_t idx2 = (oldest_e + i) & (cap2 - 1);
+                    const gb_hw_trace_event *ev = &tr->events[idx2];
+                    int etype = (int)ev->type;
+                    const char *ename = (etype >= 0 && etype < EVT_NAME_COUNT)
+                                           ? EVT_NAMES[etype]
+                                           : "UNKNOWN";
+
+                    /* Collect net names touched by this event */
+                    char net_ids_buf[256] = {};
+                    char net_names_buf[512] = {};
+                    int net_ids_len = 0;
+                    int net_names_len = 0;
+                    for (int ni = 0; ni < hw_net_map_count; ni++)
+                    {
+                         int nid = hw_net_map[ni].net_id;
+                         if (nid < 0 || nid >= HW_NET_COUNT)
+                              continue;
+                         if (hw_net_level_for_event(ev, nid) < 0)
+                              continue;
+                         const char *nm = hw_net_map[ni].canonical_name;
+                         /* Append id */
+                         int written = snprintf(net_ids_buf + net_ids_len,
+                                                (int)sizeof(net_ids_buf) - net_ids_len,
+                                                "%s%d", net_ids_len ? "|" : "", nid);
+                         if (written > 0)
+                              net_ids_len += written;
+                         /* Append name */
+                         written = snprintf(net_names_buf + net_names_len,
+                                            (int)sizeof(net_names_buf) - net_names_len,
+                                            "%s%s", net_names_len ? "|" : "", nm);
+                         if (written > 0)
+                              net_names_len += written;
+                    }
+
+                    fprintf(f, "%llu,%d,%s,%04X,%04X,%02X,%02X,%d,%02X,%s,%s\n",
+                            (unsigned long long)ev->seq,
+                            ev->timestamp,
+                            ename,
+                            ev->pc,
+                            ev->addr,
+                            ev->data,
+                            ev->opcode,
+                            (int)ev->write,
+                            ev->extra,
+                            net_ids_buf[0] ? net_ids_buf : "",
+                            net_names_buf[0] ? net_names_buf : "");
+               }
+               fclose(f);
+               /* Brief confirmation — use status bar or tooltip next frame */
+               ImGui::OpenPopup("##csv_ok");
+          }
+     }
+     if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("Salva todos os eventos em hw_trace_export.csv");
+     if (ImGui::BeginPopup("##csv_ok"))
+     {
+          ImGui::TextColored({0.3f, 1.0f, 0.4f, 1.0f}, "Exportado: hw_trace_export.csv");
+          ImGui::EndPopup();
      }
 
      /* Subsystem filter toggles */
@@ -7622,7 +8630,9 @@ void draw_panel_hw_schematic(struct gb *gb)
                continue;
 
           ImVec4 cv = ImGui::ColorConvertU32ToFloat4(meta->color);
-          bool selected = (s_selected_ev == (int)i);
+          bool local_selected = (s_selected_ev == (int)i);
+          bool selected = local_selected ||
+                          (s_debug_sel.active && s_debug_sel.seq == ev->seq);
 
           /* Selectable row */
           ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(cv.x * 0.35f, cv.y * 0.35f, cv.z * 0.35f, 0.6f));
@@ -7696,7 +8706,11 @@ void draw_panel_hw_schematic(struct gb *gb)
                                 ImGuiSelectableFlags_SpanAllColumns |
                                     ImGuiSelectableFlags_AllowOverlap,
                                 ImVec2(row_w, 0)))
-               s_selected_ev = selected ? -1 : (int)i;
+          {
+               s_selected_ev = local_selected ? -1 : (int)i;
+               if (!local_selected)
+                    debug_select_trace_event(ev);
+          }
 
           ImGui::PopStyleColor(3);
      }
