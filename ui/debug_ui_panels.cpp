@@ -5174,6 +5174,204 @@ static const ImU32 SCH_KIND_COLOR[16] = {
     IM_COL32(70, 75, 95, 100),    /* 15 UNKNOWN    — very dim */
 };
 
+typedef struct
+{
+     const char *name;
+     ImU32 color;
+     uint8_t subsystem;
+} HwTraceEvtMeta;
+
+/* subsystem bits: 0=CPU 1=PPU 2=DMA 3=Timer 4=APU 5=Input */
+static const HwTraceEvtMeta HW_TRACE_EVT_META[] = {
+    {"NONE", IM_COL32(100, 100, 100, 200), 0x3F},       /* GB_HW_EVT_NONE        */
+    {"FETCH", IM_COL32(120, 180, 255, 220), 1 << 0},    /* GB_HW_EVT_CPU_FETCH   */
+    {"READ", IM_COL32(80, 220, 110, 220), 1 << 0},      /* GB_HW_EVT_CPU_READ    */
+    {"WRITE", IM_COL32(255, 130, 60, 220), 1 << 0},     /* GB_HW_EVT_CPU_WRITE   */
+    {"IRQ_REQ", IM_COL32(220, 100, 255, 220), 1 << 0},  /* GB_HW_EVT_IRQ_REQUEST */
+    {"IRQ_ACK", IM_COL32(255, 80, 80, 220), 1 << 0},    /* GB_HW_EVT_IRQ_ACK     */
+    {"ALU", IM_COL32(180, 170, 255, 200), 1 << 0},      /* GB_HW_EVT_CPU_ALU     */
+    {"WBACK", IM_COL32(150, 210, 255, 200), 1 << 0},    /* GB_HW_EVT_CPU_WRITEBACK */
+    {"DMA_RD", IM_COL32(160, 200, 255, 200), 1 << 2},   /* GB_HW_EVT_DMA_READ    */
+    {"DMA_WR", IM_COL32(255, 200, 100, 200), 1 << 2},   /* GB_HW_EVT_DMA_WRITE   */
+    {"PPU_MODE", IM_COL32(60, 210, 180, 200), 1 << 1},  /* GB_HW_EVT_PPU_MODE    */
+    {"APU_SMP", IM_COL32(255, 160, 60, 200), 1 << 4},   /* GB_HW_EVT_APU_SAMPLE  */
+    {"VBLANK", IM_COL32(50, 255, 180, 230), 1 << 1},    /* GB_HW_EVT_PPU_VBLANK  */
+    {"HBLANK", IM_COL32(30, 190, 130, 200), 1 << 1},    /* GB_HW_EVT_PPU_HBLANK  */
+    {"OAM_DMA", IM_COL32(200, 230, 255, 210), 1 << 2},  /* GB_HW_EVT_OAM_DMA     */
+    {"TMR_OVF", IM_COL32(255, 220, 50, 230), 1 << 3},   /* GB_HW_EVT_TIMER_OVF   */
+    {"APU_WR", IM_COL32(255, 140, 0, 210), 1 << 4},     /* GB_HW_EVT_APU_WRITE   */
+    {"JOYPAD", IM_COL32(80, 255, 100, 220), 1 << 5},    /* GB_HW_EVT_JOYPAD      */
+    {"SER_START", IM_COL32(60, 200, 230, 220), 1 << 5}, /* GB_HW_EVT_SERIAL_START */
+    {"SER_DONE", IM_COL32(60, 170, 230, 220), 1 << 5},  /* GB_HW_EVT_SERIAL_DONE */
+    {"MBC_SW", IM_COL32(220, 200, 60, 220), 1 << 0},    /* GB_HW_EVT_MBC_SWITCH  */
+};
+
+static const int HW_TRACE_EVT_META_COUNT =
+    (int)(sizeof(HW_TRACE_EVT_META) / sizeof(HW_TRACE_EVT_META[0]));
+
+static const HwTraceEvtMeta *hw_trace_event_meta(gb_hw_trace_event_type type)
+{
+     int t = (int)type;
+     if (t < 0 || t >= HW_TRACE_EVT_META_COUNT)
+          t = 0;
+     return &HW_TRACE_EVT_META[t];
+}
+
+enum HwBusClass
+{
+     HW_BUS_CART = 0,
+     HW_BUS_WRAM,
+     HW_BUS_VRAM_OAM,
+     HW_BUS_IO,
+     HW_BUS_DMA,
+     HW_BUS_PPU_LCD,
+     HW_BUS_IRQ,
+     HW_BUS_SERIAL,
+     HW_BUS_CLASS_COUNT
+};
+
+typedef struct
+{
+     const char *name;
+     ImU32 color;
+} HwBusClassMeta;
+
+static const HwBusClassMeta HW_BUS_CLASS_META[HW_BUS_CLASS_COUNT] = {
+    {"Cart/Ext", IM_COL32(95, 175, 255, 230)},
+    {"WRAM", IM_COL32(80, 220, 120, 230)},
+    {"VRAM/OAM", IM_COL32(80, 210, 190, 230)},
+    {"IO/HRAM", IM_COL32(245, 185, 75, 230)},
+    {"DMA", IM_COL32(205, 120, 255, 235)},
+    {"PPU/LCD", IM_COL32(65, 235, 170, 230)},
+    {"IRQ", IM_COL32(255, 90, 105, 230)},
+    {"Serial", IM_COL32(75, 200, 235, 230)},
+};
+
+static bool hw_trace_event_has_addr(const gb_hw_trace_event *ev)
+{
+     switch (ev->type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+     case GB_HW_EVT_DMA_READ:
+     case GB_HW_EVT_DMA_WRITE:
+     case GB_HW_EVT_OAM_DMA:
+     case GB_HW_EVT_APU_WRITE:
+     case GB_HW_EVT_MBC_SWITCH:
+          return true;
+     default:
+          return false;
+     }
+}
+
+static uint8_t hw_bus_mask_for_addr(uint16_t addr)
+{
+     if (addr <= 0x7FFF || (addr >= 0xA000 && addr <= 0xBFFF))
+          return (uint8_t)(1u << HW_BUS_CART);
+     if (addr >= 0xC000 && addr <= 0xFDFF)
+          return (uint8_t)(1u << HW_BUS_WRAM);
+     if ((addr >= 0x8000 && addr <= 0x9FFF) || (addr >= 0xFE00 && addr <= 0xFE9F))
+          return (uint8_t)(1u << HW_BUS_VRAM_OAM);
+     return (uint8_t)(1u << HW_BUS_IO);
+}
+
+static uint8_t hw_bus_mask_for_event(const gb_hw_trace_event *ev, int *bytes)
+{
+     *bytes = 0;
+     switch (ev->type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+          *bytes = 1;
+          return hw_bus_mask_for_addr(ev->addr);
+     case GB_HW_EVT_DMA_READ:
+          *bytes = 1;
+          return (uint8_t)((1u << HW_BUS_DMA) | hw_bus_mask_for_addr(ev->addr));
+     case GB_HW_EVT_DMA_WRITE:
+     case GB_HW_EVT_OAM_DMA:
+          *bytes = 1;
+          return (uint8_t)((1u << HW_BUS_DMA) | (1u << HW_BUS_VRAM_OAM));
+     case GB_HW_EVT_PPU_MODE:
+     case GB_HW_EVT_PPU_VBLANK:
+     case GB_HW_EVT_PPU_HBLANK:
+          return (uint8_t)(1u << HW_BUS_PPU_LCD);
+     case GB_HW_EVT_IRQ_REQUEST:
+     case GB_HW_EVT_IRQ_ACK:
+     case GB_HW_EVT_TIMER_OVF:
+          return (uint8_t)(1u << HW_BUS_IRQ);
+     case GB_HW_EVT_APU_WRITE:
+          *bytes = 1;
+          return (uint8_t)(1u << HW_BUS_IO);
+     case GB_HW_EVT_JOYPAD:
+          return (uint8_t)(1u << HW_BUS_IO);
+     case GB_HW_EVT_SERIAL_START:
+     case GB_HW_EVT_SERIAL_DONE:
+          *bytes = ev->type == GB_HW_EVT_SERIAL_DONE ? 1 : 0;
+          return (uint8_t)(1u << HW_BUS_SERIAL);
+     case GB_HW_EVT_MBC_SWITCH:
+          *bytes = 1;
+          return (uint8_t)(1u << HW_BUS_CART);
+     default:
+          return 0;
+     }
+}
+
+static int hw_wave_signal_value(const gb_hw_trace_event *ev, int signal)
+{
+     switch (signal)
+     {
+     case 0: /* /RD */
+          return (ev->type == GB_HW_EVT_CPU_FETCH || ev->type == GB_HW_EVT_CPU_READ ||
+                  ev->type == GB_HW_EVT_DMA_READ)
+                     ? 0
+                     : 1;
+     case 1: /* /WR */
+          return (ev->type == GB_HW_EVT_CPU_WRITE || ev->type == GB_HW_EVT_DMA_WRITE ||
+                  ev->type == GB_HW_EVT_OAM_DMA || ev->type == GB_HW_EVT_APU_WRITE ||
+                  ev->type == GB_HW_EVT_MBC_SWITCH)
+                     ? 0
+                     : 1;
+     case 2:
+     case 3:
+     case 4:
+     case 5:
+          if (!hw_trace_event_has_addr(ev))
+               return -1;
+          return (ev->addr >> (15 - (signal - 2))) & 1;
+     case 6:
+          if (ev->type == GB_HW_EVT_CPU_FETCH)
+               return (ev->opcode >> 7) & 1;
+          return (ev->data >> 7) & 1;
+     case 7:
+          if (ev->type == GB_HW_EVT_CPU_FETCH)
+               return ev->opcode & 1;
+          return ev->data & 1;
+     case 8:
+          return (ev->type == GB_HW_EVT_DMA_READ || ev->type == GB_HW_EVT_DMA_WRITE ||
+                  ev->type == GB_HW_EVT_OAM_DMA)
+                     ? 1
+                     : 0;
+     case 9:
+          return (ev->type == GB_HW_EVT_PPU_MODE || ev->type == GB_HW_EVT_PPU_VBLANK ||
+                  ev->type == GB_HW_EVT_PPU_HBLANK)
+                     ? 1
+                     : 0;
+     case 10:
+          return (ev->type == GB_HW_EVT_IRQ_REQUEST || ev->type == GB_HW_EVT_IRQ_ACK ||
+                  ev->type == GB_HW_EVT_TIMER_OVF)
+                     ? 1
+                     : 0;
+     case 11:
+          return (ev->type == GB_HW_EVT_SERIAL_START || ev->type == GB_HW_EVT_SERIAL_DONE)
+                     ? 1
+                     : 0;
+     default:
+          return -1;
+     }
+}
+
 static bool s_sch_show_kinds = true;
 static bool s_sch_show_levels = true; /* net 0/1 labels on wires */
 
@@ -5369,6 +5567,271 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
           s_sch_view.zoom = 8000.0f;
      s_sch_view.pan_x = (nx0 + nx1) * 0.5f - canvas_size.x * 0.5f / s_sch_view.zoom;
      s_sch_view.pan_y = (ny0 + ny1) * 0.5f - canvas_size.y * 0.5f / (s_sch_view.zoom * HW_SCHEMATIC_ASPECT);
+}
+
+static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
+{
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+     if (n_total == 0)
+     {
+          ImGui::TextDisabled("Bus activity: sem eventos no buffer");
+          return;
+     }
+
+     static int s_bins = 96;
+     static bool s_show_events = false;
+     ImGui::TextDisabled("Bus activity");
+     ImGui::SameLine();
+     ImGui::SetNextItemWidth(120.0f);
+     ImGui::SliderInt("bins##bus_activity_bins", &s_bins, 32, 192);
+     ImGui::SameLine();
+     ImGui::Checkbox("events##bus_activity_events", &s_show_events);
+
+     const int bins = s_bins;
+     int bytes[HW_BUS_CLASS_COUNT][192] = {};
+     int events[HW_BUS_CLASS_COUNT][192] = {};
+     int total_bytes[HW_BUS_CLASS_COUNT] = {};
+     int total_events[HW_BUS_CLASS_COUNT] = {};
+
+     uint32_t newest_idx = (tr->head + GB_HW_TRACE_CAP - 1) & (GB_HW_TRACE_CAP - 1);
+     uint32_t oldest_idx = (tr->head + GB_HW_TRACE_CAP - n_total) & (GB_HW_TRACE_CAP - 1);
+     int32_t ts_min = tr->events[oldest_idx].timestamp;
+     int32_t ts_max = tr->events[newest_idx].timestamp;
+     int32_t ts_span = ts_max - ts_min;
+     if (ts_span <= 0)
+          ts_span = 1;
+
+     for (uint32_t i = 0; i < n_total; i++)
+     {
+          uint32_t idx = (oldest_idx + i) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          int ev_bytes = 0;
+          uint8_t mask = hw_bus_mask_for_event(ev, &ev_bytes);
+          if (!mask)
+               continue;
+          int bin = (int)(((int64_t)(ev->timestamp - ts_min) * bins) / (int64_t)(ts_span + 1));
+          if (bin < 0)
+               bin = 0;
+          if (bin >= bins)
+               bin = bins - 1;
+          for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
+          {
+               if (!(mask & (1u << c)))
+                    continue;
+               bytes[c][bin] += ev_bytes;
+               events[c][bin]++;
+               total_bytes[c] += ev_bytes;
+               total_events[c]++;
+          }
+     }
+
+     int max_v = 1;
+     for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
+     {
+          for (int b = 0; b < bins; b++)
+          {
+               int v = s_show_events ? events[c][b] : bytes[c][b];
+               if (v > max_v)
+                    max_v = v;
+          }
+     }
+
+     ImVec2 pos = ImGui::GetCursorScreenPos();
+     ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x, 146.0f);
+     ImDrawList *dl = ImGui::GetWindowDrawList();
+     dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(12, 14, 20, 235), 3.0f);
+     dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(70, 75, 92, 180), 3.0f);
+
+     float left_w = 76.0f;
+     float row_h = (size.y - 12.0f) / HW_BUS_CLASS_COUNT;
+     float graph_x0 = pos.x + left_w;
+     float graph_w = size.x - left_w - 8.0f;
+     float bar_w = graph_w / (float)bins;
+     for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
+     {
+          float y0 = pos.y + 6.0f + c * row_h;
+          float y1 = y0 + row_h - 2.0f;
+          dl->AddText(ImVec2(pos.x + 8.0f, y0 + 1.0f),
+                      HW_BUS_CLASS_META[c].color, HW_BUS_CLASS_META[c].name);
+          dl->AddLine(ImVec2(graph_x0, y1), ImVec2(graph_x0 + graph_w, y1),
+                      IM_COL32(45, 48, 62, 170), 1.0f);
+          for (int b = 0; b < bins; b++)
+          {
+               int v = s_show_events ? events[c][b] : bytes[c][b];
+               if (v <= 0)
+                    continue;
+               float h = ((float)v / (float)max_v) * (row_h - 5.0f);
+               float x0 = graph_x0 + b * bar_w;
+               float x1 = x0 + (bar_w > 1.5f ? bar_w - 1.0f : 1.0f);
+               dl->AddRectFilled(ImVec2(x0, y1 - h), ImVec2(x1, y1),
+                                 HW_BUS_CLASS_META[c].color, 1.0f);
+          }
+     }
+
+     ImGui::InvisibleButton("##bus_activity_graph", size);
+     if (ImGui::IsItemHovered())
+     {
+          ImVec2 m = ImGui::GetIO().MousePos;
+          int bin = (int)((m.x - graph_x0) / (bar_w > 1.0f ? bar_w : 1.0f));
+          if (bin >= 0 && bin < bins)
+          {
+               ImGui::BeginTooltip();
+               int32_t t0 = ts_min + (int32_t)(((int64_t)bin * ts_span) / bins);
+               int32_t t1 = ts_min + (int32_t)(((int64_t)(bin + 1) * ts_span) / bins);
+               ImGui::Text("bin %d  T:%d..%d", bin, t0, t1);
+               for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
+                    if (bytes[c][bin] || events[c][bin])
+                         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(HW_BUS_CLASS_META[c].color),
+                                            "%s: %d bytes, %d eventos",
+                                            HW_BUS_CLASS_META[c].name,
+                                            bytes[c][bin], events[c][bin]);
+               ImGui::EndTooltip();
+          }
+     }
+
+     float span_cycles = (float)ts_span;
+     for (int c = 0; c < HW_BUS_CLASS_COUNT; c++)
+     {
+          ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(HW_BUS_CLASS_META[c].color),
+                             "%s %.3f B/cyc",
+                             HW_BUS_CLASS_META[c].name,
+                             span_cycles > 0.0f ? (float)total_bytes[c] / span_cycles : 0.0f);
+          if (c + 1 < HW_BUS_CLASS_COUNT)
+               ImGui::SameLine();
+     }
+}
+
+static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
+{
+     static const char *const signal_names[] = {
+         "/RD", "/WR", "A15", "A14", "A13", "A12",
+         "D7", "D0", "DMA", "PPU", "IRQ", "SER",
+     };
+     static bool enabled[12] = {
+         true, true, true, true, false, false,
+         true, true, true, true, true, true,
+     };
+     static int sample_count = 192;
+
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+     ImGui::TextDisabled("Waveform");
+     ImGui::SameLine();
+     ImGui::SetNextItemWidth(120.0f);
+     ImGui::SliderInt("samples##wave_samples", &sample_count, 48, 384);
+
+     for (int i = 0; i < 12; i++)
+     {
+          ImGui::Checkbox(signal_names[i], &enabled[i]);
+          if (i + 1 < 12)
+               ImGui::SameLine();
+     }
+
+     int rows = 0;
+     for (int i = 0; i < 12; i++)
+          if (enabled[i])
+               rows++;
+     if (rows == 0 || n_total == 0)
+     {
+          ImGui::TextDisabled(rows == 0 ? "Nenhum sinal selecionado" : "Sem eventos no buffer");
+          return;
+     }
+
+     int samples = sample_count;
+     if (samples > (int)n_total)
+          samples = (int)n_total;
+     uint32_t start_idx = (tr->head + GB_HW_TRACE_CAP - (uint32_t)samples) & (GB_HW_TRACE_CAP - 1);
+
+     ImVec2 pos = ImGui::GetCursorScreenPos();
+     ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x, 20.0f + rows * 23.0f);
+     ImDrawList *dl = ImGui::GetWindowDrawList();
+     dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(10, 12, 18, 235), 3.0f);
+     dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(70, 75, 92, 180), 3.0f);
+
+     float label_w = 48.0f;
+     float x0 = pos.x + label_w;
+     float w = size.x - label_w - 8.0f;
+     float step = samples > 1 ? w / (float)(samples - 1) : w;
+     int row = 0;
+     for (int s = 0; s < 12; s++)
+     {
+          if (!enabled[s])
+               continue;
+          float y_mid = pos.y + 16.0f + row * 23.0f;
+          float y_hi = y_mid - 6.0f;
+          float y_lo = y_mid + 6.0f;
+          ImU32 col = (s < 2) ? IM_COL32(255, 180, 90, 235)
+                              : (s < 6) ? IM_COL32(95, 175, 255, 235)
+                                        : (s < 8) ? IM_COL32(100, 230, 130, 235)
+                                                  : IM_COL32(210, 170, 255, 235);
+
+          dl->AddText(ImVec2(pos.x + 8.0f, y_mid - 8.0f), col, signal_names[s]);
+          dl->AddLine(ImVec2(x0, y_mid), ImVec2(x0 + w, y_mid),
+                      IM_COL32(42, 45, 58, 180), 1.0f);
+
+          int last = 0;
+          bool have_last = false;
+          ImVec2 prev = ImVec2(x0, y_lo);
+          for (int i = 0; i < samples; i++)
+          {
+               uint32_t idx = (start_idx + (uint32_t)i) & (GB_HW_TRACE_CAP - 1);
+               const gb_hw_trace_event *ev = &tr->events[idx];
+               int v = hw_wave_signal_value(ev, s);
+               if (v < 0)
+                    v = have_last ? last : 0;
+               float x = x0 + i * step;
+               float y = v ? y_hi : y_lo;
+               if (!have_last)
+               {
+                    prev = ImVec2(x, y);
+                    have_last = true;
+               }
+               else
+               {
+                    if (y != prev.y)
+                    {
+                         dl->AddLine(prev, ImVec2(x, prev.y), col, 1.4f);
+                         dl->AddLine(ImVec2(x, prev.y), ImVec2(x, y), col, 1.4f);
+                    }
+                    else
+                    {
+                         dl->AddLine(prev, ImVec2(x, y), col, 1.4f);
+                    }
+                    prev = ImVec2(x, y);
+               }
+               last = v;
+          }
+          row++;
+     }
+
+     ImGui::InvisibleButton("##waveform_graph", size);
+     if (ImGui::IsItemHovered())
+     {
+          ImVec2 m = ImGui::GetIO().MousePos;
+          int sample = (int)((m.x - x0 + step * 0.5f) / (step > 1.0f ? step : 1.0f));
+          if (sample >= 0 && sample < samples)
+          {
+               uint32_t idx = (start_idx + (uint32_t)sample) & (GB_HW_TRACE_CAP - 1);
+               const gb_hw_trace_event *ev = &tr->events[idx];
+               const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+               ImGui::BeginTooltip();
+               ImGui::Text("%s  seq=%llu  T=%d",
+                           meta->name, (unsigned long long)ev->seq, ev->timestamp);
+               ImGui::TextDisabled("PC=%04X addr=%04X data=%02X op=%02X",
+                                   ev->pc, ev->addr, ev->data, ev->opcode);
+               for (int s = 0; s < 12; s++)
+               {
+                    if (!enabled[s])
+                         continue;
+                    int v = hw_wave_signal_value(ev, s);
+                    if (v >= 0)
+                    {
+                         ImGui::Text("%s=%d", signal_names[s], v);
+                         ImGui::SameLine();
+                    }
+               }
+               ImGui::EndTooltip();
+          }
+     }
 }
 
 void draw_panel_hw_schematic(struct gb *gb)
@@ -7065,34 +7528,6 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      struct gb_hw_trace *tr = &gb->debug.hw_trace;
 
-     /*  Metadata per event type (must match gb_hw_trace_event_type order)  */
-     struct EvtMeta
-     {
-          const char *name;
-          ImU32 color;
-          uint8_t subsystem;
-     };
-     /* subsystem bits: 0=CPU 1=PPU 2=DMA 3=Timer 4=APU 5=Input */
-     static const EvtMeta s_evt_meta[] = {
-         {"NONE", IM_COL32(100, 100, 100, 200), 0x3F},      /* GB_HW_EVT_NONE       */
-         {"FETCH", IM_COL32(120, 180, 255, 220), 1 << 0},   /* GB_HW_EVT_CPU_FETCH  */
-         {"READ", IM_COL32(80, 220, 110, 220), 1 << 0},     /* GB_HW_EVT_CPU_READ   */
-         {"WRITE", IM_COL32(255, 130, 60, 220), 1 << 0},    /* GB_HW_EVT_CPU_WRITE  */
-         {"IRQ_REQ", IM_COL32(220, 100, 255, 220), 1 << 0}, /* GB_HW_EVT_IRQ_REQUEST*/
-         {"IRQ_ACK", IM_COL32(255, 80, 80, 220), 1 << 0},   /* GB_HW_EVT_IRQ_ACK    */
-         {"DMA_RD", IM_COL32(160, 200, 255, 200), 1 << 2},  /* GB_HW_EVT_DMA_READ   */
-         {"DMA_WR", IM_COL32(255, 200, 100, 200), 1 << 2},  /* GB_HW_EVT_DMA_WRITE  */
-         {"PPU_MODE", IM_COL32(60, 210, 180, 200), 1 << 1}, /* GB_HW_EVT_PPU_MODE   */
-         {"APU_SMP", IM_COL32(255, 160, 60, 200), 1 << 4},  /* GB_HW_EVT_APU_SAMPLE */
-         {"VBLANK", IM_COL32(50, 255, 180, 230), 1 << 1},   /* GB_HW_EVT_PPU_VBLANK */
-         {"HBLANK", IM_COL32(30, 190, 130, 200), 1 << 1},   /* GB_HW_EVT_PPU_HBLANK */
-         {"OAM_DMA", IM_COL32(200, 230, 255, 210), 1 << 2}, /* GB_HW_EVT_OAM_DMA    */
-         {"TMR_OVF", IM_COL32(255, 220, 50, 230), 1 << 3},  /* GB_HW_EVT_TIMER_OVF  */
-         {"APU_WR", IM_COL32(255, 140, 0, 210), 1 << 4},    /* GB_HW_EVT_APU_WRITE  */
-         {"JOYPAD", IM_COL32(80, 255, 100, 220), 1 << 5},   /* GB_HW_EVT_JOYPAD     */
-     };
-     static const int s_evt_meta_count = (int)(sizeof(s_evt_meta) / sizeof(s_evt_meta[0]));
-
      /*  Controls row */
      ImGui::Separator();
      bool trace_on = tr->enabled;
@@ -7106,6 +7541,8 @@ void draw_panel_hw_schematic(struct gb *gb)
      {
           tr->head = 0;
           tr->count = 0;
+          s_hw_last_seq = 0;
+          hw_activity_reset(&s_hw_activity);
      }
 
      /* Subsystem filter toggles */
@@ -7156,6 +7593,12 @@ void draw_panel_hw_schematic(struct gb *gb)
           return;
      }
 
+     if (ImGui::CollapsingHeader("Bus activity visualizer", ImGuiTreeNodeFlags_DefaultOpen))
+          draw_hw_bus_activity_visualizer(tr);
+
+     if (ImGui::CollapsingHeader("Waveform viewer", ImGuiTreeNodeFlags_DefaultOpen))
+          draw_hw_waveform_viewer(tr);
+
      /* Selected event index (ring-buffer position from newest=0) */
      static int s_selected_ev = -1;
      /* Reset selection if it goes out of range after Clear */
@@ -7172,15 +7615,13 @@ void draw_panel_hw_schematic(struct gb *gb)
      {
           uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - i) & (GB_HW_TRACE_CAP - 1);
           const gb_hw_trace_event *ev = &tr->events[idx];
-          int t = (int)ev->type;
-          if (t < 0 || t >= s_evt_meta_count)
-               t = 0;
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
 
           /* Apply subsystem filter */
-          if (!(s_evt_meta[t].subsystem & s_filter_mask))
+          if (!(meta->subsystem & s_filter_mask))
                continue;
 
-          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
+          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(meta->color);
           bool selected = (s_selected_ev == (int)i);
 
           /* Selectable row */
@@ -7192,11 +7633,11 @@ void draw_panel_hw_schematic(struct gb *gb)
           snprintf(row_id, sizeof(row_id), "##ev%u", i);
 
           /* Type badge */
-          ImGui::TextColored(cv, "%-8s", s_evt_meta[t].name);
+          ImGui::TextColored(cv, "%-8s", meta->name);
           ImGui::SameLine();
 
           /* Per-type compact summary */
-          switch ((gb_hw_trace_event_type)t)
+          switch (ev->type)
           {
           case GB_HW_EVT_CPU_FETCH:
                ImGui::TextDisabled("PC:%04X  op:%02X", ev->pc, ev->opcode);
@@ -7268,21 +7709,19 @@ void draw_panel_hw_schematic(struct gb *gb)
      {
           uint32_t idx = (tr->head + GB_HW_TRACE_CAP - 1 - (uint32_t)s_selected_ev) & (GB_HW_TRACE_CAP - 1);
           const gb_hw_trace_event *ev = &tr->events[idx];
-          int t = (int)ev->type;
-          if (t < 0 || t >= s_evt_meta_count)
-               t = 0;
-          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(s_evt_meta[t].color);
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+          ImVec4 cv = ImGui::ColorConvertU32ToFloat4(meta->color);
 
           ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(cv.x * 0.12f, cv.y * 0.12f, cv.z * 0.12f, 0.5f));
           ImGui::BeginChild("##hw_trace_detail", ImVec2(0, 100), true);
 
-          ImGui::TextColored(cv, "%s", s_evt_meta[t].name);
+          ImGui::TextColored(cv, "%s", meta->name);
           ImGui::SameLine();
           ImGui::TextDisabled("seq:#%llu  T:%d", (unsigned long long)ev->seq, ev->timestamp);
 
           ImGui::Separator();
 
-          switch ((gb_hw_trace_event_type)t)
+          switch (ev->type)
           {
           case GB_HW_EVT_CPU_FETCH:
                ImGui::Text("PC   = %04X", ev->pc);

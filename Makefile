@@ -123,10 +123,6 @@ GBA_MEMORY_TEST_DEP  = $(GBA_MEMORY_TEST_OBJ:.o=.d)
 SIMPLE_NAME = gameboy-simple
 SIMPLE_OBJ  = $(BUILD_APP_DIR)/main_simple.o $(CORE_OBJ)
 
-# Frontend com visualizador de esquemático de hardware integrado
-HW_NAME = gameboy-hardware
-HW_OBJ  = $(BUILD_APP_DIR)/main_hardware.o $(CORE_OBJ)
-
 # Frontend com renderização vetorial (sem rasterização tile nativa)
 VEC_NAME = gameboy-vector
 VEC_OBJ  = $(BUILD_APP_DIR)/main_vector.o $(CORE_OBJ)
@@ -153,24 +149,19 @@ SM83_VALIDATE_OBJ  = $(BUILD_TEST_DIR)/sm83_netlist_validate.o \
 SM83_VALIDATE_DEP  = $(SM83_VALIDATE_OBJ:.o=.d)
 
 SIMPLE_DEP  = $(SIMPLE_OBJ:.o=.d)
-HW_DEP      = $(HW_OBJ:.o=.d)
 VEC_DEP     = $(VEC_OBJ:.o=.d)
 GBA_VEC_DEP = $(GBA_VEC_OBJ:.o=.d)
 TESTER_DEP = $(TESTER_OBJ:.o=.d)
 COMPAT_DEP = $(COMPAT_OBJ:.o=.d)
 GBA_DEP    = $(GBA_CORE_DEP) $(GBA_UI_DEP)
 # DEP agrega todos os .d de todos os alvos; -include abaixo os carrega sem erro se ausentes
-DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(HW_DEP) $(VEC_DEP) $(GBA_VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP) $(GBA_MEMORY_TEST_DEP)
+DEP        = $(APP_DEP) $(CORE_DEP) $(UI_DEP) $(SIMPLE_DEP) $(VEC_DEP) $(GBA_VEC_DEP) $(TESTER_DEP) $(COMPAT_DEP) $(GBA_DEP) $(SM83_VALIDATE_DEP) $(GBA_MEMORY_TEST_DEP)
 
 $(NAME) : $(OBJ)
 	$(info LD $@)
 	$(CC_CXX) -o $@ $^ $(LDFLAGS)
 
 $(SIMPLE_NAME) : $(SIMPLE_OBJ)
-	$(info LD $@)
-	$(CC_C) -o $@ $^ $(LDFLAGS) -lm
-
-$(HW_NAME) : $(HW_OBJ)
 	$(info LD $@)
 	$(CC_C) -o $@ $^ $(LDFLAGS) -lm
 
@@ -254,7 +245,7 @@ clean:
 	$(info CLEAN $(NAME))
 	rm -rf $(BUILD_DIR)
 	rm -f *.o *.d imgui/*.o imgui/*.d imgui/backends/*.o imgui/backends/*.d
-	rm -f $(NAME) $(SIMPLE_NAME) $(HW_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(GBA_MEMORY_TEST_NAME) $(SM83_VALIDATE_NAME)
+	rm -f $(NAME) $(SIMPLE_NAME) $(VEC_NAME) $(GBA_VEC_NAME) $(TESTER_NAME) $(COMPAT_NAME) $(GBA_NAME) $(GBA_COMPAT_NAME) $(GBA_MEMORY_TEST_NAME) $(SM83_VALIDATE_NAME)
 
 # --no-build: evita recompilar dentro do script Python; o Make já garantiu o binário
 compat-run: $(COMPAT_NAME)

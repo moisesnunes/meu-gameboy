@@ -58,6 +58,24 @@ static void gb_spu_frequency_reload(struct gb_spu_divider *f)
      f->counter = 2 * (0x800U - f->offset);
 }
 
+static void gb_spu_square_frequency_reload(struct gb_spu_divider *f)
+{
+     f->counter = 4 * (0x800U - f->offset);
+}
+
+static void gb_spu_square_trigger_reload(struct gb_spu_divider *f,
+                                         bool was_running)
+{
+     gb_spu_square_frequency_reload(f);
+     f->counter += was_running ? 8 : 12;
+}
+
+static void gb_spu_frequency_reload_scaled(struct gb_spu_divider *f,
+                                           unsigned scale)
+{
+     f->counter = scale * (0x800U - f->offset);
+}
+
 static void gb_spu_lfsr_counter_reload(struct gb_spu_nr4 *nr4)
 {
      /* Período do LFSR = divisor base × 2^(shift+1). Divisor 0 usa base 4, demais usam 8×div. */
@@ -117,6 +135,7 @@ void gb_spu_reset(struct gb *gb)
      spu->nr1.duration.enable = false;
      spu->nr1.duration.counter = 0;
      spu->nr1.wave.duty_cycle = 2;
+     spu->nr1.wave.sample_suppressed = false;
      spu->nr1.envelope_config = 0xf3;
      spu->nr1.envelope.value = 0;
      spu->nr1.envelope.step_duration = 0;
@@ -124,7 +143,7 @@ void gb_spu_reset(struct gb *gb)
      spu->nr1.envelope.running = false;
 
      spu->nr1.sweep.divider.offset = 0;
-     gb_spu_frequency_reload(&spu->nr1.sweep.divider);
+     gb_spu_square_frequency_reload(&spu->nr1.sweep.divider);
      gb_spu_sweep_reload(&spu->nr1.sweep, 0);
      spu->nr1.sweep.enable = false;
      spu->nr1.sweep.counter = 0;
@@ -136,6 +155,7 @@ void gb_spu_reset(struct gb *gb)
      spu->nr2.duration.enable = false;
      spu->nr2.duration.counter = 0;
      spu->nr2.wave.duty_cycle = 0;
+     spu->nr2.wave.sample_suppressed = false;
      spu->nr2.envelope_config = 0;
      spu->nr2.envelope.value = 0;
      spu->nr2.envelope.step_duration = 0;
@@ -143,7 +163,7 @@ void gb_spu_reset(struct gb *gb)
      spu->nr2.envelope.running = false;
 
      spu->nr2.divider.offset = 0;
-     gb_spu_frequency_reload(&spu->nr2.divider);
+     gb_spu_square_frequency_reload(&spu->nr2.divider);
 
      /* NR3 reset */
      spu->nr3.enable = false;
@@ -291,8 +311,9 @@ static bool gb_spu_duration_clock(struct gb_spu_duration *d)
 
 /* Avança o divisor de frequência por `cycles` T-cycles.
  * Retorna quantas vezes o contador chegou a zero (= quantos ticks de onda ocorreram). */
-static unsigned gb_spu_frequency_update(struct gb_spu_divider *f,
-                                        unsigned cycles)
+static unsigned gb_spu_frequency_update_scaled(struct gb_spu_divider *f,
+                                               unsigned cycles,
+                                               unsigned scale)
 {
      unsigned count = 0;
 
@@ -307,7 +328,36 @@ static unsigned gb_spu_frequency_update(struct gb_spu_divider *f,
           {
                count++;
                cycles -= f->counter;
-               gb_spu_frequency_reload(f);
+               gb_spu_frequency_reload_scaled(f, scale);
+          }
+     }
+
+     return count;
+}
+
+static unsigned gb_spu_frequency_update(struct gb_spu_divider *f,
+                                        unsigned cycles)
+{
+     return gb_spu_frequency_update_scaled(f, cycles, 2);
+}
+
+static unsigned gb_spu_square_frequency_update(struct gb_spu_divider *f,
+                                               unsigned cycles)
+{
+     unsigned count = 0;
+
+     while (cycles)
+     {
+          if (f->counter > cycles)
+          {
+               f->counter -= cycles;
+               break;
+          }
+          else
+          {
+               count++;
+               cycles -= f->counter;
+               gb_spu_square_frequency_reload(f);
           }
      }
 
@@ -405,6 +455,15 @@ static uint8_t gb_spu_next_wave_sample(struct gb_spu_rectangle_wave *wave,
 
      wave->phase = (wave->phase + phase_steps) % GB_SPU_NPHASES;
 
+     if (wave->sample_suppressed)
+     {
+          if (phase_steps == 0)
+          {
+               return 0;
+          }
+          wave->sample_suppressed = false;
+     }
+
      return waveforms[wave->duty_cycle][wave->phase];
 }
 
@@ -486,7 +545,7 @@ static int16_t gb_spu_next_nr1_sample(struct gb *gb, unsigned cycles)
           return 0;
      }
 
-     sound_cycles = gb_spu_frequency_update(&spu->nr1.sweep.divider, cycles);
+     sound_cycles = gb_spu_square_frequency_update(&spu->nr1.sweep.divider, cycles);
 
      sample = gb_spu_next_wave_sample(&spu->nr1.wave, sound_cycles);
      spu->pcm[0] = sample ? spu->nr1.envelope.value : 0;
@@ -506,7 +565,7 @@ static int16_t gb_spu_next_nr2_sample(struct gb *gb, unsigned cycles)
           return 0;
      }
 
-     sound_cycles = gb_spu_frequency_update(&spu->nr2.divider, cycles);
+     sound_cycles = gb_spu_square_frequency_update(&spu->nr2.divider, cycles);
 
      sample = gb_spu_next_wave_sample(&spu->nr2.wave, sound_cycles);
      spu->pcm[1] = sample ? spu->nr2.envelope.value : 0;
@@ -856,25 +915,29 @@ void gb_spu_nr1_start(struct gb *gb)
 {
      struct gb_spu *spu = &gb->spu;
      bool sweep_overflow;
+     bool was_running = spu->nr1.running;
 
-     gb_spu_frequency_reload(&spu->nr1.sweep.divider);
+     gb_spu_square_trigger_reload(&spu->nr1.sweep.divider, was_running);
      gb_spu_envelope_init(&spu->nr1.envelope, spu->nr1.envelope_config);
      gb_spu_duration_trigger(gb, &spu->nr1.duration, GB_SPU_LENGTH_STEP_NR1);
 
      sweep_overflow = gb_spu_sweep_init(&spu->nr1.sweep);
      spu->nr1.running = gb_spu_envelope_dac_enabled(spu->nr1.envelope_config) &&
                         !sweep_overflow;
+     spu->nr1.wave.sample_suppressed = spu->nr1.running && !was_running;
 }
 
 void gb_spu_nr2_start(struct gb *gb)
 {
      struct gb_spu *spu = &gb->spu;
+     bool was_running = spu->nr2.running;
 
-     gb_spu_frequency_reload(&spu->nr2.divider);
+     gb_spu_square_trigger_reload(&spu->nr2.divider, was_running);
      gb_spu_envelope_init(&spu->nr2.envelope, spu->nr2.envelope_config);
      gb_spu_duration_trigger(gb, &spu->nr2.duration, GB_SPU_LENGTH_STEP_NR2);
 
      spu->nr2.running = gb_spu_envelope_dac_enabled(spu->nr2.envelope_config);
+     spu->nr2.wave.sample_suppressed = spu->nr2.running && !was_running;
 }
 
 void gb_spu_nr3_start(struct gb *gb)

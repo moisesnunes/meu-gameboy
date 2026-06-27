@@ -82,10 +82,11 @@ struct gb_spu_sweep
 
 struct gb_spu_rectangle_wave
 {
-     /* Fase atual no ciclo de 16 passos (0–15) */
+     /* Fase atual no ciclo de 8 passos (0–7) */
      uint8_t phase;
      /* Índice do duty cycle: 0=1/8, 1=1/4, 2=1/2, 3=3/4 */
      uint8_t duty_cycle;
+     bool sample_suppressed;
 };
 
 struct gb_spu_envelope
