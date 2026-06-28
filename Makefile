@@ -66,7 +66,8 @@ HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/lcd_schematic_data.
                hw_schematic/hw_schematic_dataset.c \
                hw_schematic/hw_schematic_view.c \
                hw_schematic/hw_schematic_map.c hw_schematic/hw_schematic_trace.c \
-               hw_schematic/hw_schematic_pins.c hw_schematic/hw_schematic_graph.c
+               hw_schematic/hw_schematic_pins.c hw_schematic/hw_schematic_graph.c \
+               hw_schematic/lcd_schematic_map.c
 
 # Núcleo GB/GBC: compartilhado por todos os frontends e ferramentas de teste
 # (exclui sdl.c e state.c que dependem de SDL3/ImGui)

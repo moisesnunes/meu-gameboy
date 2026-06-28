@@ -1,6 +1,7 @@
 /* hw_schematic_dataset.c — Dataset instances for each supported board. */
 #include "hw_schematic_dataset.h"
 #include "lcd_schematic_data.h"
+#include "lcd_schematic_map.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -66,9 +67,9 @@ HwSchematicDataset hw_dataset_lcd = {
     .label_count     = LCD_LABEL_COUNT,
     .junctions       = lcd_junctions,
     .junction_count  = LCD_JUNCTION_COUNT,
-    .net_map         = NULL,
-    .net_map_count   = 0,
-    .component_map   = NULL,
+    .net_map             = lcd_net_map,
+    .net_map_count       = 0, /* patched below */
+    .component_map       = lcd_component_map,
     .component_map_count = 0,
 };
 
@@ -79,6 +80,8 @@ static void datasets_init(void)
     if (s_datasets_init) return;
     hw_dataset_dmg.net_map_count       = dmg_net_map_n();
     hw_dataset_dmg.component_map_count = dmg_comp_map_n();
+    hw_dataset_lcd.net_map_count       = lcd_net_map_count;
+    hw_dataset_lcd.component_map_count = lcd_component_map_count;
     s_datasets_init = true;
 }
 

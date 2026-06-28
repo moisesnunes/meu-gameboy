@@ -27,6 +27,8 @@ extern "C"
 #include "hw_schematic_trace.h"
 #include "hw_schematic_pins.h"
 #include "hw_schematic_graph.h"
+#include "lcd_schematic_data.h"
+#include "lcd_schematic_map.h"
 }
 
 #include "debug_ui_actions.h"
@@ -6025,6 +6027,9 @@ enum SchStatusLayer
      SCH_STATUS_COUNT
 };
 
+/* Board selector — 0=DMG Main, 1=DMG LCD */
+static int s_sch_board_idx = 0;
+
 /* Frozen frame */
 static bool s_sch_frozen = false;
 static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
@@ -6582,7 +6587,8 @@ static ImU32 sch_wire_color_heat(const HwSchematicDataset *ds, int net_id)
      return IM_COL32(r, g, b, a);
 }
 
-static void sch_component_reference_body(const HwComponent *comp,
+static void sch_component_reference_body(const HwSchematicDataset *ds,
+                                         const HwComponent *comp,
                                          float *nx, float *ny,
                                          float *nw, float *nh)
 {
@@ -6590,6 +6596,42 @@ static void sch_component_reference_body(const HwComponent *comp,
      *ny = comp->ny;
      *nw = comp->nw;
      *nh = comp->nh;
+
+     if (ds != &hw_dataset_dmg)
+     {
+          if (ds == &hw_dataset_lcd)
+          {
+               char prefix = comp->ref[0];
+               if (strncmp(comp->ref, "TP", 2) == 0 ||
+                   prefix == 'C' || prefix == 'R' || prefix == 'D' ||
+                   prefix == 'Q' || prefix == 'E' || strcmp(comp->ref, "LS1") == 0)
+               {
+                    *nw = 0.024000f;
+                    *nh = 0.034000f;
+               }
+               else if (strcmp(comp->ref, "J1") == 0 || strcmp(comp->ref, "J2") == 0)
+               {
+                    *nw = 0.048000f;
+                    *nh = 0.062000f;
+               }
+               else if (strcmp(comp->ref, "U1") == 0)
+               {
+                    *nw = 0.054000f;
+                    *nh = 0.074000f;
+               }
+               else if (strcmp(comp->ref, "U2") == 0 || strcmp(comp->ref, "U3") == 0)
+               {
+                    *nw = 0.056000f;
+                    *nh = 0.080000f;
+               }
+               else if (strncmp(comp->ref, "SW", 2) == 0)
+               {
+                    *nw = 0.052000f;
+                    *nh = 0.066000f;
+               }
+          }
+          return;
+     }
 
      if (strcmp(comp->ref, "U1") == 0)
      {
@@ -7405,7 +7447,40 @@ static void draw_hw_waveform_viewer(const HwSchematicDataset *ds, const struct g
 
 void draw_panel_hw_schematic(struct gb *gb)
 {
-     const HwSchematicDataset *ds = hw_schematic_dataset_for_gb(gb);
+     (void)hw_schematic_dataset_for_gb(gb); /* initializes all dataset map counts */
+
+     /* Board tab bar — must come before any other widgets */
+     {
+          static const char *board_labels[] = { "DMG Main Board", "LCD Board" };
+          static const HwSchematicDataset *board_datasets[] = { &hw_dataset_dmg, &hw_dataset_lcd };
+          ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 4));
+          if (ImGui::BeginTabBar("##sch_boards"))
+          {
+               for (int bi = 0; bi < 2; bi++)
+               {
+                    ImGuiTabItemFlags flags = (bi == s_sch_board_idx) ? ImGuiTabItemFlags_None : 0;
+                    if (ImGui::BeginTabItem(board_labels[bi], nullptr, flags))
+                    {
+                         if (bi != s_sch_board_idx)
+                         {
+                              s_sch_board_idx = bi;
+                              hw_graph_invalidate();
+                              s_sch_view_init = false; /* re-fit to new board */
+                              s_hw_activity_init = false;
+                              memset(s_heat_count, 0, sizeof(s_heat_count));
+                              s_heat_max = 1;
+                         }
+                         (void)board_datasets[bi]; /* used below via s_sch_board_idx */
+                         ImGui::EndTabItem();
+                    }
+               }
+               ImGui::EndTabBar();
+          }
+          ImGui::PopStyleVar();
+     }
+
+     static const HwSchematicDataset *s_board_table[] = { &hw_dataset_dmg, &hw_dataset_lcd };
+     const HwSchematicDataset *ds = s_board_table[s_sch_board_idx];
 
      float dt = ImGui::GetIO().DeltaTime;
 
@@ -8414,7 +8489,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           {
                const HwComponent *comp = &ds->components[i];
                float comp_nx, comp_ny, comp_nw, comp_nh;
-               sch_component_reference_body(comp, &comp_nx, &comp_ny, &comp_nw, &comp_nh);
+               sch_component_reference_body(ds, comp, &comp_nx, &comp_ny, &comp_nw, &comp_nh);
                float cx = SX(comp_nx);
                float cy = SY(comp_ny);
                float hw2 = cache.scale_x * comp_nw * 0.5f;
@@ -8696,8 +8771,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                     dl->AddRectFilled(tl, br, fill, 3.0f);
                     dl->AddRect(tl, br, border, 3.0f, 0, bthick);
 
-                    /*  Pin grouping stripes for U1/U2/U3 (zoom > 300)  */
-                    if (zoom > 300.0f && comp_nh >= 0.10f)
+                    /*  Pin grouping stripes for DMG U1/U2/U3 (zoom > 300)  */
+                    if (ds == &hw_dataset_dmg && zoom > 300.0f && comp_nh >= 0.10f)
                     {
                          struct PinGroup
                          {
@@ -8761,8 +8836,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                          }
                     }
 
-                    /* ── U1 pin stubs from hw_u1_pins table (zoom > 400) ── */
-                    if (strcmp(comp->ref, "U1") == 0 && zoom > 400.0f)
+                    /* ── DMG U1 pin stubs from hw_u1_pins table (zoom > 400) ── */
+                    if (ds == &hw_dataset_dmg && strcmp(comp->ref, "U1") == 0 && zoom > 400.0f)
                     {
                          float box_w = br.x - tl.x;
                          float box_h = br.y - tl.y;
@@ -8840,13 +8915,48 @@ void draw_panel_hw_schematic(struct gb *gb)
                     if (zoom > 80.0f)
                     {
                          dl->AddText(ImVec2(tl.x + 4, tl.y + 3), IM_COL32(230, 235, 255, 240), comp->ref);
-                         if (zoom > 200.0f)
+                         bool compact_lcd_component =
+                             ds == &hw_dataset_lcd &&
+                             ((br.x - tl.x) < 34.0f || (br.y - tl.y) < 28.0f) &&
+                             !hovered && !selected;
+                         if (zoom > 200.0f && !compact_lcd_component)
                               dl->AddText(ImVec2(tl.x + 4, tl.y + 16), IM_COL32(160, 175, 190, 190), comp->value);
                     }
                }
 
                if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                    s_sch_sel_comp = selected ? -1 : i;
+               {
+                    bool crosslinked = false;
+                    if (s_sch_board_idx == 0 && strcmp(comp->ref, "J2") == 0)
+                    {
+                         s_sch_board_idx = 1;
+                         hw_graph_invalidate();
+                         s_sch_view_init = false;
+                         s_hw_activity_init = false;
+                         memset(s_heat_count, 0, sizeof(s_heat_count));
+                         s_heat_max = 1;
+                         s_sch_sel_net = -1;
+                         s_sch_sel_comp = -1;
+                         crosslinked = true;
+                    }
+                    else if (s_sch_board_idx == 1 &&
+                             (strcmp(comp->ref, "J1") == 0 ||
+                              strcmp(comp->ref, "J2") == 0 ||
+                              strcmp(comp->ref, "A1") == 0))
+                    {
+                         s_sch_board_idx = 0;
+                         hw_graph_invalidate();
+                         s_sch_view_init = false;
+                         s_hw_activity_init = false;
+                         memset(s_heat_count, 0, sizeof(s_heat_count));
+                         s_heat_max = 1;
+                         s_sch_sel_net = -1;
+                         s_sch_sel_comp = 11; /* J2 on DMG main board */
+                         crosslinked = true;
+                    }
+                    if (!crosslinked)
+                         s_sch_sel_comp = selected ? -1 : i;
+               }
           }
      }
 
@@ -8864,7 +8974,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                dl->AddText(ImVec2(tb_tl.x + 4, tb_tl.y + 4),
                            IM_COL32(20, 20, 80, 230), "Original Game Boy (DMG)");
                dl->AddText(ImVec2(tb_tl.x + 4, tb_tl.y + 20),
-                           IM_COL32(80, 40, 10, 200), "DMG-CPU-06  CC-BY 4.0, Gekkio");
+                           IM_COL32(80, 40, 10, 200), ds->source);
           }
      }
 
@@ -8944,7 +9054,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                float mnx = (mouse.x - cache.origin_x) / cache.scale_x;
                float mny = (mouse.y - cache.origin_y) / cache.scale_y;
                float comp_nx2, comp_ny2, comp_nw2, comp_nh2;
-               sch_component_reference_body(comp, &comp_nx2, &comp_ny2, &comp_nw2, &comp_nh2);
+               sch_component_reference_body(ds, comp, &comp_nx2, &comp_ny2, &comp_nw2, &comp_nh2);
                float half_w = comp_nw2 * 0.5f;
                float half_h = comp_nh2 * 0.5f;
 
@@ -9023,7 +9133,7 @@ void draw_panel_hw_schematic(struct gb *gb)
      }
      else
      {
-          ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique wire/comp=selecionar  |  DMG-CPU-06  (CC-BY 4.0, Gekkio)");
+          ImGui::TextDisabled("Scroll=zoom  Arraste=pan  Clique wire/comp=selecionar  |  %s  (CC-BY 4.0, Gekkio)", ds->source);
      }
      ImGui::SameLine();
      ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 20);

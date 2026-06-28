@@ -1218,7 +1218,7 @@ static void draw_main_menu(struct gb *gb)
                     ImGui::SetTooltip("Visualizador fisico do die SM83/LR35902\ncom transistores individuais extraidos do dmg-schematics.");
                ImGui::MenuItem("HW Schematic", nullptr, &s_show_hw_schematic);
                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Esquematico do hardware do Game Boy DMG\nextraido de gb-schematics (Gekkio, CC-BY 4.0).\nComponentes com highlight de atividade em tempo real.");
+                    ImGui::SetTooltip("Esquematicos do DMG Main Board e LCD Board\nextraidos de gb-schematics (Gekkio, CC-BY 4.0).\nComponentes com highlight de atividade em tempo real.");
                ImGui::EndMenu();
           }
 
@@ -1916,7 +1916,7 @@ extern "C" void debug_ui_render(struct gb *gb)
                if (s_show_hw_schematic)
                {
                     ImGui::SetNextWindowSize(ImVec2(900, 660), ImGuiCond_FirstUseEver);
-                    ImGui::Begin("HW Schematic - DMG", &s_show_hw_schematic);
+                    ImGui::Begin("HW Schematic", &s_show_hw_schematic);
                     draw_panel_hw_schematic(gb);
                     ImGui::End();
                }
