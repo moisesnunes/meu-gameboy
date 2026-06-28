@@ -5319,8 +5319,28 @@ static HwSchematicActivityState s_hw_activity;
 static bool s_hw_activity_init = false;
 static uint64_t s_hw_last_seq = 0; /* highest event seq consumed */
 
+/* Heatmap persistente: conta hits por net desde o último Clear.
+ * s_heat_max é recalculado a cada frame para normalizar a escala. */
+static uint32_t s_heat_count[HW_NET_COUNT];
+static uint32_t s_heat_max = 1;
+static bool     s_sch_show_heat = false;
+
+/* Pulse propagation: frente luminosa por segmento de fio.
+ * wire_pulse_t[i]: tempo restante da frente neste fio (segundos); 0 = inativo.
+ * wire_pulse_col[i]: cor da frente (determinada pelo tipo do evento que disparou). */
+#define WIRE_PULSE_DURATION 0.18f   /* duração total da frente em segundos */
+#define WIRE_PULSE_SPEED    4.5f    /* fios por segundo que a frente avança no BFS */
+static float  s_wire_pulse_t[HW_WIRE_COUNT];
+static ImU32  s_wire_pulse_col[HW_WIRE_COUNT];
+static uint64_t s_wire_pulse_last_seq = 0;
+
+#define WIRE_PULSE_MAX_EVENTS_PER_FRAME 64
+
 /* Per-animation-group fade value (driven by sys_viz each frame) */
 static float s_sch_anim_fade[HW_ANIM_GROUP_COUNT] = {};
+
+static void hw_schematic_set_live_mode(void);
+static void hw_schematic_clear_wire_pulses(void);
 
 /* Idle color for each anim group (inactive state) */
 static const ImU32 SCH_IDLE_COLOR[HW_ANIM_GROUP_COUNT] = {
@@ -5566,6 +5586,7 @@ static int global_timeline_lane_for_event(gb_hw_trace_event_type type)
           return GT_PPU;
      case GB_HW_EVT_IRQ_REQUEST:
      case GB_HW_EVT_IRQ_ACK:
+     case GB_HW_EVT_TIMER_OVF:
           return GT_IRQ;
      case GB_HW_EVT_APU_SAMPLE:
      case GB_HW_EVT_APU_WRITE:
@@ -5667,6 +5688,10 @@ void draw_panel_global_timeline(struct gb *gb)
      {
           tr->head = 0;
           tr->count = 0;
+          s_hw_last_seq = 0;
+          hw_activity_reset(&s_hw_activity);
+          hw_schematic_clear_wire_pulses();
+          hw_schematic_set_live_mode();
           debug_selection_clear();
           n_total = 0;
      }
@@ -5951,10 +5976,49 @@ static bool hw_event_touches_net(const gb_hw_trace_event *ev, int net_id)
      return hw_net_level_for_event(ev, net_id) >= 0;
 }
 
+static int hw_event_collect_touched_nets(const gb_hw_trace_event *ev, int *out, int out_cap)
+{
+     int n = 0;
+     for (int mi = 0; mi < hw_net_map_count; mi++)
+     {
+          int nid = hw_net_map[mi].net_id;
+          if (nid < 0 || nid >= HW_NET_COUNT || !hw_event_touches_net(ev, nid))
+               continue;
+
+          bool duplicate = false;
+          for (int i = 0; i < n; i++)
+          {
+               if (out[i] == nid)
+               {
+                    duplicate = true;
+                    break;
+               }
+          }
+          if (duplicate)
+               continue;
+
+          if (n < out_cap)
+               out[n++] = nid;
+     }
+     return n;
+}
+
 static bool s_sch_show_kinds = true;
 static bool s_sch_show_levels = true; /* net 0/1 labels on wires */
 static bool s_sch_trace_pane_open = false;
 static bool s_sch_net_timeline_open = false;
+static bool s_sch_net_inspector_open = true;
+static uint16_t s_sch_status_focus_mask = 0; /* 0 = all layers visible */
+
+enum SchStatusLayer
+{
+     SCH_STATUS_CPU = 0,
+     SCH_STATUS_PPU,
+     SCH_STATUS_DMA,
+     SCH_STATUS_APU,
+     SCH_STATUS_IRQ,
+     SCH_STATUS_COUNT
+};
 
 /* Frozen frame */
 static bool s_sch_frozen = false;
@@ -5968,6 +6032,492 @@ static void hw_schematic_set_live_mode(void)
      s_sch_replay_cursor = -1;
      s_sch_replay_dirty = false;
      s_sch_frozen = false;
+}
+
+static void hw_schematic_clear_wire_pulses(void)
+{
+     memset(s_wire_pulse_t, 0, sizeof(s_wire_pulse_t));
+     memset(s_wire_pulse_col, 0, sizeof(s_wire_pulse_col));
+     s_wire_pulse_last_seq = 0;
+}
+
+static int sch_status_layer_for_event(gb_hw_trace_event_type type)
+{
+     switch (type)
+     {
+     case GB_HW_EVT_CPU_FETCH:
+     case GB_HW_EVT_CPU_READ:
+     case GB_HW_EVT_CPU_WRITE:
+     case GB_HW_EVT_CPU_ALU:
+     case GB_HW_EVT_CPU_WRITEBACK:
+     case GB_HW_EVT_MBC_SWITCH:
+          return SCH_STATUS_CPU;
+     case GB_HW_EVT_PPU_MODE:
+     case GB_HW_EVT_PPU_VBLANK:
+     case GB_HW_EVT_PPU_HBLANK:
+          return SCH_STATUS_PPU;
+     case GB_HW_EVT_DMA_READ:
+     case GB_HW_EVT_DMA_WRITE:
+     case GB_HW_EVT_OAM_DMA:
+          return SCH_STATUS_DMA;
+     case GB_HW_EVT_APU_SAMPLE:
+     case GB_HW_EVT_APU_WRITE:
+          return SCH_STATUS_APU;
+     case GB_HW_EVT_IRQ_REQUEST:
+     case GB_HW_EVT_IRQ_ACK:
+     case GB_HW_EVT_TIMER_OVF:
+          return SCH_STATUS_IRQ;
+     default:
+          return -1;
+     }
+}
+
+static bool sch_net_matches_status_focus(int net_id, const HwSchematicActivityState *act)
+{
+     if (s_sch_status_focus_mask == 0)
+          return true;
+     if (net_id < 0 || net_id >= HW_NET_COUNT)
+          return false;
+
+     if (act && act->net_fade[net_id] > 0.01f)
+     {
+          int live_layer = sch_status_layer_for_event(act->net_last_type[net_id]);
+          if (live_layer >= 0 && (s_sch_status_focus_mask & (uint16_t)(1u << live_layer)))
+               return true;
+     }
+
+     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     if (!sem)
+          return false;
+
+     switch (sem->kind)
+     {
+     case HW_SIG_ADDR:
+     case HW_SIG_DATA:
+     case HW_SIG_CTRL_RD:
+     case HW_SIG_CTRL_WR:
+     case HW_SIG_CTRL_CS:
+     case HW_SIG_CLOCK:
+     case HW_SIG_WRAM_ADDR:
+     case HW_SIG_WRAM_DATA:
+     case HW_SIG_JOYPAD:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_CPU)) != 0;
+     case HW_SIG_LCD:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_PPU)) != 0;
+     case HW_SIG_AUDIO:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_APU)) != 0;
+     case HW_SIG_IRQ:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_IRQ)) != 0;
+     case HW_SIG_SERIAL:
+          return false;
+     default:
+          return false;
+     }
+}
+
+static bool sch_component_matches_status_focus(int comp_id, const HwSchematicActivityState *act)
+{
+     if (s_sch_status_focus_mask == 0)
+          return true;
+     if (comp_id < 0 || comp_id >= HW_COMPONENT_COUNT)
+          return false;
+
+     if (act && act->comp_fade[comp_id] > 0.01f)
+     {
+          int live_layer = sch_status_layer_for_event(act->comp_last_type[comp_id]);
+          if (live_layer >= 0 && (s_sch_status_focus_mask & (uint16_t)(1u << live_layer)))
+               return true;
+     }
+
+     const HwComponentSemantic *sem = hw_map_find_component(comp_id);
+     if (!sem)
+          return false;
+
+     switch (sem->kind)
+     {
+     case HW_COMP_CPU:
+     case HW_COMP_CART:
+     case HW_COMP_WRAM:
+     case HW_COMP_TIMER_CLOCK:
+     case HW_COMP_JOYPAD:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_CPU)) != 0;
+     case HW_COMP_VRAM:
+     case HW_COMP_PPU_LCD:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_PPU)) != 0;
+     case HW_COMP_APU_AUDIO:
+          return (s_sch_status_focus_mask & (uint16_t)(1u << SCH_STATUS_APU)) != 0;
+     default:
+          return false;
+     }
+}
+
+static const char *sch_ppu_mode_name(uint8_t mode)
+{
+     switch (mode & 3u)
+     {
+     case 0:
+          return "HBLANK";
+     case 1:
+          return "VBLANK";
+     case 2:
+          return "OAM";
+     case 3:
+          return "XFER";
+     default:
+          return "PPU";
+     }
+}
+
+typedef struct
+{
+     const char *label;
+     char detail[16];
+     float fade;
+     int recent_count;
+     int recent_bytes;
+     ImU32 color;
+     const gb_hw_trace_event *last_ev;
+} SchStatusChip;
+
+static void draw_hw_status_strip(struct gb *gb,
+                                 const HwSchematicActivityState *act)
+{
+     if (!gb)
+          return;
+
+     const struct gb_hw_trace *tr = &gb->debug.hw_trace;
+     SchStatusChip chips[SCH_STATUS_COUNT] = {
+         {"CPU", "idle", 0.0f, 0, 0, IM_COL32(80, 160, 255, 255), nullptr},
+         {"PPU", "idle", 0.0f, 0, 0, IM_COL32(60, 210, 180, 255), nullptr},
+         {"DMA", "idle", 0.0f, 0, 0, IM_COL32(200, 80, 255, 255), nullptr},
+         {"APU", "idle", 0.0f, 0, 0, IM_COL32(255, 160, 60, 255), nullptr},
+         {"IRQ", "idle", 0.0f, 0, 0, IM_COL32(255, 60, 60, 255), nullptr},
+     };
+
+     if (act)
+     {
+          for (int i = 0; i < HW_NET_COUNT; i++)
+          {
+               if (act->net_fade[i] <= 0.01f)
+                    continue;
+               int layer = sch_status_layer_for_event(act->net_last_type[i]);
+               if (layer >= 0 && layer < SCH_STATUS_COUNT && act->net_fade[i] > chips[layer].fade)
+                    chips[layer].fade = act->net_fade[i];
+          }
+          for (int i = 0; i < HW_COMPONENT_COUNT; i++)
+          {
+               if (act->comp_fade[i] <= 0.01f)
+                    continue;
+               int layer = sch_status_layer_for_event(act->comp_last_type[i]);
+               if (layer >= 0 && layer < SCH_STATUS_COUNT && act->comp_fade[i] > chips[layer].fade)
+                    chips[layer].fade = act->comp_fade[i];
+          }
+     }
+
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+     uint32_t recent_n = n_total < 128u ? n_total : 128u;
+     for (uint32_t k = 0; k < recent_n; k++)
+     {
+          uint32_t idx = (tr->head + GB_HW_TRACE_CAP - recent_n + k) & (GB_HW_TRACE_CAP - 1);
+          const gb_hw_trace_event *ev = &tr->events[idx];
+          int layer = sch_status_layer_for_event(ev->type);
+          if (layer < 0 || layer >= SCH_STATUS_COUNT)
+               continue;
+
+          chips[layer].recent_count++;
+          chips[layer].last_ev = ev;
+          int bytes = 0;
+          (void)hw_bus_mask_for_event(ev, &bytes);
+          chips[layer].recent_bytes += bytes;
+     }
+
+     for (int layer = 0; layer < SCH_STATUS_COUNT; layer++)
+     {
+          const gb_hw_trace_event *ev = chips[layer].last_ev;
+          if (!ev)
+               continue;
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(ev->type);
+          switch (layer)
+          {
+          case SCH_STATUS_CPU:
+               snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", meta->name);
+               break;
+          case SCH_STATUS_PPU:
+               if (ev->type == GB_HW_EVT_PPU_MODE)
+                    snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", sch_ppu_mode_name(ev->data));
+               else
+                    snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", meta->name);
+               break;
+          case SCH_STATUS_DMA:
+               snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", ev->type == GB_HW_EVT_OAM_DMA ? "OAM" : meta->name);
+               break;
+          case SCH_STATUS_APU:
+               snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", ev->type == GB_HW_EVT_APU_WRITE ? "WR" : "SMP");
+               break;
+          case SCH_STATUS_IRQ:
+               snprintf(chips[layer].detail, sizeof(chips[layer].detail), "%s", ev->type == GB_HW_EVT_IRQ_ACK ? "ACK" : "REQ");
+               break;
+          }
+     }
+
+     int max_recent = 1;
+     for (int i = 0; i < SCH_STATUS_COUNT; i++)
+          if (chips[i].recent_count > max_recent)
+               max_recent = chips[i].recent_count;
+
+     ImDrawList *dl = ImGui::GetWindowDrawList();
+     ImVec2 cursor = ImGui::GetCursorScreenPos();
+     float row_h = 22.0f;
+     float pill_pad_x = 10.0f;
+     float pill_pad_y = 3.0f;
+     float led_r = 4.0f;
+     float gap = 5.0f;
+     float x = cursor.x;
+     float y = cursor.y;
+
+     for (int layer = 0; layer < SCH_STATUS_COUNT; layer++)
+     {
+          bool focused = (s_sch_status_focus_mask & (uint16_t)(1u << layer)) != 0;
+          bool dimmed  = s_sch_status_focus_mask != 0 && !focused;
+          float active_t = chips[layer].fade < 1.0f ? chips[layer].fade : 1.0f;
+          float count_t  = (float)chips[layer].recent_count / (float)max_recent;
+          if (count_t > 1.0f) count_t = 1.0f;
+
+          ImU32 base_col = chips[layer].color;
+          float col_r = ((base_col >> IM_COL32_R_SHIFT) & 0xFF) / 255.0f;
+          float col_g = ((base_col >> IM_COL32_G_SHIFT) & 0xFF) / 255.0f;
+          float col_b = ((base_col >> IM_COL32_B_SHIFT) & 0xFF) / 255.0f;
+          float alpha  = dimmed ? 0.30f : 1.0f;
+
+          /* Measure pill width: LED + label + detail */
+          char name_buf[8];
+          snprintf(name_buf, sizeof(name_buf), "%s", chips[layer].label);
+          char detail_buf[20];
+          snprintf(detail_buf, sizeof(detail_buf), " %s", chips[layer].detail);
+          float name_w   = ImGui::CalcTextSize(name_buf).x;
+          float detail_w = ImGui::CalcTextSize(detail_buf).x;
+          float pill_w   = pill_pad_x + led_r * 2.0f + 5.0f + name_w + detail_w + pill_pad_x;
+
+          ImVec2 pmin(x, y + pill_pad_y);
+          ImVec2 pmax(x + pill_w, y + row_h - pill_pad_y);
+          float rounding = (pmax.y - pmin.y) * 0.5f;
+
+          /* Pill background */
+          ImU32 bg_col;
+          if (focused)
+               bg_col = IM_COL32((int)(col_r * 255 * 0.25f), (int)(col_g * 255 * 0.25f),
+                                  (int)(col_b * 255 * 0.25f), 220);
+          else
+               bg_col = IM_COL32(30, 32, 38, dimmed ? 100 : 170);
+          dl->AddRectFilled(pmin, pmax, bg_col, rounding);
+
+          /* Border: colored when focused or active, subtle otherwise */
+          float border_a = focused ? 0.90f : (dimmed ? 0.12f : (0.18f + active_t * 0.42f));
+          dl->AddRect(pmin, pmax,
+                      IM_COL32((int)(col_r * 255), (int)(col_g * 255), (int)(col_b * 255),
+                                (int)(border_a * 255)),
+                      rounding, 0, focused ? 1.2f : 0.8f);
+
+          /* LED dot */
+          float led_cx = pmin.x + pill_pad_x + led_r;
+          float led_cy = (pmin.y + pmax.y) * 0.5f;
+          float led_a  = dimmed ? 0.18f : (0.25f + active_t * 0.75f);
+          dl->AddCircleFilled(ImVec2(led_cx, led_cy), led_r,
+                              IM_COL32((int)(col_r * 255), (int)(col_g * 255), (int)(col_b * 255),
+                                       (int)(led_a * 255)));
+          /* LED inner highlight */
+          if (!dimmed && active_t > 0.05f)
+               dl->AddCircleFilled(ImVec2(led_cx - 1.0f, led_cy - 1.0f), led_r * 0.45f,
+                                   IM_COL32(255, 255, 255, (int)(active_t * 80)));
+
+          /* Activity bar at bottom of pill */
+          if (!dimmed && count_t > 0.0f)
+          {
+               float bar_x0 = pmin.x + rounding;
+               float bar_x1 = pmax.x - rounding;
+               float bar_y  = pmax.y - 2.0f;
+               dl->AddLine(ImVec2(bar_x0, bar_y),
+                           ImVec2(bar_x0 + (bar_x1 - bar_x0) * count_t, bar_y),
+                           IM_COL32((int)(col_r * 255), (int)(col_g * 255), (int)(col_b * 255),
+                                    (int)(alpha * 140)),
+                           1.5f);
+          }
+
+          /* Label text */
+          float tx = led_cx + led_r + 5.0f;
+          float ty = (pmin.y + pmax.y) * 0.5f - ImGui::GetTextLineHeight() * 0.5f;
+          dl->AddText(ImVec2(tx, ty),
+                      IM_COL32((int)(col_r * 255 * (dimmed ? 0.45f : 0.92f)),
+                               (int)(col_g * 255 * (dimmed ? 0.45f : 0.92f)),
+                               (int)(col_b * 255 * (dimmed ? 0.45f : 0.92f)),
+                               255),
+                      name_buf);
+          dl->AddText(ImVec2(tx + name_w, ty),
+                      IM_COL32(160, 162, 170, dimmed ? 60 : 140),
+                      detail_buf);
+
+          /* Invisible button for interaction */
+          ImGui::SetCursorScreenPos(ImVec2(x, y));
+          char btn_id[24];
+          snprintf(btn_id, sizeof(btn_id), "##sch_layer_%d", layer);
+          ImGui::InvisibleButton(btn_id, ImVec2(pill_w, row_h));
+          if (ImGui::IsItemClicked())
+          {
+               uint16_t bit = (uint16_t)(1u << layer);
+               s_sch_status_focus_mask = focused ? 0 : bit;
+          }
+          if (ImGui::IsItemHovered())
+          {
+               dl->AddRect(pmin, pmax,
+                           IM_COL32((int)(col_r * 255), (int)(col_g * 255), (int)(col_b * 255), 200),
+                           rounding, 0, 1.0f);
+               ImGui::BeginTooltip();
+               ImGui::TextColored(ImVec4(col_r, col_g, col_b, 1.0f), "%s", chips[layer].label);
+               ImGui::TextDisabled("Clique para focar/limpar camada");
+               ImGui::Text("%d eventos  %d bytes (recentes)", chips[layer].recent_count, chips[layer].recent_bytes);
+               if (chips[layer].last_ev)
+               {
+                    char summary[96];
+                    global_timeline_event_summary(chips[layer].last_ev, summary, sizeof(summary));
+                    const HwTraceEvtMeta *meta = hw_trace_event_meta(chips[layer].last_ev->type);
+                    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color), "ultimo: %s", meta->name);
+                    ImGui::TextDisabled("seq=%llu  T=%d", (unsigned long long)chips[layer].last_ev->seq,
+                                        chips[layer].last_ev->timestamp);
+                    ImGui::Text("%s", summary);
+               }
+               ImGui::EndTooltip();
+          }
+
+          x += pill_w + gap;
+     }
+
+     /* TRACE pill */
+     {
+          const char *trace_detail = !tr->enabled ? "OFF"
+                                   : ((s_sch_replay_cursor >= 0 || s_sch_frozen) ? "REPLAY" : "LIVE");
+          float tr_col_r, tr_col_g, tr_col_b;
+          if (!tr->enabled)
+               { tr_col_r = 0.48f; tr_col_g = 0.50f; tr_col_b = 0.56f; }
+          else if (s_sch_replay_cursor >= 0 || s_sch_frozen)
+               { tr_col_r = 1.00f; tr_col_g = 0.72f; tr_col_b = 0.34f; }
+          else
+               { tr_col_r = 0.45f; tr_col_g = 0.95f; tr_col_b = 0.50f; }
+
+          char tr_name[] = "TRACE";
+          char tr_detail[16];
+          snprintf(tr_detail, sizeof(tr_detail), " %s", trace_detail);
+          float tw = pill_pad_x + led_r * 2.0f + 5.0f +
+                     ImGui::CalcTextSize(tr_name).x + ImGui::CalcTextSize(tr_detail).x + pill_pad_x;
+
+          ImVec2 pmin(x, y + pill_pad_y);
+          ImVec2 pmax(x + tw, y + row_h - pill_pad_y);
+          float rounding = (pmax.y - pmin.y) * 0.5f;
+
+          dl->AddRectFilled(pmin, pmax, IM_COL32(30, 32, 38, 170), rounding);
+          dl->AddRect(pmin, pmax,
+                      IM_COL32((int)(tr_col_r * 255), (int)(tr_col_g * 255), (int)(tr_col_b * 255), 120),
+                      rounding, 0, 0.8f);
+
+          float led_cx = pmin.x + pill_pad_x + led_r;
+          float led_cy = (pmin.y + pmax.y) * 0.5f;
+          dl->AddCircleFilled(ImVec2(led_cx, led_cy), led_r,
+                              IM_COL32((int)(tr_col_r * 255), (int)(tr_col_g * 255),
+                                       (int)(tr_col_b * 255), tr->enabled ? 200 : 60));
+
+          float tx = led_cx + led_r + 5.0f;
+          float ty = (pmin.y + pmax.y) * 0.5f - ImGui::GetTextLineHeight() * 0.5f;
+          dl->AddText(ImVec2(tx, ty),
+                      IM_COL32((int)(tr_col_r * 230), (int)(tr_col_g * 230), (int)(tr_col_b * 230), 255),
+                      tr_name);
+          dl->AddText(ImVec2(tx + ImGui::CalcTextSize(tr_name).x, ty),
+                      IM_COL32(160, 162, 170, 140), tr_detail);
+
+          ImGui::SetCursorScreenPos(ImVec2(x, y));
+          if (ImGui::InvisibleButton("##sch_trace_chip", ImVec2(tw, row_h)))
+               s_sch_trace_pane_open = !s_sch_trace_pane_open;
+          if (ImGui::IsItemHovered())
+          {
+               dl->AddRect(pmin, pmax,
+                           IM_COL32((int)(tr_col_r * 255), (int)(tr_col_g * 255),
+                                    (int)(tr_col_b * 255), 200),
+                           rounding, 0, 1.0f);
+               ImGui::BeginTooltip();
+               ImGui::Text("TRACE %s", trace_detail);
+               ImGui::TextDisabled("%u eventos no ring buffer", n_total);
+               ImGui::TextDisabled("Clique para abrir/fechar o painel Trace");
+               ImGui::EndTooltip();
+          }
+          x += tw + gap;
+     }
+
+     /* Advance cursor past the pills row */
+     ImGui::SetCursorScreenPos(ImVec2(cursor.x, y + row_h));
+}
+
+/* Dispara a frente de propagação para todos os segmentos de um net.
+ * Faz BFS a partir do wire mais próximo da origem (nx_src, ny_src) e
+ * atribui wire_pulse_t[i] = delay_bfs / WIRE_PULSE_SPEED + WIRE_PULSE_DURATION
+ * para que a frente "chegue" em cada segmento escalonadamente. */
+static void wire_pulse_fire(int net_id, float nx_src, float ny_src, ImU32 col)
+{
+     if (!hw_graph_ready)
+          hw_graph_build();
+     if (net_id < 0 || net_id >= HW_NET_COUNT)
+          return;
+
+     int root = hw_graph_nearest_wire(net_id, nx_src, ny_src, 1.0f);
+     if (root < 0)
+          return;
+
+     /* BFS com distância em "saltos" — máximo HW_GRAPH_MAX_REACH segmentos */
+     static int16_t reach[HW_GRAPH_MAX_REACH];
+     static int     depth[HW_GRAPH_MAX_REACH]; /* saltos a partir do root */
+     static int16_t queue[HW_WIRE_COUNT];
+     static int     qdepth[HW_WIRE_COUNT];
+     uint8_t visited[(HW_WIRE_COUNT + 7) / 8];
+     memset(visited, 0, sizeof(visited));
+
+     int qhead = 0, qtail = 0, rcount = 0;
+     visited[root >> 3] |= (uint8_t)(1u << (root & 7));
+     queue[qtail] = (int16_t)root; qdepth[qtail] = 0; qtail++;
+
+     while (qhead < qtail && rcount < HW_GRAPH_MAX_REACH)
+     {
+          int16_t cur = queue[qhead];
+          int     d   = qdepth[qhead];
+          qhead++;
+          reach[rcount] = cur;
+          depth[rcount] = d;
+          rcount++;
+
+          const HwWireNode *nd = &hw_graph_nodes[cur];
+          for (int k = 0; k < nd->nb_count; k++)
+          {
+               int16_t nb = nd->nb[k];
+               if (nb < 0) break;
+               if (visited[nb >> 3] & (1u << (nb & 7))) continue;
+               if (hw_wires[nb].net_id != net_id)        continue;
+               visited[nb >> 3] |= (uint8_t)(1u << (nb & 7));
+               if (qtail < HW_WIRE_COUNT)
+               {
+                    queue[qtail]  = nb;
+                    qdepth[qtail] = d + 1;
+                    qtail++;
+               }
+          }
+     }
+
+     for (int i = 0; i < rcount; i++)
+     {
+          int wi = reach[i];
+          float delay = (float)depth[i] / WIRE_PULSE_SPEED;
+          float total = delay + WIRE_PULSE_DURATION;
+          if (total > s_wire_pulse_t[wi])
+          {
+               s_wire_pulse_t[wi]  = total;
+               s_wire_pulse_col[wi] = col;
+          }
+     }
 }
 
 static ImU32 sch_wire_color(int anim_group)
@@ -5994,6 +6544,37 @@ static ImU32 sch_wire_color_kind(int net_id)
      const HwNetSemantic *sem = hw_map_find_net(net_id);
      HwSignalKind kind = sem ? sem->kind : HW_SIG_UNKNOWN;
      return SCH_KIND_COLOR[kind];
+}
+
+/* Heatmap: mapeia contagem acumulada para cor frio→quente (preto→azul→ciano→verde→amarelo→branco).
+ * Usa escala logarítmica para que nets raramente usadas ainda apareçam. */
+static ImU32 sch_wire_color_heat(int net_id)
+{
+     if (net_id < 0 || net_id >= HW_NET_COUNT || s_heat_count[net_id] == 0)
+          return IM_COL32(15, 15, 30, 160); /* frio: quase apagado */
+
+     float t = logf((float)s_heat_count[net_id] + 1.0f) /
+               logf((float)s_heat_max        + 1.0f); /* 0..1 */
+
+     /* Gradiente 5 stops: preto→azul→ciano→verde→amarelo→branco */
+     struct { float pos; uint8_t r, g, b; } stops[] = {
+          { 0.00f,   0,   0,  80 },
+          { 0.25f,   0,  80, 255 },
+          { 0.50f,   0, 220, 220 },
+          { 0.75f, 220, 220,   0 },
+          { 1.00f, 255, 255, 255 },
+     };
+     int n = 5;
+     int si = 0;
+     for (int k = 0; k < n - 2; k++)
+          if (t >= stops[k + 1].pos) si = k + 1;
+     float lo = stops[si].pos, hi = stops[si + 1].pos;
+     float f = (hi > lo) ? (t - lo) / (hi - lo) : 1.0f;
+     uint8_t r = (uint8_t)(stops[si].r * (1 - f) + stops[si + 1].r * f);
+     uint8_t g = (uint8_t)(stops[si].g * (1 - f) + stops[si + 1].g * f);
+     uint8_t b = (uint8_t)(stops[si].b * (1 - f) + stops[si + 1].b * f);
+     uint8_t a = (uint8_t)(140 + t * 115);
+     return IM_COL32(r, g, b, a);
 }
 
 static void sch_component_reference_body(const HwComponent *comp,
@@ -6162,6 +6743,156 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
 
 /* Forward declarations for functions defined after this block */
 static void wave_add_net(int net_id);
+
+static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net_id)
+{
+     if (!tr || net_id < 0 || net_id >= HW_NET_COUNT)
+          return;
+
+     const HwNet *net = &hw_nets[net_id];
+     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
+
+     int total = 0, high = 0, low = 0, toggles = 0;
+     int by_type[24] = {};
+     int addr_pages[256] = {};
+     int last_level = -1;
+     const gb_hw_trace_event *last_ev = nullptr;
+
+     if (n_total > 0)
+     {
+          uint32_t oldest = (tr->head + GB_HW_TRACE_CAP - n_total) & (GB_HW_TRACE_CAP - 1);
+          for (uint32_t i = 0; i < n_total; i++)
+          {
+               uint32_t idx = (oldest + i) & (GB_HW_TRACE_CAP - 1);
+               const gb_hw_trace_event *ev = &tr->events[idx];
+               int level = hw_net_level_for_event(ev, net_id);
+               if (level < 0)
+                    continue;
+
+               total++;
+               last_ev = ev;
+               int ev_t = (int)ev->type;
+               if (ev_t >= 0 && ev_t < 24)
+                    by_type[ev_t]++;
+               if (level)
+                    high++;
+               else
+                    low++;
+               if (last_level >= 0 && last_level != level)
+                    toggles++;
+               last_level = level;
+               if (hw_trace_event_has_addr(ev))
+                    addr_pages[(ev->addr >> 8) & 0xFF]++;
+          }
+     }
+
+     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.055f, 0.075f, 0.92f));
+     ImGui::BeginChild("##sch_net_inspector", ImVec2(0, 112.0f), true);
+
+     ImGui::TextColored(ImVec4(1.0f, 0.88f, 0.32f, 1.0f), "%s", net->name);
+     ImGui::SameLine();
+     if (sem)
+          ImGui::TextDisabled("#%d  %s  bit:%d  %s", net_id,
+                              hw_signal_kind_name(sem->kind), sem->bit,
+                              hw_confidence_name(sem->confidence));
+     else
+          ImGui::TextDisabled("#%d", net_id);
+     ImGui::SameLine();
+     if (ImGui::SmallButton("wave##sel_net_wave"))
+          wave_add_net(net_id);
+     ImGui::SameLine();
+     if (ImGui::SmallButton("clear heat##sel_net_heat"))
+     {
+          s_heat_count[net_id] = 0;
+          s_heat_max = 1;
+          for (int i = 0; i < HW_NET_COUNT; i++)
+               if (s_heat_count[i] > s_heat_max)
+                    s_heat_max = s_heat_count[i];
+     }
+
+     float duty = total > 0 ? (float)high / (float)total : 0.0f;
+     ImGui::Text("hits:%d  high:%d  low:%d  toggles:%d  duty:%.0f%%",
+                 total, high, low, toggles, duty * 100.0f);
+     ImGui::SameLine();
+     ImGui::TextDisabled("heat:%u", s_heat_count[net_id]);
+
+     int best_types[4] = {-1, -1, -1, -1};
+     for (int t = 0; t < 24; t++)
+     {
+          if (by_type[t] <= 0)
+               continue;
+          for (int slot = 0; slot < 4; slot++)
+          {
+               if (best_types[slot] < 0 || by_type[t] > by_type[best_types[slot]])
+               {
+                    for (int shift = 3; shift > slot; shift--)
+                         best_types[shift] = best_types[shift - 1];
+                    best_types[slot] = t;
+                    break;
+               }
+          }
+     }
+
+     ImGui::TextDisabled("top eventos:");
+     ImGui::SameLine();
+     bool any_type = false;
+     for (int slot = 0; slot < 4; slot++)
+     {
+          int t = best_types[slot];
+          if (t < 0)
+               continue;
+          const HwTraceEvtMeta *meta = hw_trace_event_meta((gb_hw_trace_event_type)t);
+          ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color),
+                             "%s:%d", meta->name, by_type[t]);
+          any_type = true;
+          if (slot + 1 < 4)
+               ImGui::SameLine(0, 10);
+     }
+     if (!any_type)
+          ImGui::TextDisabled("sem eventos");
+
+     ImGui::TextDisabled("páginas:");
+     ImGui::SameLine();
+     int shown_pages = 0;
+     for (int k = 0; k < 6; k++)
+     {
+          int best_page = -1;
+          int best_hits = 0;
+          for (int p = 0; p < 256; p++)
+          {
+               if (addr_pages[p] > best_hits)
+               {
+                    best_page = p;
+                    best_hits = addr_pages[p];
+               }
+          }
+          if (best_page < 0 || best_hits <= 0)
+               break;
+          ImGui::TextDisabled("0x%02X__:%d", best_page, best_hits);
+          addr_pages[best_page] = -1;
+          shown_pages++;
+          if (k + 1 < 6)
+               ImGui::SameLine(0, 10);
+     }
+     if (shown_pages == 0)
+          ImGui::TextDisabled("sem endereço");
+
+     if (last_ev)
+     {
+          const HwTraceEvtMeta *meta = hw_trace_event_meta(last_ev->type);
+          int level = hw_net_level_for_event(last_ev, net_id);
+          ImGui::TextDisabled("último:");
+          ImGui::SameLine();
+          ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color),
+                             "%s seq=%llu T=%d level=%d",
+                             meta->name, (unsigned long long)last_ev->seq,
+                             last_ev->timestamp, level);
+     }
+
+     ImGui::EndChild();
+     ImGui::PopStyleColor();
+}
 
 static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
 {
@@ -6725,8 +7456,95 @@ void draw_panel_hw_schematic(struct gb *gb)
           s_hw_activity_init = true;
      }
      hw_activity_tick(&s_hw_activity, dt, 3.0f);
+
+     /* Decay wire pulses */
+     for (int _wi = 0; _wi < HW_WIRE_COUNT; _wi++)
+     {
+          if (s_wire_pulse_t[_wi] > 0.0f)
+          {
+               s_wire_pulse_t[_wi] -= dt;
+               if (s_wire_pulse_t[_wi] < 0.0f)
+                    s_wire_pulse_t[_wi] = 0.0f;
+          }
+     }
+
      if (gb && gb->debug.hw_trace.enabled)
+     {
+          /* Consume activity (existing fade system) */
           hw_activity_consume_trace(&s_hw_activity, &gb->debug.hw_trace, &s_hw_last_seq);
+
+          /* Fire wire pulses for the newest events since last frame.  Heat still
+           * consumes all new events, but pulse propagation is capped because each
+           * net walks the wire graph. */
+          const gb_hw_trace *prt = &gb->debug.hw_trace;
+          uint32_t pcap = GB_HW_TRACE_CAP;
+          uint32_t pn   = prt->count < pcap ? prt->count : pcap;
+          uint32_t poldest = (prt->head + pcap - pn) & (pcap - 1);
+          if (prt->next_seq < s_wire_pulse_last_seq)
+               hw_schematic_clear_wire_pulses();
+          uint64_t newest_seq = s_wire_pulse_last_seq;
+          if (pn > 0)
+          {
+               uint32_t newest_idx = (prt->head + pcap - 1) & (pcap - 1);
+               newest_seq = prt->events[newest_idx].seq;
+          }
+          uint64_t pulse_floor = s_wire_pulse_last_seq;
+          if (newest_seq > s_wire_pulse_last_seq + WIRE_PULSE_MAX_EVENTS_PER_FRAME)
+               pulse_floor = newest_seq - WIRE_PULSE_MAX_EVENTS_PER_FRAME;
+
+          for (uint32_t _pi = 0; _pi < pn; _pi++)
+          {
+               uint32_t pidx = (poldest + _pi) & (pcap - 1);
+               const gb_hw_trace_event *pev = &prt->events[pidx];
+               if (pev->seq <= s_wire_pulse_last_seq)
+                    continue;
+
+               /* Cor da frente por tipo de evento */
+               ImU32 pcol;
+               switch (pev->type)
+               {
+               case GB_HW_EVT_CPU_FETCH: pcol = IM_COL32(255, 220,  60, 255); break;
+               case GB_HW_EVT_CPU_READ:  pcol = IM_COL32( 60, 200, 255, 255); break;
+               case GB_HW_EVT_CPU_WRITE: pcol = IM_COL32(255, 120,  60, 255); break;
+               case GB_HW_EVT_DMA_READ:
+               case GB_HW_EVT_DMA_WRITE: pcol = IM_COL32(200,  80, 255, 255); break;
+               case GB_HW_EVT_IRQ_REQUEST:
+               case GB_HW_EVT_IRQ_ACK:  pcol = IM_COL32(255,  60,  60, 255); break;
+               default:                 pcol = IM_COL32(180, 180, 220, 255); break;
+               }
+
+               /* Origem da frente: componente que iniciou o ciclo */
+               float pox = 0.46f, poy = 0.51f; /* U1 default */
+               uint16_t pa = pev->addr;
+               bool is_cart = (pa <= 0x7FFF) || (pa >= 0xA000 && pa <= 0xBFFF);
+               bool is_wram = (pa >= 0xC000 && pa <= 0xFDFF);
+               if (is_cart) { pox = 0.87f; poy = 0.53f; } /* P1 */
+               else if (is_wram) { pox = 0.51f; poy = 0.33f; } /* U2 */
+
+               int touched[HW_NET_COUNT];
+               int touched_n = hw_event_collect_touched_nets(pev, touched, HW_NET_COUNT);
+
+               /* Heatmap: acumula hits por net tocado pelo evento */
+               if (s_sch_show_heat)
+               {
+                    for (int ti = 0; ti < touched_n; ti++)
+                    {
+                         int nid = touched[ti];
+                         s_heat_count[nid]++;
+                         if (s_heat_count[nid] > s_heat_max)
+                              s_heat_max = s_heat_count[nid];
+                    }
+               }
+
+               if (pev->seq > pulse_floor)
+               {
+                    for (int ti = 0; ti < touched_n; ti++)
+                         wire_pulse_fire(touched[ti], pox, poy, pcol);
+               }
+
+               s_wire_pulse_last_seq = pev->seq;
+          }
+     }
 
      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
      if (ImGui::Button("Fit"))
@@ -6758,6 +7576,22 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::SetWindowFontScale(0.50f);
           ImGui::Checkbox("0/1", &s_sch_show_levels);
           ImGui::SetWindowFontScale(1.00f);
+          ImGui::SameLine(0, 14);
+          bool heat_was_on = s_sch_show_heat;
+          if (heat_was_on)
+               ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 120, 60, 255));
+          ImGui::Checkbox("Heat", &s_sch_show_heat);
+          if (heat_was_on)
+               ImGui::PopStyleColor();
+          if (s_sch_show_heat)
+          {
+               ImGui::SameLine(0, 6);
+               if (ImGui::SmallButton("Clear##heat"))
+               {
+                    memset(s_heat_count, 0, sizeof(s_heat_count));
+                    s_heat_max = 1;
+               }
+          }
           ImGui::SameLine(0, 16);
           /* Freeze button: captures current activity state */
           if (s_sch_frozen)
@@ -6863,11 +7697,15 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* When frozen, all rendering reads from the final snapshot chosen above. */
      const HwSchematicActivityState *act = s_sch_frozen ? &s_hw_frozen : &s_hw_activity;
 
+     if (gb && !s_sch_paper_mode)
+          draw_hw_status_strip(gb, act);
+
      /* Canvas is the primary surface; lower analysis drawers reserve bounded space. */
      ImVec2 total_avail = ImGui::GetContentRegionAvail();
      float reserved_trace_h = s_sch_trace_pane_open ? 170.0f : 36.0f;
      float reserved_net_h = (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
-                                ? (s_sch_net_timeline_open ? 104.0f : 30.0f)
+                                ? 30.0f + (s_sch_net_inspector_open ? 122.0f : 0.0f) +
+                                      (s_sch_net_timeline_open ? 104.0f : 0.0f)
                                 : 0.0f;
      float canvas_child_h = total_avail.y - reserved_trace_h - reserved_net_h;
      if (canvas_child_h < 180.0f)
@@ -7137,59 +7975,62 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
           else
           {
-               /* Trace-driven projection: use per-net fade when trace is active */
-               bool trace_active = gb && gb->debug.hw_trace.enabled && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.01f;
-               if (trace_active)
+               if (s_sch_show_heat && !w->is_bus)
                {
-                    /* Colour by event type of last touch */
-                    float fade = act->net_fade[w->net_id];
-                    gb_hw_trace_event_type lt = act->net_last_type[w->net_id];
-                    ImU32 active_col;
-                    switch (lt)
-                    {
-                    case GB_HW_EVT_CPU_FETCH:
-                         active_col = IM_COL32(255, 220, 60, 255);
-                         break; /* yellow */
-                    case GB_HW_EVT_CPU_READ:
-                         active_col = IM_COL32(60, 200, 255, 255);
-                         break; /* cyan   */
-                    case GB_HW_EVT_CPU_WRITE:
-                         active_col = IM_COL32(255, 120, 60, 255);
-                         break; /* orange */
-                    case GB_HW_EVT_DMA_READ:
-                    case GB_HW_EVT_DMA_WRITE:
-                         active_col = IM_COL32(200, 80, 255, 255);
-                         break; /* purple */
-                    case GB_HW_EVT_IRQ_REQUEST:
-                    case GB_HW_EVT_IRQ_ACK:
-                         active_col = IM_COL32(255, 60, 60, 255);
-                         break; /* red    */
-                    default:
-                         active_col = IM_COL32(180, 180, 220, 255);
-                         break; /* grey   */
-                    }
-                    /* Dim idle colour for this kind, blend with active */
-                    ImU32 base_col = s_sch_show_kinds
-                                         ? sch_wire_color_kind(w->net_id)
-                                         : IM_COL32(70, 80, 100, 120);
-                    float t = fade > 1.0f ? 1.0f : fade;
-                    uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
-                    uint8_t g = (uint8_t)(((base_col >> IM_COL32_G_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
-                    uint8_t b = (uint8_t)(((base_col >> IM_COL32_B_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
-                    uint8_t a = (uint8_t)(120 + (uint8_t)(fade * 135));
-                    col = IM_COL32(r, g, b, a);
-               }
-               else if (s_sch_show_kinds)
-                    col = sch_wire_color_kind(w->net_id);
-               else if (s_sch_show_activity)
-               {
-                    int anim = -1;
-                    if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
-                         anim = hw_nets[w->net_id].anim_group;
-                    col = sch_wire_color(anim);
+                    /* Heatmap mode: cor acumulada, escala log, sem fade instantâneo */
+                    col = sch_wire_color_heat(w->net_id);
                }
                else
-                    col = IM_COL32(90, 96, 120, 150);
+               {
+                    /* Trace-driven projection: use per-net fade when trace is active */
+                    bool trace_active = gb && gb->debug.hw_trace.enabled && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.01f;
+                    if (trace_active)
+                    {
+                         /* Colour by event type of last touch */
+                         float fade = act->net_fade[w->net_id];
+                         gb_hw_trace_event_type lt = act->net_last_type[w->net_id];
+                         ImU32 active_col;
+                         switch (lt)
+                         {
+                         case GB_HW_EVT_CPU_FETCH:  active_col = IM_COL32(255, 220,  60, 255); break;
+                         case GB_HW_EVT_CPU_READ:   active_col = IM_COL32( 60, 200, 255, 255); break;
+                         case GB_HW_EVT_CPU_WRITE:  active_col = IM_COL32(255, 120,  60, 255); break;
+                         case GB_HW_EVT_DMA_READ:
+                         case GB_HW_EVT_DMA_WRITE:  active_col = IM_COL32(200,  80, 255, 255); break;
+                         case GB_HW_EVT_IRQ_REQUEST:
+                         case GB_HW_EVT_IRQ_ACK:    active_col = IM_COL32(255,  60,  60, 255); break;
+                         default:                   active_col = IM_COL32(180, 180, 220, 255); break;
+                         }
+                         ImU32 base_col = s_sch_show_kinds
+                                              ? sch_wire_color_kind(w->net_id)
+                                              : IM_COL32(70, 80, 100, 120);
+                         float t = fade > 1.0f ? 1.0f : fade;
+                         uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
+                         uint8_t g = (uint8_t)(((base_col >> IM_COL32_G_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_G_SHIFT) & 0xFF) * t);
+                         uint8_t b = (uint8_t)(((base_col >> IM_COL32_B_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_B_SHIFT) & 0xFF) * t);
+                         uint8_t a = (uint8_t)(120 + (uint8_t)(fade * 135));
+                         col = IM_COL32(r, g, b, a);
+                    }
+                    else if (s_sch_show_kinds)
+                         col = sch_wire_color_kind(w->net_id);
+                    else if (s_sch_show_activity)
+                    {
+                         int anim = -1;
+                         if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
+                              anim = hw_nets[w->net_id].anim_group;
+                         col = sch_wire_color(anim);
+                    }
+                    else
+                         col = IM_COL32(90, 96, 120, 150);
+               }
+
+               if (s_sch_status_focus_mask != 0 &&
+                   !sch_net_matches_status_focus(w->net_id, act))
+               {
+                    uint8_t a = (col >> IM_COL32_A_SHIFT) & 0xFF;
+                    col = (col & ~(0xFFu << IM_COL32_A_SHIFT)) |
+                          ((uint32_t)(a / 5) << IM_COL32_A_SHIFT);
+               }
 
                /* Net selection: brighten wires of the selected net */
                if (net_selected)
@@ -7231,10 +8072,47 @@ void draw_panel_hw_schematic(struct gb *gb)
                     dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2),
                                 IM_COL32(255, 230, 80, 50), thick * 3.0f); /* halo */
                dl->AddLine(SP(w->nx1, w->ny1), SP(w->nx2, w->ny2), col, thick);
+
+               /* Pulse propagation: frente luminosa correndo pelo fio.
+                * wire_pulse_t[i] começa em delay + DURATION e decai até 0.
+                * A frente "chega" quando t <= DURATION e "sai" quando t <= 0.
+                * Durante a janela de DURATION, desenhamos um segmento brilhante
+                * de comprimento ~20% do fio na posição proporcional ao decay. */
+               if (!s_sch_paper_mode && s_wire_pulse_t[i] > 0.0f &&
+                   sch_net_matches_status_focus(w->net_id, act))
+               {
+                    float pt = s_wire_pulse_t[i];
+                    if (pt <= WIRE_PULSE_DURATION)
+                    {
+                         /* fração da vida que ainda resta na janela de draw */
+                         float frac = pt / WIRE_PULSE_DURATION; /* 1→0 enquanto passa */
+                         /* posição da cabeça da frente: entra em p=0, sai em p=1 */
+                         float head = 1.0f - frac;
+                         float tail = head - 0.25f;
+                         if (tail < 0.0f) tail = 0.0f;
+
+                         float sx1 = SX(w->nx1 + (w->nx2 - w->nx1) * tail);
+                         float sy1 = SY(w->ny1 + (w->ny2 - w->ny1) * tail);
+                         float sx2 = SX(w->nx1 + (w->nx2 - w->nx1) * head);
+                         float sy2 = SY(w->ny1 + (w->ny2 - w->ny1) * head);
+
+                         ImU32 pcol_base = s_wire_pulse_col[i];
+                         uint8_t pa = (uint8_t)(200.0f * frac + 55.0f);
+                         ImU32 pcol_a = (pcol_base & 0x00FFFFFFu) | ((ImU32)pa << IM_COL32_A_SHIFT);
+                         /* halo branco atrás, cor do evento na frente */
+                         dl->AddLine(ImVec2(sx1, sy1), ImVec2(sx2, sy2),
+                                     IM_COL32(255, 255, 255, (uint8_t)(pa * 0.4f)), thick * 3.5f);
+                         dl->AddLine(ImVec2(sx1, sy1), ImVec2(sx2, sy2),
+                                     pcol_a, thick * 2.0f);
+                    }
+               }
           }
 
           /* Net 0/1 label at wire midpoint — only when zoomed in and trace active */
-          if (s_sch_show_levels && !s_sch_paper_mode && zoom > 900.0f && !w->is_bus && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.05f)
+          if (s_sch_show_levels && !s_sch_paper_mode && zoom > 900.0f && !w->is_bus &&
+              w->net_id >= 0 && w->net_id < HW_NET_COUNT &&
+              sch_net_matches_status_focus(w->net_id, act) &&
+              act->net_fade[w->net_id] > 0.05f)
           {
                int8_t lvl = act->net_level[w->net_id];
                if (lvl >= 0)
@@ -7783,9 +8661,21 @@ void draw_panel_hw_schematic(struct gb *gb)
                     else
                          border = IM_COL32(80, 90, 100, 160);
 
+                    bool comp_filtered_out =
+                        s_sch_status_focus_mask != 0 &&
+                        !sch_component_matches_status_focus(i, act);
+                    if (comp_filtered_out && !selected && !hovered)
+                    {
+                         uint8_t a = (border >> IM_COL32_A_SHIFT) & 0xFF;
+                         border = (border & ~(0xFFu << IM_COL32_A_SHIFT)) |
+                                  ((uint32_t)(a / 4) << IM_COL32_A_SHIFT);
+                    }
+
                     /* Fill brightens when trace-active */
                     ImU32 fill = selected  ? IM_COL32(40, 55, 80, 230)
                                  : hovered ? IM_COL32(30, 38, 55, 220)
+                                 : comp_filtered_out
+                                     ? IM_COL32(12, 14, 20, 90)
                                  : comp_trace_active
                                      ? IM_COL32(28, 35, 55, 230)
                                      : IM_COL32(20, 24, 34, 200);
@@ -8022,76 +8912,6 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      dl->PopClipRect();
 
-     /* Live HW activity status strip (top-left corner of canvas)  */
-     if (gb && !s_sch_paper_mode)
-     {
-          struct
-          {
-               const char *label;
-               float fade; /* 0..1 activity level */
-               ImU32 color;
-          } hw_status[] = {
-              {"CPU", sv ? (sv->fade_cpu_rom > sv->fade_cpu_wram ? sv->fade_cpu_rom : sv->fade_cpu_wram) : 0.0f,
-               IM_COL32(80, 160, 255, 255)},
-              {"PPU", sv ? (sv->fade_cpu_vram > sv->fade_ppu_vram ? sv->fade_cpu_vram : sv->fade_ppu_vram) : 0.0f,
-               IM_COL32(60, 210, 180, 255)},
-              {"DMA", sv ? sv->fade_dma_oam : 0.0f,
-               IM_COL32(200, 80, 255, 255)},
-              {"APU", sv ? sv->fade_apu : 0.0f,
-               IM_COL32(255, 160, 60, 255)},
-              {"IRQ", sv ? sv->fade_irq_cpu : 0.0f,
-               IM_COL32(255, 60, 60, 255)},
-          };
-          const int hw_status_n = 5;
-
-          float pill_x = canvas_pos.x + 8.0f;
-          float pill_y = canvas_pos.y + 6.0f;
-          float pill_h = 16.0f;
-          float pill_pad = 5.0f;
-          float text_scale = 1.0f;
-          (void)text_scale;
-
-          for (int si = 0; si < hw_status_n; si++)
-          {
-               float fw = ImGui::CalcTextSize(hw_status[si].label).x + pill_pad * 2;
-               float alpha_t = hw_status[si].fade > 1.0f ? 1.0f : hw_status[si].fade;
-
-               /* Background pill: dark when idle, colored when active */
-               ImU32 bg = IM_COL32(
-                   (uint8_t)(20 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 20)),
-                   (uint8_t)(22 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 22)),
-                   (uint8_t)(30 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 30)),
-                   (uint8_t)(160 + alpha_t * 80));
-               ImU32 txt_col = IM_COL32(
-                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_R_SHIFT) & 0xFF) - 100)),
-                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_G_SHIFT) & 0xFF) - 100)),
-                   (uint8_t)(100 + alpha_t * (((hw_status[si].color >> IM_COL32_B_SHIFT) & 0xFF) - 100)),
-                   220);
-
-               dl->AddRectFilled(ImVec2(pill_x, pill_y),
-                                 ImVec2(pill_x + fw, pill_y + pill_h),
-                                 bg, 4.0f);
-               if (alpha_t > 0.05f)
-                    dl->AddRect(ImVec2(pill_x, pill_y),
-                                ImVec2(pill_x + fw, pill_y + pill_h),
-                                hw_status[si].color & IM_COL32(255, 255, 255, (uint8_t)(alpha_t * 180)),
-                                4.0f, 0, 1.0f);
-               dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), txt_col, hw_status[si].label);
-               pill_x += fw + 4.0f;
-          }
-
-          /* Trace indicator */
-          if (gb->debug.hw_trace.enabled)
-          {
-               float fw = ImGui::CalcTextSize("TRACE").x + pill_pad * 2;
-               ImU32 bg = IM_COL32(20, 40, 20, 180);
-               ImU32 tc = IM_COL32(80, 220, 80, 230);
-               dl->AddRectFilled(ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), bg, 4.0f);
-               dl->AddRect(ImVec2(pill_x, pill_y), ImVec2(pill_x + fw, pill_y + pill_h), tc, 4.0f, 0, 1.0f);
-               dl->AddText(ImVec2(pill_x + pill_pad, pill_y + 2), tc, "TRACE");
-          }
-     }
-
      /* Hover tooltip */
      if (s_sch_show_components && hover_comp >= 0)
      {
@@ -8243,10 +9063,16 @@ void draw_panel_hw_schematic(struct gb *gb)
      {
           const HwNet *sel_net = &hw_nets[s_sch_sel_net];
           ImGui::Separator();
+          if (ImGui::SmallButton(s_sch_net_inspector_open ? "Net inspector [-]##sch_net_inspector" : "Net inspector [+]##sch_net_inspector"))
+               s_sch_net_inspector_open = !s_sch_net_inspector_open;
+          ImGui::SameLine();
           if (ImGui::SmallButton(s_sch_net_timeline_open ? "Net timeline [-]##sch_net_timeline" : "Net timeline [+]##sch_net_timeline"))
                s_sch_net_timeline_open = !s_sch_net_timeline_open;
           ImGui::SameLine();
           ImGui::TextDisabled("%s", sel_net->name);
+
+          if (s_sch_net_inspector_open)
+               draw_hw_selected_net_inspector(&gb->debug.hw_trace, s_sch_sel_net);
 
           if (s_sch_net_timeline_open)
           {
@@ -8468,6 +9294,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           hw_schematic_set_live_mode();
           debug_selection_clear();
           hw_activity_reset(&s_hw_activity);
+          hw_schematic_clear_wire_pulses();
           n_total = 0;
      }
      ImGui::SameLine();

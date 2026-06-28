@@ -96,7 +96,7 @@ static void pulse_comp(HwSchematicActivityState *st, int comp_id,
 
 /* Address bus: assert bits matching addr, deassert bits that are 0.
  * Net ids for A0..A15 from hw_net_map (confirmed). */
-static const int8_t ADDR_NET_IDS[16] = {
+const int8_t ADDR_NET_IDS[16] = {
     8,
     20,
     29,
@@ -116,7 +116,7 @@ static const int8_t ADDR_NET_IDS[16] = {
 };
 
 /* Data bus: net ids for D0..D7 from hw_net_map (confirmed). */
-static const int8_t DATA_NET_IDS[8] = {
+const int8_t DATA_NET_IDS[8] = {
     74,
     62,
     54,
@@ -127,11 +127,7 @@ static const int8_t DATA_NET_IDS[8] = {
     2, /* D0-D7 */
 };
 
-/* Control strobes */
-#define NET_nRD 82
-#define NET_nWR 80
-#define NET_nCS 76
-#define NET_nMCS 33
+/* Control strobes — NET_nRD/nWR/nCS/nMCS defined in hw_schematic_trace.h */
 #define NET_nMRD 15 /* WRAM /RD */
 #define NET_nMWR 46 /* WRAM /WR */
 
@@ -140,7 +136,7 @@ static const int8_t DATA_NET_IDS[8] = {
 #define NET_nRES 65
 
 /* WRAM address bus MA0..MA12 (13 bits, same net_ids as hw_net_map) */
-static const int8_t WRAM_ADDR_NET_IDS[13] = {
+const int8_t WRAM_ADDR_NET_IDS[13] = {
     81,
     56,
     0,
@@ -157,7 +153,7 @@ static const int8_t WRAM_ADDR_NET_IDS[13] = {
 };
 
 /* WRAM data bus MD0..MD7 */
-static const int8_t WRAM_DATA_NET_IDS[8] = {
+const int8_t WRAM_DATA_NET_IDS[8] = {
     63,
     53,
     55,

@@ -129,4 +129,14 @@ void hw_audit_trace(const struct gb_hw_trace *trace,
 /* Clear a result struct (zero findings). */
 void hw_audit_reset(HwAuditResult *out);
 
+/* Net IDs for bus signals — exposed for pulse propagation in the UI. */
+extern const int8_t ADDR_NET_IDS[16];
+extern const int8_t DATA_NET_IDS[8];
+extern const int8_t WRAM_ADDR_NET_IDS[13];
+extern const int8_t WRAM_DATA_NET_IDS[8];
+#define NET_nRD  82
+#define NET_nWR  80
+#define NET_nCS  76
+#define NET_nMCS 33
+
 #endif /* HW_SCHEMATIC_TRACE_H */
