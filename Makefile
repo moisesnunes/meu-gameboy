@@ -62,7 +62,9 @@ SM83_C_SRC = sm83/sm83_netlist_data.c sm83/sm83_die_view.c sm83/sm83_signal_over
              sm83/sm83_netlist_sim.c sm83/sm83_semantic_map.c
 
 # Visualizador de esquemático de hardware (grafo, pinos, rastreamento de sinais)
-HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/hw_schematic_view.c \
+HW_SCH_C_SRC = hw_schematic/hw_schematic_data.c hw_schematic/lcd_schematic_data.c \
+               hw_schematic/hw_schematic_dataset.c \
+               hw_schematic/hw_schematic_view.c \
                hw_schematic/hw_schematic_map.c hw_schematic/hw_schematic_trace.c \
                hw_schematic/hw_schematic_pins.c hw_schematic/hw_schematic_graph.c
 

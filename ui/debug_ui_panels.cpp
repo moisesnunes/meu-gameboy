@@ -3741,7 +3741,7 @@ static const char *s_layer_names[] = {
 
 /* Forward declarations for cross-link helpers (defined near draw_panel_hw_schematic) */
 static int die_net_to_sch_net_id(int sm83_net_id);
-static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size);
+static void sch_jump_to_net(const HwSchematicDataset *ds, int hw_net_id, ImVec2 canvas_size);
 extern ImVec2 s_sch_last_canvas_size;
 
 /* Persistent panel state */
@@ -5004,7 +5004,7 @@ void draw_panel_transistor_viz(struct gb *gb)
                     ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(40, 80, 160, 220));
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(60, 120, 220, 240));
                     if (ImGui::Button(btn_lbl))
-                         sch_jump_to_net(sch_id, s_sch_last_canvas_size);
+                         sch_jump_to_net(&hw_dataset_dmg, sch_id, s_sch_last_canvas_size);
                     ImGui::PopStyleColor(2);
                     ImGui::SameLine();
                };
@@ -5321,7 +5321,7 @@ static uint64_t s_hw_last_seq = 0; /* highest event seq consumed */
 
 /* Heatmap persistente: conta hits por net desde o último Clear.
  * s_heat_max é recalculado a cada frame para normalizar a escala. */
-static uint32_t s_heat_count[HW_NET_COUNT];
+static uint32_t s_heat_count[HW_DATASET_MAX_NETS];
 static uint32_t s_heat_max = 1;
 static bool     s_sch_show_heat = false;
 
@@ -5330,8 +5330,8 @@ static bool     s_sch_show_heat = false;
  * wire_pulse_col[i]: cor da frente (determinada pelo tipo do evento que disparou). */
 #define WIRE_PULSE_DURATION 0.18f   /* duração total da frente em segundos */
 #define WIRE_PULSE_SPEED    4.5f    /* fios por segundo que a frente avança no BFS */
-static float  s_wire_pulse_t[HW_WIRE_COUNT];
-static ImU32  s_wire_pulse_col[HW_WIRE_COUNT];
+static float  s_wire_pulse_t[HW_DATASET_MAX_WIRES];
+static ImU32  s_wire_pulse_col[HW_DATASET_MAX_WIRES];
 static uint64_t s_wire_pulse_last_seq = 0;
 
 #define WIRE_PULSE_MAX_EVENTS_PER_FRAME 64
@@ -5355,6 +5355,7 @@ static const ImU32 SCH_IDLE_COLOR[HW_ANIM_GROUP_COUNT] = {
     IM_COL32(60, 40, 40, 100),   /* 8  power       — dim red */
     IM_COL32(40, 80, 100, 100),  /* 9  serial      — dim cyan */
     IM_COL32(80, 80, 50, 100),   /* 10 bus_ctrl    — dim gold */
+    IM_COL32(70, 100, 45, 115),  /* 11 joypad      — dim lime */
 };
 
 /* Active color for each anim group (when fade > 0) */
@@ -5370,6 +5371,7 @@ static const ImU32 SCH_ACTIVE_COLOR[HW_ANIM_GROUP_COUNT] = {
     IM_COL32(255, 80, 80, 200),   /* 8  power       — red */
     IM_COL32(60, 200, 220, 255),  /* 9  serial      — cyan */
     IM_COL32(220, 200, 60, 220),  /* 10 bus_ctrl    — gold */
+    IM_COL32(180, 230, 70, 230),  /* 11 joypad      — lime */
 };
 
 /* Colors indexed by HwSignalKind (16 entries) */
@@ -5872,11 +5874,11 @@ void draw_panel_global_timeline(struct gb *gb)
 /* Returns the 0/1 logic level that net_id carries for this event, or -1 if
  * the event does not touch the net at all.  Uses the semantic map to derive
  * the level from address/data/control bits. */
-static int hw_net_level_for_event(const gb_hw_trace_event *ev, int net_id)
+static int hw_net_level_for_event(const HwSchematicDataset *ds, const gb_hw_trace_event *ev, int net_id)
 {
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+     if (!ds || net_id < 0 || net_id >= ds->net_count)
           return -1;
-     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     const HwNetSemantic *sem = hw_dataset_find_net(ds, net_id);
      if (!sem)
           return -1;
 
@@ -5971,18 +5973,21 @@ static int hw_net_level_for_event(const gb_hw_trace_event *ev, int net_id)
 }
 
 /* Returns true if a net_id's semantic kind is touched by this event type */
-static bool hw_event_touches_net(const gb_hw_trace_event *ev, int net_id)
+static bool hw_event_touches_net(const HwSchematicDataset *ds, const gb_hw_trace_event *ev, int net_id)
 {
-     return hw_net_level_for_event(ev, net_id) >= 0;
+     return hw_net_level_for_event(ds, ev, net_id) >= 0;
 }
 
-static int hw_event_collect_touched_nets(const gb_hw_trace_event *ev, int *out, int out_cap)
+static int hw_event_collect_touched_nets(const HwSchematicDataset *ds, const gb_hw_trace_event *ev, int *out, int out_cap)
 {
      int n = 0;
-     for (int mi = 0; mi < hw_net_map_count; mi++)
+     if (!ds || !ds->net_map)
+          return 0;
+
+     for (int mi = 0; mi < ds->net_map_count; mi++)
      {
-          int nid = hw_net_map[mi].net_id;
-          if (nid < 0 || nid >= HW_NET_COUNT || !hw_event_touches_net(ev, nid))
+          int nid = ds->net_map[mi].net_id;
+          if (nid < 0 || nid >= ds->net_count || !hw_event_touches_net(ds, ev, nid))
                continue;
 
           bool duplicate = false;
@@ -6072,11 +6077,11 @@ static int sch_status_layer_for_event(gb_hw_trace_event_type type)
      }
 }
 
-static bool sch_net_matches_status_focus(int net_id, const HwSchematicActivityState *act)
+static bool sch_net_matches_status_focus(const HwSchematicDataset *ds, int net_id, const HwSchematicActivityState *act)
 {
      if (s_sch_status_focus_mask == 0)
           return true;
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+     if (net_id < 0 || net_id >= ds->net_count)
           return false;
 
      if (act && act->net_fade[net_id] > 0.01f)
@@ -6086,7 +6091,7 @@ static bool sch_net_matches_status_focus(int net_id, const HwSchematicActivitySt
                return true;
      }
 
-     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     const HwNetSemantic *sem = hw_dataset_find_net(ds, net_id);
      if (!sem)
           return false;
 
@@ -6115,11 +6120,11 @@ static bool sch_net_matches_status_focus(int net_id, const HwSchematicActivitySt
      }
 }
 
-static bool sch_component_matches_status_focus(int comp_id, const HwSchematicActivityState *act)
+static bool sch_component_matches_status_focus(const HwSchematicDataset *ds, int comp_id, const HwSchematicActivityState *act)
 {
      if (s_sch_status_focus_mask == 0)
           return true;
-     if (comp_id < 0 || comp_id >= HW_COMPONENT_COUNT)
+     if (comp_id < 0 || comp_id >= ds->component_count)
           return false;
 
      if (act && act->comp_fade[comp_id] > 0.01f)
@@ -6129,7 +6134,7 @@ static bool sch_component_matches_status_focus(int comp_id, const HwSchematicAct
                return true;
      }
 
-     const HwComponentSemantic *sem = hw_map_find_component(comp_id);
+     const HwComponentSemantic *sem = hw_dataset_find_component(ds, comp_id);
      if (!sem)
           return false;
 
@@ -6179,7 +6184,7 @@ typedef struct
      const gb_hw_trace_event *last_ev;
 } SchStatusChip;
 
-static void draw_hw_status_strip(struct gb *gb,
+static void draw_hw_status_strip(const HwSchematicDataset *ds, struct gb *gb,
                                  const HwSchematicActivityState *act)
 {
      if (!gb)
@@ -6196,7 +6201,7 @@ static void draw_hw_status_strip(struct gb *gb,
 
      if (act)
      {
-          for (int i = 0; i < HW_NET_COUNT; i++)
+          for (int i = 0; i < ds->net_count; i++)
           {
                if (act->net_fade[i] <= 0.01f)
                     continue;
@@ -6204,7 +6209,7 @@ static void draw_hw_status_strip(struct gb *gb,
                if (layer >= 0 && layer < SCH_STATUS_COUNT && act->net_fade[i] > chips[layer].fade)
                     chips[layer].fade = act->net_fade[i];
           }
-          for (int i = 0; i < HW_COMPONENT_COUNT; i++)
+          for (int i = 0; i < ds->component_count; i++)
           {
                if (act->comp_fade[i] <= 0.01f)
                     continue;
@@ -6458,23 +6463,23 @@ static void draw_hw_status_strip(struct gb *gb,
  * Faz BFS a partir do wire mais próximo da origem (nx_src, ny_src) e
  * atribui wire_pulse_t[i] = delay_bfs / WIRE_PULSE_SPEED + WIRE_PULSE_DURATION
  * para que a frente "chegue" em cada segmento escalonadamente. */
-static void wire_pulse_fire(int net_id, float nx_src, float ny_src, ImU32 col)
+static void wire_pulse_fire(const HwSchematicDataset *ds, int net_id, float nx_src, float ny_src, ImU32 col)
 {
      if (!hw_graph_ready)
-          hw_graph_build();
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+          hw_graph_build(ds);
+     if (net_id < 0 || net_id >= ds->net_count)
           return;
 
-     int root = hw_graph_nearest_wire(net_id, nx_src, ny_src, 1.0f);
+     int root = hw_graph_nearest_wire(ds, net_id, nx_src, ny_src, 1.0f);
      if (root < 0)
           return;
 
      /* BFS com distância em "saltos" — máximo HW_GRAPH_MAX_REACH segmentos */
      static int16_t reach[HW_GRAPH_MAX_REACH];
      static int     depth[HW_GRAPH_MAX_REACH]; /* saltos a partir do root */
-     static int16_t queue[HW_WIRE_COUNT];
-     static int     qdepth[HW_WIRE_COUNT];
-     uint8_t visited[(HW_WIRE_COUNT + 7) / 8];
+     static int16_t queue[HW_DATASET_MAX_WIRES];
+     static int     qdepth[HW_DATASET_MAX_WIRES];
+     uint8_t visited[(HW_DATASET_MAX_WIRES + 7) / 8];
      memset(visited, 0, sizeof(visited));
 
      int qhead = 0, qtail = 0, rcount = 0;
@@ -6496,9 +6501,9 @@ static void wire_pulse_fire(int net_id, float nx_src, float ny_src, ImU32 col)
                int16_t nb = nd->nb[k];
                if (nb < 0) break;
                if (visited[nb >> 3] & (1u << (nb & 7))) continue;
-               if (hw_wires[nb].net_id != net_id)        continue;
+               if (ds->wires[nb].net_id != net_id)        continue;
                visited[nb >> 3] |= (uint8_t)(1u << (nb & 7));
-               if (qtail < HW_WIRE_COUNT)
+               if (qtail < ds->wire_count)
                {
                     queue[qtail]  = nb;
                     qdepth[qtail] = d + 1;
@@ -6539,18 +6544,18 @@ static ImU32 sch_wire_color(int anim_group)
      return IM_COL32(r, g, b, a);
 }
 
-static ImU32 sch_wire_color_kind(int net_id)
+static ImU32 sch_wire_color_kind(const HwSchematicDataset *ds, int net_id)
 {
-     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     const HwNetSemantic *sem = hw_dataset_find_net(ds, net_id);
      HwSignalKind kind = sem ? sem->kind : HW_SIG_UNKNOWN;
      return SCH_KIND_COLOR[kind];
 }
 
 /* Heatmap: mapeia contagem acumulada para cor frio→quente (preto→azul→ciano→verde→amarelo→branco).
  * Usa escala logarítmica para que nets raramente usadas ainda apareçam. */
-static ImU32 sch_wire_color_heat(int net_id)
+static ImU32 sch_wire_color_heat(const HwSchematicDataset *ds, int net_id)
 {
-     if (net_id < 0 || net_id >= HW_NET_COUNT || s_heat_count[net_id] == 0)
+     if (net_id < 0 || net_id >= ds->net_count || s_heat_count[net_id] == 0)
           return IM_COL32(15, 15, 30, 160); /* frio: quase apagado */
 
      float t = logf((float)s_heat_count[net_id] + 1.0f) /
@@ -6692,7 +6697,7 @@ float s_sch_cross_timer = 0.0f;                   /* seconds remaining */
 ImVec2 s_sch_last_canvas_size = {800.0f, 500.0f}; /* updated each schematic frame */
 
 /* Navigate schematic view to centre on a net and start flash */
-static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
+static void sch_jump_to_net(const HwSchematicDataset *ds, int hw_net_id, ImVec2 canvas_size)
 {
      if (hw_net_id < 0)
           return;
@@ -6702,11 +6707,11 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
 
      /* Compute bounding box of all wires on this net */
      float nx0 = 1e9f, ny0 = 1e9f, nx1 = -1e9f, ny1 = -1e9f;
-     for (int i = 0; i < HW_WIRE_COUNT; i++)
+     for (int i = 0; i < ds->wire_count; i++)
      {
-          if (hw_wires[i].net_id != hw_net_id)
+          if (ds->wires[i].net_id != hw_net_id)
                continue;
-          const HwWire *w = &hw_wires[i];
+          const HwWire *w = &ds->wires[i];
           if (w->nx1 < nx0)
                nx0 = w->nx1;
           if (w->nx2 < nx0)
@@ -6742,15 +6747,15 @@ static void sch_jump_to_net(int hw_net_id, ImVec2 canvas_size)
 }
 
 /* Forward declarations for functions defined after this block */
-static void wave_add_net(int net_id);
+static void wave_add_net(const HwSchematicDataset *ds, int net_id);
 
-static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net_id)
+static void draw_hw_selected_net_inspector(const HwSchematicDataset *ds, const struct gb_hw_trace *tr, int net_id)
 {
-     if (!tr || net_id < 0 || net_id >= HW_NET_COUNT)
+     if (!tr || net_id < 0 || net_id >= ds->net_count)
           return;
 
-     const HwNet *net = &hw_nets[net_id];
-     const HwNetSemantic *sem = hw_map_find_net(net_id);
+     const HwNet *net = &ds->nets[net_id];
+     const HwNetSemantic *sem = hw_dataset_find_net(ds, net_id);
      uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
 
      int total = 0, high = 0, low = 0, toggles = 0;
@@ -6766,7 +6771,7 @@ static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net
           {
                uint32_t idx = (oldest + i) & (GB_HW_TRACE_CAP - 1);
                const gb_hw_trace_event *ev = &tr->events[idx];
-               int level = hw_net_level_for_event(ev, net_id);
+               int level = hw_net_level_for_event(ds, ev, net_id);
                if (level < 0)
                     continue;
 
@@ -6800,13 +6805,13 @@ static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net
           ImGui::TextDisabled("#%d", net_id);
      ImGui::SameLine();
      if (ImGui::SmallButton("wave##sel_net_wave"))
-          wave_add_net(net_id);
+          wave_add_net(ds, net_id);
      ImGui::SameLine();
      if (ImGui::SmallButton("clear heat##sel_net_heat"))
      {
           s_heat_count[net_id] = 0;
           s_heat_max = 1;
-          for (int i = 0; i < HW_NET_COUNT; i++)
+          for (int i = 0; i < ds->net_count; i++)
                if (s_heat_count[i] > s_heat_max)
                     s_heat_max = s_heat_count[i];
      }
@@ -6881,7 +6886,7 @@ static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net
      if (last_ev)
      {
           const HwTraceEvtMeta *meta = hw_trace_event_meta(last_ev->type);
-          int level = hw_net_level_for_event(last_ev, net_id);
+          int level = hw_net_level_for_event(ds, last_ev, net_id);
           ImGui::TextDisabled("último:");
           ImGui::SameLine();
           ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(meta->color),
@@ -6894,7 +6899,7 @@ static void draw_hw_selected_net_inspector(const struct gb_hw_trace *tr, int net
      ImGui::PopStyleColor();
 }
 
-static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
+static void draw_hw_bus_activity_visualizer(const HwSchematicDataset *ds, const struct gb_hw_trace *tr)
 {
      uint32_t n_total = tr->count < GB_HW_TRACE_CAP ? tr->count : (uint32_t)GB_HW_TRACE_CAP;
      if (n_total == 0)
@@ -7057,7 +7062,7 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
           ImGui::Separator();
 
           static const int DD_TOP = 8;
-          int net_hits[HW_NET_COUNT] = {};
+          int net_hits[HW_DATASET_MAX_NETS] = {};
           int addr_page_hits[256] = {};
           int ev_count_class = 0;
 
@@ -7071,10 +7076,10 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
                if (!(mask & (1u << dc)))
                     continue;
                ev_count_class++;
-               for (int ni = 0; ni < hw_net_map_count; ni++)
+               for (int ni = 0; ds->net_map && ni < ds->net_map_count; ni++)
                {
-                    int nid = hw_net_map[ni].net_id;
-                    if (nid >= 0 && nid < HW_NET_COUNT && hw_net_level_for_event(ev, nid) >= 0)
+                    int nid = ds->net_map[ni].net_id;
+                    if (nid >= 0 && nid < ds->net_count && hw_net_level_for_event(ds, ev, nid) >= 0)
                          net_hits[nid]++;
                }
                if (hw_trace_event_has_addr(ev))
@@ -7089,7 +7094,7 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
                int hits;
           } top_nets[DD_TOP];
           int top_n = 0;
-          for (int ni = 0; ni < HW_NET_COUNT; ni++)
+          for (int ni = 0; ni < ds->net_count; ni++)
           {
                if (net_hits[ni] <= 0)
                     continue;
@@ -7111,13 +7116,13 @@ static void draw_hw_bus_activity_visualizer(const struct gb_hw_trace *tr)
           for (int t = 0; t < top_n; t++)
           {
                int nid = top_nets[t].nid;
-               const HwNetSemantic *sem = hw_map_find_net(nid);
-               const char *nm = (sem && sem->canonical_name) ? sem->canonical_name : hw_nets[nid].name;
+               const HwNetSemantic *sem = hw_dataset_find_net(ds, nid);
+               const char *nm = (sem && sem->canonical_name) ? sem->canonical_name : ds->nets[nid].name;
                char nlbl[40];
                snprintf(nlbl, sizeof(nlbl), "%s:%d##ddnet%d", nm, top_nets[t].hits, t);
                ImGui::TextColored(hdr_col, "%s", nlbl);
                if (ImGui::IsItemClicked())
-                    wave_add_net(nid);
+                    wave_add_net(ds, nid);
                if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("net #%d  %d hits — clique p/ waveform", nid, top_nets[t].hits);
                if (t + 1 < top_n)
@@ -7171,9 +7176,9 @@ static int s_wave_net_count = 0;
 static bool s_wave_init = false;
 
 /* Called from schematic panel when the user clicks a wire */
-static void wave_add_net(int net_id)
+static void wave_add_net(const HwSchematicDataset *ds, int net_id)
 {
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+     if (net_id < 0 || net_id >= ds->net_count)
           return;
      /* Already pinned? */
      for (int i = 0; i < s_wave_net_count; i++)
@@ -7192,7 +7197,7 @@ static void wave_remove_net(int idx)
      s_wave_net_count--;
 }
 
-static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
+static void draw_hw_waveform_viewer(const HwSchematicDataset *ds, const struct gb_hw_trace *tr)
 {
      /* Seed default channels on first open */
      if (!s_wave_init)
@@ -7202,11 +7207,12 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
           static const char *defaults[] = {"nRD", "nWR", "A15", "A14", "D7", "D0"};
           for (int d = 0; d < (int)(sizeof(defaults) / sizeof(defaults[0])); d++)
           {
-               for (int ni = 0; ni < hw_net_map_count; ni++)
+               for (int ni = 0; ds->net_map && ni < ds->net_map_count; ni++)
                {
-                    if (strcmp(hw_net_map[ni].canonical_name, defaults[d]) == 0)
+                    if (ds->net_map[ni].canonical_name &&
+                        strcmp(ds->net_map[ni].canonical_name, defaults[d]) == 0)
                     {
-                         wave_add_net(hw_net_map[ni].net_id);
+                         wave_add_net(ds, ds->net_map[ni].net_id);
                          break;
                     }
                }
@@ -7230,12 +7236,14 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
                           ImGuiInputTextFlags_EnterReturnsTrue))
      {
           /* Search by canonical or schematic name */
-          for (int ni = 0; ni < hw_net_map_count; ni++)
+          for (int ni = 0; ds->net_map && ni < ds->net_map_count; ni++)
           {
-               if (strcmp(hw_net_map[ni].canonical_name, s_wave_add_buf) == 0 ||
-                   strcmp(hw_net_map[ni].schematic_name, s_wave_add_buf) == 0)
+               if ((ds->net_map[ni].canonical_name &&
+                    strcmp(ds->net_map[ni].canonical_name, s_wave_add_buf) == 0) ||
+                   (ds->net_map[ni].schematic_name &&
+                    strcmp(ds->net_map[ni].schematic_name, s_wave_add_buf) == 0))
                {
-                    wave_add_net(hw_net_map[ni].net_id);
+                    wave_add_net(ds, ds->net_map[ni].net_id);
                     break;
                }
           }
@@ -7256,8 +7264,8 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
      for (int s = 0; s < s_wave_net_count; s++)
      {
           int nid = s_wave_nets[s];
-          const HwNetSemantic *sem = hw_map_find_net(nid);
-          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < HW_NET_COUNT ? hw_nets[nid].name : "?");
+          const HwNetSemantic *sem = hw_dataset_find_net(ds, nid);
+          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < ds->net_count ? ds->nets[nid].name : "?");
           char btn_label[32];
           snprintf(btn_label, sizeof(btn_label), "%s x##wv%d", name, s);
           ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(35, 40, 55, 220));
@@ -7311,8 +7319,8 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
      for (int row = 0; row < rows; row++)
      {
           int nid = s_wave_nets[row];
-          const HwNetSemantic *sem = hw_map_find_net(nid);
-          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < HW_NET_COUNT ? hw_nets[nid].name : "?");
+          const HwNetSemantic *sem = hw_dataset_find_net(ds, nid);
+          const char *name = sem ? sem->canonical_name : (nid >= 0 && nid < ds->net_count ? ds->nets[nid].name : "?");
           ImU32 col = ROW_COLORS[row % N_ROW_COLORS];
 
           float y_mid = pos.y + 6.0f + row * row_h + row_h * 0.5f;
@@ -7333,7 +7341,7 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
           {
                uint32_t idx = (start_idx + (uint32_t)i) & (GB_HW_TRACE_CAP - 1);
                const gb_hw_trace_event *ev = &tr->events[idx];
-               int v = hw_net_level_for_event(ev, nid);
+               int v = hw_net_level_for_event(ds, ev, nid);
                if (v < 0)
                     v = have_last ? last : 0;
                float x = x0 + i * step;
@@ -7379,9 +7387,10 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
                for (int s = 0; s < rows; s++)
                {
                     int nid = s_wave_nets[s];
-                    int v = hw_net_level_for_event(ev, nid);
-                    const HwNetSemantic *sem = hw_map_find_net(nid);
-                    const char *nm = sem ? sem->canonical_name : "?";
+                    int v = hw_net_level_for_event(ds, ev, nid);
+                    const HwNetSemantic *sem = hw_dataset_find_net(ds, nid);
+                    const char *nm = sem && sem->canonical_name ? sem->canonical_name :
+                                     (nid >= 0 && nid < ds->net_count ? ds->nets[nid].name : "?");
                     if (v >= 0)
                     {
                          ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ROW_COLORS[s % N_ROW_COLORS]),
@@ -7396,6 +7405,8 @@ static void draw_hw_waveform_viewer(const struct gb_hw_trace *tr)
 
 void draw_panel_hw_schematic(struct gb *gb)
 {
+     const HwSchematicDataset *ds = hw_schematic_dataset_for_gb(gb);
+
      float dt = ImGui::GetIO().DeltaTime;
 
      draw_debug_selection_banner("timeline");
@@ -7452,13 +7463,13 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (!s_hw_activity_init)
      {
           hw_activity_reset(&s_hw_activity);
-          hw_graph_build(); /* build wire connectivity graph once */
+          hw_graph_build(ds); /* build wire connectivity graph once */
           s_hw_activity_init = true;
      }
      hw_activity_tick(&s_hw_activity, dt, 3.0f);
 
      /* Decay wire pulses */
-     for (int _wi = 0; _wi < HW_WIRE_COUNT; _wi++)
+     for (int _wi = 0; _wi < ds->wire_count; _wi++)
      {
           if (s_wire_pulse_t[_wi] > 0.0f)
           {
@@ -7521,8 +7532,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (is_cart) { pox = 0.87f; poy = 0.53f; } /* P1 */
                else if (is_wram) { pox = 0.51f; poy = 0.33f; } /* U2 */
 
-               int touched[HW_NET_COUNT];
-               int touched_n = hw_event_collect_touched_nets(pev, touched, HW_NET_COUNT);
+               int touched[HW_DATASET_MAX_NETS];
+               int touched_n = hw_event_collect_touched_nets(ds, pev, touched, ds->net_count);
 
                /* Heatmap: acumula hits por net tocado pelo evento */
                if (s_sch_show_heat)
@@ -7539,7 +7550,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (pev->seq > pulse_floor)
                {
                     for (int ti = 0; ti < touched_n; ti++)
-                         wire_pulse_fire(touched[ti], pox, poy, pcol);
+                         wire_pulse_fire(ds, touched[ti], pox, poy, pcol);
                }
 
                s_wire_pulse_last_seq = pev->seq;
@@ -7698,12 +7709,12 @@ void draw_panel_hw_schematic(struct gb *gb)
      const HwSchematicActivityState *act = s_sch_frozen ? &s_hw_frozen : &s_hw_activity;
 
      if (gb && !s_sch_paper_mode)
-          draw_hw_status_strip(gb, act);
+          draw_hw_status_strip(ds, gb, act);
 
      /* Canvas is the primary surface; lower analysis drawers reserve bounded space. */
      ImVec2 total_avail = ImGui::GetContentRegionAvail();
      float reserved_trace_h = s_sch_trace_pane_open ? 170.0f : 36.0f;
-     float reserved_net_h = (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+     float reserved_net_h = (s_sch_sel_net >= 0 && s_sch_sel_net < ds->net_count)
                                 ? 30.0f + (s_sch_net_inspector_open ? 122.0f : 0.0f) +
                                       (s_sch_net_timeline_open ? 104.0f : 0.0f)
                                 : 0.0f;
@@ -7882,9 +7893,9 @@ void draw_panel_hw_schematic(struct gb *gb)
      if (ImGui::IsItemHovered() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left))
      {
           float best_dist2 = 25.0f; /* 5px^2 */
-          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          for (int i = 0; i < ds->wire_count; i++)
           {
-               const HwWire *w = &hw_wires[i];
+               const HwWire *w = &ds->wires[i];
                if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
                     continue;
                /* segment-to-point distance^2 in screen space */
@@ -7916,29 +7927,29 @@ void draw_panel_hw_schematic(struct gb *gb)
       * Also pins the net in the dynamic waveform viewer. */
      if (s_sch_hover_wire >= 0 && ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
      {
-          int nid = hw_wires[s_sch_hover_wire].net_id;
+          int nid = ds->wires[s_sch_hover_wire].net_id;
           s_sch_sel_net = (s_sch_sel_net == nid) ? -1 : nid;
           s_sch_sel_comp = -1;
           if (s_sch_sel_net >= 0)
-               wave_add_net(s_sch_sel_net); /* auto-pin in waveform */
+               wave_add_net(ds, s_sch_sel_net); /* auto-pin in waveform */
      }
 
      /* Zoom-to-selected net (F key) */
      if (s_sch_sel_net >= 0 && ImGui::IsItemHovered() && ImGui::IsKeyPressed(ImGuiKey_F))
      {
           float nx_min = 1e9f, ny_min = 1e9f, nx_max = -1e9f, ny_max = -1e9f;
-          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          for (int i = 0; i < ds->wire_count; i++)
           {
-               if (hw_wires[i].net_id != s_sch_sel_net)
+               if (ds->wires[i].net_id != s_sch_sel_net)
                     continue;
-               nx_min = hw_wires[i].nx1 < nx_min ? hw_wires[i].nx1 : nx_min;
-               nx_max = hw_wires[i].nx1 > nx_max ? hw_wires[i].nx1 : nx_max;
-               ny_min = hw_wires[i].ny1 < ny_min ? hw_wires[i].ny1 : ny_min;
-               ny_max = hw_wires[i].ny1 > ny_max ? hw_wires[i].ny1 : ny_max;
-               nx_min = hw_wires[i].nx2 < nx_min ? hw_wires[i].nx2 : nx_min;
-               nx_max = hw_wires[i].nx2 > nx_max ? hw_wires[i].nx2 : nx_max;
-               ny_min = hw_wires[i].ny2 < ny_min ? hw_wires[i].ny2 : ny_min;
-               ny_max = hw_wires[i].ny2 > ny_max ? hw_wires[i].ny2 : ny_max;
+               nx_min = ds->wires[i].nx1 < nx_min ? ds->wires[i].nx1 : nx_min;
+               nx_max = ds->wires[i].nx1 > nx_max ? ds->wires[i].nx1 : nx_max;
+               ny_min = ds->wires[i].ny1 < ny_min ? ds->wires[i].ny1 : ny_min;
+               ny_max = ds->wires[i].ny1 > ny_max ? ds->wires[i].ny1 : ny_max;
+               nx_min = ds->wires[i].nx2 < nx_min ? ds->wires[i].nx2 : nx_min;
+               nx_max = ds->wires[i].nx2 > nx_max ? ds->wires[i].nx2 : nx_max;
+               ny_min = ds->wires[i].ny2 < ny_min ? ds->wires[i].ny2 : ny_min;
+               ny_max = ds->wires[i].ny2 > ny_max ? ds->wires[i].ny2 : ny_max;
           }
           if (nx_max > nx_min || ny_max > ny_min)
           {
@@ -7958,9 +7969,9 @@ void draw_panel_hw_schematic(struct gb *gb)
      }
 
      /*  Wires & buses */
-     for (int i = 0; i < HW_WIRE_COUNT; i++)
+     for (int i = 0; i < ds->wire_count; i++)
      {
-          const HwWire *w = &hw_wires[i];
+          const HwWire *w = &ds->wires[i];
           if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
                continue;
 
@@ -7978,12 +7989,12 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (s_sch_show_heat && !w->is_bus)
                {
                     /* Heatmap mode: cor acumulada, escala log, sem fade instantâneo */
-                    col = sch_wire_color_heat(w->net_id);
+                    col = sch_wire_color_heat(ds, w->net_id);
                }
                else
                {
                     /* Trace-driven projection: use per-net fade when trace is active */
-                    bool trace_active = gb && gb->debug.hw_trace.enabled && w->net_id >= 0 && w->net_id < HW_NET_COUNT && act->net_fade[w->net_id] > 0.01f;
+                    bool trace_active = gb && gb->debug.hw_trace.enabled && w->net_id >= 0 && w->net_id < ds->net_count && act->net_fade[w->net_id] > 0.01f;
                     if (trace_active)
                     {
                          /* Colour by event type of last touch */
@@ -8002,7 +8013,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                          default:                   active_col = IM_COL32(180, 180, 220, 255); break;
                          }
                          ImU32 base_col = s_sch_show_kinds
-                                              ? sch_wire_color_kind(w->net_id)
+                                             ? sch_wire_color_kind(ds, w->net_id)
                                               : IM_COL32(70, 80, 100, 120);
                          float t = fade > 1.0f ? 1.0f : fade;
                          uint8_t r = (uint8_t)(((base_col >> IM_COL32_R_SHIFT) & 0xFF) * (1 - t) + ((active_col >> IM_COL32_R_SHIFT) & 0xFF) * t);
@@ -8012,12 +8023,12 @@ void draw_panel_hw_schematic(struct gb *gb)
                          col = IM_COL32(r, g, b, a);
                     }
                     else if (s_sch_show_kinds)
-                         col = sch_wire_color_kind(w->net_id);
+                         col = sch_wire_color_kind(ds, w->net_id);
                     else if (s_sch_show_activity)
                     {
                          int anim = -1;
-                         if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
-                              anim = hw_nets[w->net_id].anim_group;
+                         if (w->net_id >= 0 && w->net_id < ds->net_count)
+                              anim = ds->nets[w->net_id].anim_group;
                          col = sch_wire_color(anim);
                     }
                     else
@@ -8025,7 +8036,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                }
 
                if (s_sch_status_focus_mask != 0 &&
-                   !sch_net_matches_status_focus(w->net_id, act))
+                   !sch_net_matches_status_focus(ds, w->net_id, act))
                {
                     uint8_t a = (col >> IM_COL32_A_SHIFT) & 0xFF;
                     col = (col & ~(0xFFu << IM_COL32_A_SHIFT)) |
@@ -8056,9 +8067,9 @@ void draw_panel_hw_schematic(struct gb *gb)
           }
           /* Power/reset nets get thicker strokes */
           bool is_power_wire = false;
-          if (w->net_id >= 0 && w->net_id < HW_NET_COUNT)
+          if (w->net_id >= 0 && w->net_id < ds->net_count)
           {
-               const HwNetSemantic *ws = hw_map_find_net(w->net_id);
+               const HwNetSemantic *ws = hw_dataset_find_net(ds, w->net_id);
                is_power_wire = ws && (ws->kind == HW_SIG_POWER || ws->kind == HW_SIG_RESET);
           }
           float thick = w->is_bus ? bus_px : (is_power_wire ? power_px : wire_px);
@@ -8079,7 +8090,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                 * Durante a janela de DURATION, desenhamos um segmento brilhante
                 * de comprimento ~20% do fio na posição proporcional ao decay. */
                if (!s_sch_paper_mode && s_wire_pulse_t[i] > 0.0f &&
-                   sch_net_matches_status_focus(w->net_id, act))
+                   sch_net_matches_status_focus(ds, w->net_id, act))
                {
                     float pt = s_wire_pulse_t[i];
                     if (pt <= WIRE_PULSE_DURATION)
@@ -8110,8 +8121,8 @@ void draw_panel_hw_schematic(struct gb *gb)
 
           /* Net 0/1 label at wire midpoint — only when zoomed in and trace active */
           if (s_sch_show_levels && !s_sch_paper_mode && zoom > 900.0f && !w->is_bus &&
-              w->net_id >= 0 && w->net_id < HW_NET_COUNT &&
-              sch_net_matches_status_focus(w->net_id, act) &&
+              w->net_id >= 0 && w->net_id < ds->net_count &&
+              sch_net_matches_status_focus(ds, w->net_id, act) &&
               act->net_fade[w->net_id] > 0.05f)
           {
                int8_t lvl = act->net_level[w->net_id];
@@ -8140,9 +8151,9 @@ void draw_panel_hw_schematic(struct gb *gb)
           float r = wire_px * 2.5f;
           if (r < 3.0f)
                r = 3.0f;
-          for (int i = 0; i < HW_WIRE_COUNT; i++)
+          for (int i = 0; i < ds->wire_count; i++)
           {
-               const HwWire *w = &hw_wires[i];
+               const HwWire *w = &ds->wires[i];
                if (w->net_id >= 0)
                     continue;
                if (!hw_sch_line_in_viewport(&cache, w->nx1, w->ny1, w->nx2, w->ny2))
@@ -8161,13 +8172,13 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* Wire hover tooltip */
      if (s_sch_hover_wire >= 0 && !s_sch_paper_mode)
      {
-          const HwWire *hw = &hw_wires[s_sch_hover_wire];
+          const HwWire *hw = &ds->wires[s_sch_hover_wire];
           ImGui::BeginTooltip();
-          if (hw->net_id >= 0 && hw->net_id < HW_NET_COUNT)
+          if (hw->net_id >= 0 && hw->net_id < ds->net_count)
           {
-               const HwNet *net = &hw_nets[hw->net_id];
+               const HwNet *net = &ds->nets[hw->net_id];
                ImGui::Text("Net: %s  (#%d)", net->name, hw->net_id);
-               const HwNetSemantic *sem = hw_map_find_net(hw->net_id);
+               const HwNetSemantic *sem = hw_dataset_find_net(ds, hw->net_id);
                if (sem)
                {
                     ImGui::TextDisabled("kind: %s  [%s]",
@@ -8196,9 +8207,9 @@ void draw_panel_hw_schematic(struct gb *gb)
           jr = 2.5f;
      if (s_sch_show_junctions)
      {
-          for (int i = 0; i < HW_JUNCTION_COUNT; i++)
+          for (int i = 0; i < ds->junction_count; i++)
           {
-               const HwJunction *j = &hw_junctions[i];
+               const HwJunction *j = &ds->junctions[i];
                if (!hw_sch_in_viewport(&cache, j->nx, j->ny))
                     continue;
 
@@ -8212,9 +8223,9 @@ void draw_panel_hw_schematic(struct gb *gb)
                     /* Find nearest wire to determine net kind for this junction */
                     int jnet = -1;
                     float best_j2 = 1e-6f; /* within ~1mm normalized */
-                    for (int wi = 0; wi < HW_WIRE_COUNT; wi++)
+                    for (int wi = 0; wi < ds->wire_count; wi++)
                     {
-                         const HwWire *wj = &hw_wires[wi];
+                         const HwWire *wj = &ds->wires[wi];
                          if (wj->net_id < 0)
                               continue;
                          auto near_end = [&](float ex, float ey)
@@ -8235,7 +8246,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                     {
                          bool jsel = (s_sch_sel_net == jnet);
                          jcol = jsel ? IM_COL32(255, 230, 80, 255)
-                                     : sch_wire_color_kind(jnet);
+                                     : sch_wire_color_kind(ds, jnet);
                          /* bump alpha for visibility */
                          uint8_t a = (jcol >> IM_COL32_A_SHIFT) & 0xFF;
                          if (a < 200)
@@ -8290,9 +8301,9 @@ void draw_panel_hw_schematic(struct gb *gb)
                }
           };
 
-          for (int i = 0; i < HW_LABEL_COUNT; i++)
+          for (int i = 0; i < ds->label_count; i++)
           {
-               const HwLabel *lbl = &hw_labels[i];
+               const HwLabel *lbl = &ds->labels[i];
                if (!hw_sch_in_viewport(&cache, lbl->nx, lbl->ny))
                     continue;
                float sx = SX(lbl->nx);
@@ -8399,9 +8410,9 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* Component boxes */
      if (s_sch_show_components)
      {
-          for (int i = 0; i < HW_COMPONENT_COUNT; i++)
+          for (int i = 0; i < ds->component_count; i++)
           {
-               const HwComponent *comp = &hw_components[i];
+               const HwComponent *comp = &ds->components[i];
                float comp_nx, comp_ny, comp_nw, comp_nh;
                sch_component_reference_body(comp, &comp_nx, &comp_ny, &comp_nw, &comp_nh);
                float cx = SX(comp_nx);
@@ -8501,18 +8512,18 @@ void draw_panel_hw_schematic(struct gb *gb)
                               /* Walk all nets in hw_net_map; for nets whose wires
                                * connect to this component box, draw the pin stub
                                * and label at the wire endpoint closest to the box. */
-                              for (int ni = 0; ni < hw_net_map_count; ni++)
+                              for (int ni = 0; ds->net_map && ni < ds->net_map_count; ni++)
                               {
-                                   const HwNetSemantic *ns = &hw_net_map[ni];
-                                   if (ns->net_id < 0 || ns->net_id >= HW_NET_COUNT)
+                                   const HwNetSemantic *ns = &ds->net_map[ni];
+                                   if (ns->net_id < 0 || ns->net_id >= ds->net_count)
                                         continue;
                                    /* Find wire endpoint closest to this IC box edge */
                                    float best_d2 = 1e9f;
                                    float best_ex = 0, best_ey = 0;
                                    bool best_left = false;
-                                   for (int wi = 0; wi < HW_WIRE_COUNT; wi++)
+                                   for (int wi = 0; wi < ds->wire_count; wi++)
                                    {
-                                        if (hw_wires[wi].net_id != ns->net_id)
+                                        if (ds->wires[wi].net_id != ns->net_id)
                                              continue;
                                         auto check_ep = [&](float enx, float eny)
                                         {
@@ -8533,8 +8544,8 @@ void draw_panel_hw_schematic(struct gb *gb)
                                                   best_left = near_left;
                                              }
                                         };
-                                        check_ep(hw_wires[wi].nx1, hw_wires[wi].ny1);
-                                        check_ep(hw_wires[wi].nx2, hw_wires[wi].ny2);
+                                        check_ep(ds->wires[wi].nx1, ds->wires[wi].ny1);
+                                        check_ep(ds->wires[wi].nx2, ds->wires[wi].ny2);
                                    }
                                    if (best_d2 >= 1e8f)
                                         continue;
@@ -8640,7 +8651,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                     }
                     else if (s_sch_show_kinds)
                     {
-                         const HwComponentSemantic *csem = hw_map_find_component(i);
+                         const HwComponentSemantic *csem = hw_dataset_find_component(ds, i);
                          HwComponentKind ck = csem ? csem->kind : HW_COMP_UNKNOWN;
                          border = kind_comp_col[ck];
                     }
@@ -8663,7 +8674,7 @@ void draw_panel_hw_schematic(struct gb *gb)
 
                     bool comp_filtered_out =
                         s_sch_status_focus_mask != 0 &&
-                        !sch_component_matches_status_focus(i, act);
+                        !sch_component_matches_status_focus(ds, i, act);
                     if (comp_filtered_out && !selected && !hovered)
                     {
                          uint8_t a = (border >> IM_COL32_A_SHIFT) & 0xFF;
@@ -8765,7 +8776,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                               /* Activity colour: use net fade if trace active */
                               ImU32 pcol = IM_COL32(160, 20, 20, 180);
                               if (gb && gb->debug.hw_trace.enabled &&
-                                  p->net_id >= 0 && p->net_id < HW_NET_COUNT &&
+                                  p->net_id >= 0 && p->net_id < ds->net_count &&
                                   act->net_fade[p->net_id] > 0.01f)
                               {
                                    float fade = act->net_fade[p->net_id];
@@ -8892,12 +8903,12 @@ void draw_panel_hw_schematic(struct gb *gb)
           {
                float cnx = 0.0f, cny = 0.0f;
                int cn = 0;
-               for (int i = 0; i < HW_WIRE_COUNT; i++)
+               for (int i = 0; i < ds->wire_count; i++)
                {
-                    if (hw_wires[i].net_id != s_sch_sel_net)
+                    if (ds->wires[i].net_id != s_sch_sel_net)
                          continue;
-                    cnx += (hw_wires[i].nx1 + hw_wires[i].nx2) * 0.5f;
-                    cny += (hw_wires[i].ny1 + hw_wires[i].ny2) * 0.5f;
+                    cnx += (ds->wires[i].nx1 + ds->wires[i].nx2) * 0.5f;
+                    cny += (ds->wires[i].ny1 + ds->wires[i].ny2) * 0.5f;
                     cn++;
                }
                if (cn > 0)
@@ -8915,11 +8926,11 @@ void draw_panel_hw_schematic(struct gb *gb)
      /* Hover tooltip */
      if (s_sch_show_components && hover_comp >= 0)
      {
-          const HwComponent *comp = &hw_components[hover_comp];
+          const HwComponent *comp = &ds->components[hover_comp];
           ImGui::BeginTooltip();
           ImGui::Text("%s  —  %s", comp->ref, comp->value);
           ImGui::TextDisabled("pos: (%.3f, %.3f) normalized", comp->nx, comp->ny);
-          const HwComponentSemantic *csem = hw_map_find_component(hover_comp);
+          const HwComponentSemantic *csem = hw_dataset_find_component(ds, hover_comp);
           if (csem)
           {
                ImGui::TextDisabled("kind: %s  [%s]", hw_component_kind_name(csem->kind),
@@ -8974,9 +8985,9 @@ void draw_panel_hw_schematic(struct gb *gb)
                {
                     ImGui::Separator();
                     ImGui::Text("Pin %d: %s", best_pin->pin, best_pin->name);
-                    if (best_pin->net_id >= 0 && best_pin->net_id < HW_NET_COUNT)
+                    if (best_pin->net_id >= 0 && best_pin->net_id < ds->net_count)
                     {
-                         const HwNet *pnet = &hw_nets[best_pin->net_id];
+                         const HwNet *pnet = &ds->nets[best_pin->net_id];
                          ImGui::TextDisabled("net: %s (#%d)", pnet->name, best_pin->net_id);
                          if (gb && gb->debug.hw_trace.enabled &&
                              act->net_fade[best_pin->net_id] > 0.01f)
@@ -8992,10 +9003,10 @@ void draw_panel_hw_schematic(struct gb *gb)
 
      /* Legend + info bar */
      ImGui::Separator();
-     if (s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+     if (s_sch_sel_net >= 0 && s_sch_sel_net < ds->net_count)
      {
-          const HwNet *net = &hw_nets[s_sch_sel_net];
-          const HwNetSemantic *sem = hw_map_find_net(s_sch_sel_net);
+          const HwNet *net = &ds->nets[s_sch_sel_net];
+          const HwNetSemantic *sem = hw_dataset_find_net(ds, s_sch_sel_net);
           if (sem)
                ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
                                   "Net: %s  (%s)  [%s]  F=zoom",
@@ -9005,9 +9016,9 @@ void draw_panel_hw_schematic(struct gb *gb)
                ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f),
                                   "Net: %s  #%d  F=zoom", net->name, s_sch_sel_net);
      }
-     else if (s_sch_sel_comp >= 0 && s_sch_sel_comp < HW_COMPONENT_COUNT)
+     else if (s_sch_sel_comp >= 0 && s_sch_sel_comp < ds->component_count)
      {
-          const HwComponent *c = &hw_components[s_sch_sel_comp];
+          const HwComponent *c = &ds->components[s_sch_sel_comp];
           ImGui::Text("Selecionado: %s  (%s)", c->ref, c->value);
      }
      else
@@ -9059,9 +9070,9 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::EndChild(); /* ##sch_canvas_child */
 
      /* Net timeline: last N events for the selected net */
-     if (gb && s_sch_sel_net >= 0 && s_sch_sel_net < HW_NET_COUNT)
+     if (gb && s_sch_sel_net >= 0 && s_sch_sel_net < ds->net_count)
      {
-          const HwNet *sel_net = &hw_nets[s_sch_sel_net];
+          const HwNet *sel_net = &ds->nets[s_sch_sel_net];
           ImGui::Separator();
           if (ImGui::SmallButton(s_sch_net_inspector_open ? "Net inspector [-]##sch_net_inspector" : "Net inspector [+]##sch_net_inspector"))
                s_sch_net_inspector_open = !s_sch_net_inspector_open;
@@ -9072,7 +9083,7 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::TextDisabled("%s", sel_net->name);
 
           if (s_sch_net_inspector_open)
-               draw_hw_selected_net_inspector(&gb->debug.hw_trace, s_sch_sel_net);
+               draw_hw_selected_net_inspector(ds, &gb->debug.hw_trace, s_sch_sel_net);
 
           if (s_sch_net_timeline_open)
           {
@@ -9096,7 +9107,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                {
                     uint32_t idx = (tl_tr->head + cap - 1 - k) % cap;
                     const gb_hw_trace_event *ev = &tl_tr->events[idx];
-                    if (hw_event_touches_net(ev, s_sch_sel_net))
+                    if (hw_event_touches_net(ds, ev, s_sch_sel_net))
                          tl_buf[tl_n++] = {ev, true};
                }
 
@@ -9169,7 +9180,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                               tdl->AddRect(b0, b1, IM_COL32(255, 255, 255, 220), 1.5f, 0, 1.5f);
 
                          /* --- Logic level (bottom row) --- */
-                         int level = hw_net_level_for_event(ev, s_sch_sel_net);
+                         int level = hw_net_level_for_event(ds, ev, s_sch_sel_net);
 
                          if (level >= 0)
                          {
@@ -9233,7 +9244,7 @@ void draw_panel_hw_schematic(struct gb *gb)
                if (s_tl_sel >= 0 && s_tl_sel < tl_n)
                {
                     const gb_hw_trace_event *ev = tl_buf[s_tl_sel].ev;
-                    int level = hw_net_level_for_event(ev, s_sch_sel_net);
+                    int level = hw_net_level_for_event(ds, ev, s_sch_sel_net);
                     const HwTraceEvtMeta *emeta = hw_trace_event_meta(ev->type);
                     ImGui::Indent(8.0f);
                     ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(emeta->color), "%s", emeta->name);
@@ -9351,14 +9362,16 @@ void draw_panel_hw_schematic(struct gb *gb)
                     char net_names_buf[512] = {};
                     int net_ids_len = 0;
                     int net_names_len = 0;
-                    for (int ni = 0; ni < hw_net_map_count; ni++)
+                    for (int ni = 0; ds->net_map && ni < ds->net_map_count; ni++)
                     {
-                         int nid = hw_net_map[ni].net_id;
-                         if (nid < 0 || nid >= HW_NET_COUNT)
+                         int nid = ds->net_map[ni].net_id;
+                         if (nid < 0 || nid >= ds->net_count)
                               continue;
-                         if (hw_net_level_for_event(ev, nid) < 0)
+                         if (hw_net_level_for_event(ds, ev, nid) < 0)
                               continue;
-                         const char *nm = hw_net_map[ni].canonical_name;
+                         const char *nm = ds->net_map[ni].canonical_name;
+                         if (!nm || !nm[0])
+                              nm = ds->nets[nid].name;
                          /* Append id */
                          int written = snprintf(net_ids_buf + net_ids_len,
                                                 (int)sizeof(net_ids_buf) - net_ids_len,
@@ -9448,10 +9461,10 @@ void draw_panel_hw_schematic(struct gb *gb)
      }
 
      if (ImGui::CollapsingHeader("Bus activity visualizer", ImGuiTreeNodeFlags_DefaultOpen))
-          draw_hw_bus_activity_visualizer(tr);
+          draw_hw_bus_activity_visualizer(ds, tr);
 
      if (ImGui::CollapsingHeader("Waveform viewer", ImGuiTreeNodeFlags_DefaultOpen))
-          draw_hw_waveform_viewer(tr);
+          draw_hw_waveform_viewer(ds, tr);
 
      /* Selected event index (ring-buffer position from newest=0) */
      static int s_selected_ev = -1;

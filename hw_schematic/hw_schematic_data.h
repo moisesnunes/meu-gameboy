@@ -42,7 +42,7 @@ typedef struct {
 
 /* Animation groups — index into HwNet.anim_group */
 /* 0=addr  1=data  2=wram_data  3=wram_addr  4=clock
- * 5=audio 6=lcd   7=irq        8=power      9=serial 10=bus_ctrl */
+ * 5=audio 6=lcd   7=irq        8=power      9=serial 10=bus_ctrl 11=joypad */
 #define HW_ANIM_ADDR      0
 #define HW_ANIM_DATA      1
 #define HW_ANIM_WRAM_DATA 2
@@ -54,7 +54,8 @@ typedef struct {
 #define HW_ANIM_POWER     8
 #define HW_ANIM_SERIAL    9
 #define HW_ANIM_BUS_CTRL  10
-#define HW_ANIM_GROUP_COUNT 11
+#define HW_ANIM_JOYPAD    11
+#define HW_ANIM_GROUP_COUNT 12
 
 #define HW_COMPONENT_COUNT  15
 #define HW_WIRE_COUNT       411

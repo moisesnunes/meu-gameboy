@@ -25,7 +25,7 @@
  * ------------------------------------------------------------------------- */
 
 /* Maps net_id [0..HW_NET_COUNT-1] → hw_net_map[] index, -1 if not mapped. */
-static int8_t s_net_id_to_map[HW_NET_COUNT];
+static int8_t s_net_id_to_map[HW_DATASET_MAX_NETS];
 static bool s_lookup_built = false;
 
 static void build_lookup(void)
@@ -36,7 +36,7 @@ static void build_lookup(void)
      for (int i = 0; i < hw_net_map_count; i++)
      {
           int nid = hw_net_map[i].net_id;
-          if (nid >= 0 && nid < HW_NET_COUNT)
+          if (nid >= 0 && nid < HW_DATASET_MAX_NETS)
                s_net_id_to_map[nid] = (int8_t)(i < 127 ? i : 127);
      }
      s_lookup_built = true;
@@ -66,7 +66,7 @@ static void pulse_net(HwSchematicActivityState *st, int net_id,
                       float intensity, uint64_t seq,
                       gb_hw_trace_event_type type, int8_t level)
 {
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+     if (net_id < 0 || net_id >= HW_DATASET_MAX_NETS)
           return;
      int mi = (int)(uint8_t)s_net_id_to_map[net_id]; /* may be -1 cast to 255 */
      if ((int8_t)s_net_id_to_map[net_id] < 0)
@@ -86,7 +86,7 @@ static void pulse_comp(HwSchematicActivityState *st, int comp_id,
                        float intensity, uint64_t seq,
                        gb_hw_trace_event_type type)
 {
-     if (comp_id < 0 || comp_id >= HW_COMPONENT_COUNT)
+     if (comp_id < 0 || comp_id >= HW_DATASET_MAX_COMPONENTS)
           return;
      if (intensity > st->comp_fade[comp_id])
           st->comp_fade[comp_id] = intensity;
@@ -284,13 +284,13 @@ void hw_activity_reset(HwSchematicActivityState *st)
 void hw_activity_tick(HwSchematicActivityState *st, float dt, float decay_rate)
 {
      float decay = dt * decay_rate;
-     for (int i = 0; i < HW_NET_COUNT; i++)
+     for (int i = 0; i < HW_DATASET_MAX_NETS; i++)
      {
           st->net_fade[i] -= decay;
           if (st->net_fade[i] < 0.0f)
                st->net_fade[i] = 0.0f;
      }
-     for (int i = 0; i < HW_COMPONENT_COUNT; i++)
+     for (int i = 0; i < HW_DATASET_MAX_COMPONENTS; i++)
      {
           st->comp_fade[i] -= decay;
           if (st->comp_fade[i] < 0.0f)
@@ -558,7 +558,7 @@ int hw_activity_consume_trace(HwSchematicActivityState *st,
  * A net_id is "unmapped" when s_net_id_to_map[] == -1 after build_lookup(). */
 static bool audit_net_mapped(int net_id)
 {
-     if (net_id < 0 || net_id >= HW_NET_COUNT)
+     if (net_id < 0 || net_id >= HW_DATASET_MAX_NETS)
           return false;
      return (int8_t)s_net_id_to_map[net_id] >= 0;
 }
@@ -785,7 +785,7 @@ static void audit_event(HwAuditResult *out, const gb_hw_trace_event *ev,
      case GB_HW_EVT_IRQ_ACK:
           /* These only pulse COMP_U1 — no net projection, which is by design.
            * Flag only if no component mapping exists for COMP_U1 (index 10). */
-          if (10 >= HW_COMPONENT_COUNT)
+          if (10 >= HW_DATASET_MAX_COMPONENTS)
           {
                snprintf(buf, sizeof(buf), "IRQ: COMP_U1 (10) out of range");
                audit_push(out, HW_AUDIT_NO_BUS_PROJ, ev, -1, buf);
@@ -796,7 +796,7 @@ static void audit_event(HwAuditResult *out, const gb_hw_trace_event *ev,
      case GB_HW_EVT_PPU_HBLANK:
      case GB_HW_EVT_PPU_MODE:
           /* Only pulse LCD comp (11) and U1 (10). Check both. */
-          if (11 >= HW_COMPONENT_COUNT)
+          if (11 >= HW_DATASET_MAX_COMPONENTS)
           {
                snprintf(buf, sizeof(buf), "PPU: LCD comp (11) out of range");
                audit_push(out, HW_AUDIT_NO_BUS_PROJ, ev, -1, buf);

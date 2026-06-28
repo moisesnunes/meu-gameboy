@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include "hw_schematic_data.h"
 #include "hw_schematic_map.h"
+#include "hw_schematic_dataset.h"
 #include "debug.h"
 
 /* -------------------------------------------------------------------------
@@ -25,19 +26,19 @@
  * ------------------------------------------------------------------------- */
 typedef struct
 {
-     float net_fade[HW_NET_COUNT];
-     float comp_fade[HW_COMPONENT_COUNT];
+     float net_fade[HW_DATASET_MAX_NETS];
+     float comp_fade[HW_DATASET_MAX_COMPONENTS];
 
      /* seq of the last event that touched each net/component */
-     uint64_t net_event_seq[HW_NET_COUNT];
-     uint64_t comp_event_seq[HW_COMPONENT_COUNT];
+     uint64_t net_event_seq[HW_DATASET_MAX_NETS];
+     uint64_t comp_event_seq[HW_DATASET_MAX_COMPONENTS];
 
      /* type of the last event (for colouring) */
-     gb_hw_trace_event_type net_last_type[HW_NET_COUNT];
-     gb_hw_trace_event_type comp_last_type[HW_COMPONENT_COUNT];
+     gb_hw_trace_event_type net_last_type[HW_DATASET_MAX_NETS];
+     gb_hw_trace_event_type comp_last_type[HW_DATASET_MAX_COMPONENTS];
 
      /* logic level inferred from the last event (0/1/-1=unknown) */
-     int8_t net_level[HW_NET_COUNT];
+     int8_t net_level[HW_DATASET_MAX_NETS];
 } HwSchematicActivityState;
 
 /* -------------------------------------------------------------------------

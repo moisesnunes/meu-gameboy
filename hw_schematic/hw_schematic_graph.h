@@ -1,51 +1,51 @@
 /* hw_schematic_graph.h — Wire connectivity graph for topological animation.
  *
- * Builds an adjacency list over hw_wires[] so that a "flow" animation can
- * propagate along physically connected wire segments (same net, touching
- * endpoints or junction points) rather than lighting all segments of a net
- * simultaneously.
+ * Builds an adjacency list over a dataset's wires[] so that a "flow"
+ * animation can propagate along physically connected wire segments (same
+ * net, touching endpoints) rather than lighting all segments at once.
  *
- * The graph is built once at init time (hw_graph_build) and is read-only
- * thereafter.  All allocations are static; no heap needed.
- *
- * Usage:
- *   hw_graph_build();
- *   hw_graph_reachable(root_wire, net_id, out, n);
+ * The graph is built once per dataset and cached.  Switching datasets
+ * invalidates the cache via hw_graph_invalidate().
  */
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include "hw_schematic_data.h"
+#include "hw_schematic_dataset.h"
 
-/* Maximum neighbours per wire segment.  In practice DMG has at most 4-5
- * wires meeting at any junction, so 8 is generous. */
+/* Maximum neighbours per wire segment. */
 #define HW_GRAPH_MAX_NEIGHBOURS 8
 
 /* Maximum wires reachable in a single BFS (bounded for static allocation). */
-#define HW_GRAPH_MAX_REACH 128
+#define HW_GRAPH_MAX_REACH 512
+
+/* Static capacity: must be >= max wire_count across all datasets.
+ * DMG=411  LCD=266 — 512 is safe headroom. */
+#define HW_GRAPH_WIRE_CAP 512
 
 typedef struct {
-    /* neighbour wire indices (into hw_wires[]), -1 = empty slot */
-    int16_t nb[HW_GRAPH_MAX_NEIGHBOURS];
+    int16_t nb[HW_GRAPH_MAX_NEIGHBOURS]; /* neighbour wire indices, -1=empty */
     uint8_t nb_count;
-    /* Which endpoint connects to each neighbour: 0 = (nx1,ny1), 1 = (nx2,ny2) */
-    uint8_t nb_ep[HW_GRAPH_MAX_NEIGHBOURS];
+    uint8_t nb_ep[HW_GRAPH_MAX_NEIGHBOURS]; /* endpoint: 0=(nx1,ny1) 1=(nx2,ny2) */
 } HwWireNode;
 
-/* One node per wire in hw_wires[]. */
-extern HwWireNode hw_graph_nodes[HW_WIRE_COUNT];
+extern HwWireNode hw_graph_nodes[HW_GRAPH_WIRE_CAP];
 extern bool       hw_graph_ready;
 
-/* Build the connectivity graph.  Safe to call multiple times (idempotent). */
-void hw_graph_build(void);
+/* Build the connectivity graph for ds.  Safe to call multiple times;
+ * re-builds when the dataset pointer changes. */
+void hw_graph_build(const HwSchematicDataset *ds);
 
-/* BFS: collect all wire indices reachable from start_wire within the same
- * net (net_id).  out[] receives indices; max_out is its capacity.
- * Returns number of wires written to out[].
- * If start_wire < 0 or its net_id doesn't match, returns 0. */
-int hw_graph_reachable(int start_wire, int net_id,
-                        int16_t *out, int max_out);
+/* Invalidate cached graph (call when switching datasets). */
+void hw_graph_invalidate(void);
 
-/* Return the wire index whose midpoint is closest to (nx, ny) within the
- * given net_id.  Returns -1 if none found within max_dist (normalised). */
-int hw_graph_nearest_wire(int net_id, float nx, float ny, float max_dist);
+/* BFS: collect all wire indices reachable from start_wire within net_id.
+ * Returns number of wires written to out[]. */
+int hw_graph_reachable(const HwSchematicDataset *ds,
+                       int start_wire, int net_id,
+                       int16_t *out, int max_out);
+
+/* Return the wire index whose midpoint is closest to (nx,ny) within net_id.
+ * Returns -1 if none found within max_dist (normalised). */
+int hw_graph_nearest_wire(const HwSchematicDataset *ds,
+                          int net_id, float nx, float ny, float max_dist);
