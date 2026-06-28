@@ -444,7 +444,7 @@ def net_anim_group(name):
                                          return 6   # LCD signals + bias voltages
     if re.match(r'^P1[0-5](_\w+)?$', n): return 11  # joypad P10..P15
     if n in ('RES', 'RST'):             return 7   # reset/IRQ
-    if n in ('VCC', 'VDD', 'VIN'):      return 8   # power
+    if n in ('VCC', 'VDD', 'VIN', 'DVDD', 'GND'):  return 8   # power
     if n in ('SCK', 'SIN', 'SOUT', 'SER'):
                                          return 9   # serial link
     if n in ('WR', 'RD', 'CS', 'MCS', 'MRD', 'MWR'):
@@ -472,22 +472,51 @@ ANIM_GROUP_NAMES = [
 # Signal group mapping (component ref -> display group)
 # ---------------------------------------------------------------------------
 
-SIGNAL_GROUPS = {
-    'U1': 0,    # CPU
+# DMG main board component groups (used when prefix == 'HW')
+SIGNAL_GROUPS_DMG = {
+    'U1': 0,    # CPU (SM83 SoC)
     'U2': 1,    # WRAM bank 1
     'U3': 2,    # WRAM bank 2
-    'P1': 3,    # Cartridge
+    'P1': 3,    # Cartridge connector
     'X1': 4,    # Crystal/clock
-    'J1': 5,    # Audio/headphone
+    'J1': 5,    # Audio/headphone jack
     'J2': 5,    # Link connector
     'VR1': 6,   # Volume pot
     'SW1': 7,   # Power switch
     'BT1': 8,   # Battery
 }
 
-def get_signal_group(ref):
-    for prefix, group in SIGNAL_GROUPS.items():
-        if ref == prefix or ref.startswith(prefix):
+# DMG LCD board component groups (used when prefix == 'LCD')
+SIGNAL_GROUPS_LCD = {
+    'U1': 6,    # IR3E02 — LCD bias voltage generator
+    'U2': 6,    # LH5076 — LCD row driver
+    'U3': 6,    # LH5077 — LCD column driver
+    'VR1': 6,   # contrast potentiometer
+    'J2': 6,    # LCD ribbon connector (to row/col drivers)
+    'J1': 11,   # main board connector (carries joypad + speaker)
+    'A1': 6,    # ribbon cable to LCD panel
+    'SW1': 11,  # SW1..SW8 — button switches (joypad)
+    'SW2': 11,
+    'SW3': 11,
+    'SW4': 11,
+    'SW5': 11,
+    'SW6': 11,
+    'SW7': 11,
+    'SW8': 11,
+    'DA1': 5,   # DAN215 diodes — speaker bridge
+    'DA2': 5,
+    'DA3': 11,  # DA3/DA4 — joypad diode matrix (button side)
+    'DA4': 11,
+    'LS1': 5,   # speaker
+    'J3': 11,   # joypad sub-board connectors
+    'J4': 11,
+    'J5': 11,
+}
+
+def get_signal_group(ref, prefix='HW'):
+    groups = SIGNAL_GROUPS_LCD if prefix.upper() == 'LCD' else SIGNAL_GROUPS_DMG
+    for key, group in groups.items():
+        if ref == key or ref.startswith(key):
             return group
     return -1
 
@@ -625,7 +654,7 @@ extern const HwJunction  {lo}_junctions[{UP}_JUNCTION_COUNT];
 const HwComponent {lo}_components[{UP}_COMPONENT_COUNT] = {{
 """)
         for c in components:
-            sg = get_signal_group(c['ref'])
+            sg = get_signal_group(c['ref'], prefix)
             f.write(f'    {{ "{escape_c_str(c["ref"])}", "{escape_c_str(c["value"])}", '
                     f'{c["nx"]:.6f}f, {c["ny"]:.6f}f, '
                     f'{c["nw"]:.6f}f, {c["nh"]:.6f}f, {sg} }},\n')
@@ -725,7 +754,7 @@ def main():
 
     print('\nComponents:')
     for c in data['components']:
-        sg = get_signal_group(c['ref'])
+        sg = get_signal_group(c['ref'], args.prefix)
         print(f'  {c["ref"]:8} {c["value"]:25} nx={c["nx"]:.4f} ny={c["ny"]:.4f} group={sg}')
 
 

@@ -56,6 +56,7 @@ static int s_rewind_capacity = 120;
 
 /* Textura OpenGL do frame do jogo (160×144) */
 static GLuint s_game_tex = 0;
+GLuint g_game_tex = 0; /* shared with debug_ui_panels — updated each frame */
 static GLuint s_prev_game_tex = 0;
 static bool s_prev_game_valid = false;
 
@@ -1789,6 +1790,7 @@ extern "C" void debug_ui_render(struct gb *gb)
                      GB_LCD_WIDTH, GB_LCD_HEIGHT,
                      GL_BGRA, GL_UNSIGNED_BYTE, pixels);
      glBindTexture(GL_TEXTURE_2D, 0);
+     g_game_tex = s_game_tex; /* expose to debug_ui_panels */
 
      ImGui_ImplOpenGL3_NewFrame();
      ImGui_ImplSDL3_NewFrame();

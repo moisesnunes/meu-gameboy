@@ -6030,6 +6030,13 @@ enum SchStatusLayer
 /* Board selector — 0=DMG Main, 1=DMG LCD */
 static int s_sch_board_idx = 0;
 
+/* Mini LCD overlay state */
+static bool  s_sch_mini_lcd       = true;   /* visible */
+static float s_sch_mini_lcd_scale = 1.5f;   /* pixel scale (1=160x144, 2=320x288, …) */
+static float s_sch_mini_lcd_ox    = -1.0f;  /* canvas-relative offset X; -1=auto (top-left) */
+static float s_sch_mini_lcd_oy    = -1.0f;  /* canvas-relative offset Y; -1=auto */
+static bool  s_sch_mini_lcd_drag  = false;
+
 /* Frozen frame */
 static bool s_sch_frozen = false;
 static HwSchematicActivityState s_hw_frozen; /* snapshot taken at freeze time */
@@ -7652,7 +7659,14 @@ void draw_panel_hw_schematic(struct gb *gb)
      ImGui::Checkbox("Junctions", &s_sch_show_junctions);
      ImGui::SameLine(0, 14);
      ImGui::Checkbox("Components", &s_sch_show_components);
-     ImGui::SameLine(0, 16);
+     ImGui::SameLine(0, 14);
+     if (gb && s_sch_board_idx == 1) /* mini LCD only meaningful on LCD board */
+     {
+          ImGui::Checkbox("LCD", &s_sch_mini_lcd);
+          if (s_sch_mini_lcd && ImGui::IsItemHovered())
+               ImGui::SetTooltip("Mini LCD: mostra o frame atual do jogo\nsobre o esquematico do LCD Board.");
+          ImGui::SameLine(0, 16);
+     }
      if (!s_sch_paper_mode)
      {
           ImGui::Checkbox("Activity", &s_sch_show_activity);
@@ -9032,6 +9046,132 @@ void draw_panel_hw_schematic(struct gb *gb)
      }
 
      dl->PopClipRect();
+
+     /* ── Mini LCD overlay (LCD Board only) ────────────────────────────────
+      * Draws the current game frame as a small LCD screen floating over the
+      * schematic canvas, connected visually to the A1 ribbon cable component.
+      * The overlay reacts to PPU activity: border pulses teal when LCD is active.
+      * ─────────────────────────────────────────────────────────────────────── */
+     if (g_game_tex && s_sch_mini_lcd && s_sch_board_idx == 1 && !s_sch_paper_mode)
+     {
+          const float LCD_W  = GB_LCD_WIDTH  * s_sch_mini_lcd_scale;
+          const float LCD_H  = GB_LCD_HEIGHT * s_sch_mini_lcd_scale;
+
+          /* Default position: top-left corner of canvas with 12px margin */
+          if (s_sch_mini_lcd_ox < 0.0f)
+          {
+               s_sch_mini_lcd_ox = 12.0f;
+               s_sch_mini_lcd_oy = 12.0f;
+          }
+
+          ImVec2 lcd_tl = ImVec2(canvas_pos.x + s_sch_mini_lcd_ox,
+                                 canvas_pos.y + s_sch_mini_lcd_oy);
+          ImVec2 lcd_br = ImVec2(lcd_tl.x + LCD_W, lcd_tl.y + LCD_H);
+
+          /* Clamp inside canvas */
+          if (lcd_tl.x < canvas_pos.x) { s_sch_mini_lcd_ox = 0.0f; lcd_tl.x = canvas_pos.x; lcd_br.x = lcd_tl.x + LCD_W; }
+          if (lcd_tl.y < canvas_pos.y) { s_sch_mini_lcd_oy = 0.0f; lcd_tl.y = canvas_pos.y; lcd_br.y = lcd_tl.y + LCD_H; }
+          if (lcd_br.x > canvas_pos.x + canvas_size.x) { lcd_br.x = canvas_pos.x + canvas_size.x; lcd_tl.x = lcd_br.x - LCD_W; s_sch_mini_lcd_ox = lcd_tl.x - canvas_pos.x; }
+          if (lcd_br.y > canvas_pos.y + canvas_size.y) { lcd_br.y = canvas_pos.y + canvas_size.y; lcd_tl.y = lcd_br.y - LCD_H; s_sch_mini_lcd_oy = lcd_tl.y - canvas_pos.y; }
+
+          /* Activity: pulse border when LCD is active */
+          float lcd_activity = s_sch_anim_fade[HW_ANIM_LCD];
+          ImU32 border_col;
+          if (lcd_activity > 0.01f)
+          {
+               float t = lcd_activity > 1.0f ? 1.0f : lcd_activity;
+               uint8_t r = (uint8_t)(40  + t * 20);
+               uint8_t g2 = (uint8_t)(180 + t * 40);
+               uint8_t b  = (uint8_t)(140 + t * 80);
+               border_col = IM_COL32(r, g2, b, 255);
+          }
+          else
+               border_col = IM_COL32(80, 120, 100, 180);
+
+          /* Draw: bezel → screen image → border glow */
+          float bezel = 4.0f;
+          ImVec2 bezel_tl = ImVec2(lcd_tl.x - bezel, lcd_tl.y - bezel);
+          ImVec2 bezel_br = ImVec2(lcd_br.x + bezel, lcd_br.y + bezel);
+          dl->AddRectFilled(bezel_tl, bezel_br, IM_COL32(18, 22, 28, 230), 4.0f);
+          dl->AddImage((ImTextureID)(intptr_t)g_game_tex, lcd_tl, lcd_br);
+
+          /* Scanline overlay — subtle horizontal lines for CRT feel */
+          if (s_sch_mini_lcd_scale >= 1.5f)
+          {
+               float row_h = s_sch_mini_lcd_scale;
+               for (float sy = lcd_tl.y; sy < lcd_br.y; sy += row_h * 2.0f)
+                    dl->AddRectFilled(ImVec2(lcd_tl.x, sy),
+                                      ImVec2(lcd_br.x, sy + row_h * 0.5f),
+                                      IM_COL32(0, 0, 0, 30));
+          }
+
+          /* Glow border */
+          if (lcd_activity > 0.01f)
+          {
+               float t = lcd_activity > 1.0f ? 1.0f : lcd_activity;
+               dl->AddRect(bezel_tl, bezel_br, border_col, 4.0f, 0, 1.5f + t * 1.5f);
+               /* outer glow ring */
+               dl->AddRect(ImVec2(bezel_tl.x - 2, bezel_tl.y - 2),
+                           ImVec2(bezel_br.x + 2, bezel_br.y + 2),
+                           IM_COL32(60, 220, 160, (uint8_t)(t * 80)), 5.0f, 0, 1.0f);
+          }
+          else
+               dl->AddRect(bezel_tl, bezel_br, border_col, 4.0f, 0, 1.0f);
+
+          /* Label */
+          float label_y = bezel_tl.y - ImGui::GetFontSize() - 3.0f;
+          if (label_y > canvas_pos.y)
+          {
+               dl->AddText(ImVec2(bezel_tl.x, label_y),
+                           IM_COL32(120, 180, 150, 200), "DMG LCD");
+          }
+
+          /* Connection line from mini LCD to A1 component position in canvas */
+          {
+               /* A1 is at normalized (0.060, 0.296) — find its screen pos */
+               float a1_sx = SX(0.060f);
+               float a1_sy = SY(0.296f);
+               /* Only draw line if A1 is inside the visible canvas */
+               if (a1_sx > canvas_pos.x && a1_sx < canvas_pos.x + canvas_size.x &&
+                   a1_sy > canvas_pos.y && a1_sy < canvas_pos.y + canvas_size.y)
+               {
+                    /* Draw from bottom-center of bezel to A1 component */
+                    float mid_x = (bezel_tl.x + bezel_br.x) * 0.5f;
+                    ImU32 line_col = IM_COL32(80, 160, 120, (uint8_t)(80 + lcd_activity * 120));
+                    dl->AddLine(ImVec2(mid_x, bezel_br.y), ImVec2(a1_sx, a1_sy),
+                                line_col, 1.0f);
+                    dl->AddCircleFilled(ImVec2(a1_sx, a1_sy), 3.0f, line_col);
+               }
+          }
+
+          /* Drag to reposition */
+          ImGui::SetCursorScreenPos(bezel_tl);
+          ImGui::InvisibleButton("##mini_lcd_drag",
+                                 ImVec2(bezel_br.x - bezel_tl.x, bezel_br.y - bezel_tl.y));
+          if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+          {
+               ImVec2 delta = ImGui::GetIO().MouseDelta;
+               s_sch_mini_lcd_ox += delta.x;
+               s_sch_mini_lcd_oy += delta.y;
+               s_sch_mini_lcd_drag = true;
+          }
+          else
+               s_sch_mini_lcd_drag = false;
+
+          /* Right-click context menu: scale */
+          if (ImGui::BeginPopupContextItem("##mini_lcd_ctx"))
+          {
+               ImGui::TextDisabled("Mini LCD");
+               ImGui::Separator();
+               if (ImGui::MenuItem("1x  (160×144)"))  { s_sch_mini_lcd_scale = 1.0f; s_sch_mini_lcd_ox = -1.0f; }
+               if (ImGui::MenuItem("1.5x (240×216)")) { s_sch_mini_lcd_scale = 1.5f; s_sch_mini_lcd_ox = -1.0f; }
+               if (ImGui::MenuItem("2x  (320×288)"))  { s_sch_mini_lcd_scale = 2.0f; s_sch_mini_lcd_ox = -1.0f; }
+               if (ImGui::MenuItem("3x  (480×432)"))  { s_sch_mini_lcd_scale = 3.0f; s_sch_mini_lcd_ox = -1.0f; }
+               ImGui::Separator();
+               if (ImGui::MenuItem("Resetar posição")) { s_sch_mini_lcd_ox = -1.0f; s_sch_mini_lcd_oy = -1.0f; }
+               ImGui::EndPopup();
+          }
+     }
 
      /* Hover tooltip */
      if (s_sch_show_components && hover_comp >= 0)

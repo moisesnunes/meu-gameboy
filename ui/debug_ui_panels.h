@@ -35,4 +35,7 @@ extern int g_mem_addr;
 extern int g_mem_mode;
 extern bool g_show_rom_info;
 
+/* Textura OpenGL do frame atual do jogo (atualizada a cada frame em debug_ui.cpp) */
+extern unsigned int g_game_tex;
+
 #endif /* DEBUG_UI_PANELS_H */

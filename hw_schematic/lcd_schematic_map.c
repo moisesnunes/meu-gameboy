@@ -70,9 +70,12 @@ const HwNetSemantic lcd_net_map[] = {
     { 24, "Start",  "Start",  HW_SIG_JOYPAD, -1, false, CONF },
     {  3, "Select", "Select", HW_SIG_JOYPAD, -1, false, CONF },
 
+    /* LCD driver supply (DVDD = VDD local for U2/U3, from main VDD) */
+    { 19, "DVDD",   "DVDD",   HW_SIG_POWER,  -1, false, CONF },
+
     /* Audio */
     { 52, "SPKOUT", "SPKOUT", HW_SIG_AUDIO,  -1, false, CONF },
-    { 39, "SP1",    "SP1",    HW_SIG_AUDIO,  -1, false, PROB },
+    { 39, "SP1",    "SP1",    HW_SIG_AUDIO,  -1, false, CONF },
 
     /* Bus from main board (P1[0..3] combined net — schematic grouping proxy) */
     { 58, "P1[0..3]", "P1[0..3]", HW_SIG_JOYPAD, -1, false, PROX },
