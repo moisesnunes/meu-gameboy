@@ -6032,7 +6032,7 @@ static int s_sch_board_idx = 0;
 
 /* Mini LCD overlay state */
 static bool  s_sch_mini_lcd       = true;   /* visible */
-static float s_sch_mini_lcd_scale = 1.5f;   /* pixel scale (1=160x144, 2=320x288, …) */
+static float s_sch_mini_lcd_scale = 1.0f;   /* pixel scale (1=160x144, 2=320x288, …) */
 static float s_sch_mini_lcd_ox    = -1.0f;  /* canvas-relative offset X; -1=auto (top-left) */
 static float s_sch_mini_lcd_oy    = -1.0f;  /* canvas-relative offset Y; -1=auto */
 static bool  s_sch_mini_lcd_drag  = false;
@@ -9057,11 +9057,12 @@ void draw_panel_hw_schematic(struct gb *gb)
           const float LCD_W  = GB_LCD_WIDTH  * s_sch_mini_lcd_scale;
           const float LCD_H  = GB_LCD_HEIGHT * s_sch_mini_lcd_scale;
 
-          /* Default position: top-left corner of canvas with 12px margin */
+          /* Default position: top-left corner of canvas, kept small and away
+           * from the ribbon connector cluster. */
           if (s_sch_mini_lcd_ox < 0.0f)
           {
-               s_sch_mini_lcd_ox = 12.0f;
-               s_sch_mini_lcd_oy = 12.0f;
+               s_sch_mini_lcd_ox = 14.0f;
+               s_sch_mini_lcd_oy = 14.0f;
           }
 
           ImVec2 lcd_tl = ImVec2(canvas_pos.x + s_sch_mini_lcd_ox,
@@ -9251,8 +9252,12 @@ void draw_panel_hw_schematic(struct gb *gb)
           ImGui::EndTooltip();
      }
 
-     /* Legend + info bar */
-     ImGui::Separator();
+     /* Legend + info overlay */
+     ImVec2 info_tl = ImVec2(canvas_pos.x + 8.0f, canvas_pos.y + canvas_size.y - 28.0f);
+     ImVec2 info_br = ImVec2(canvas_pos.x + canvas_size.x - 8.0f, canvas_pos.y + canvas_size.y - 6.0f);
+     dl->AddRectFilled(info_tl, info_br, IM_COL32(12, 14, 20, 210), 4.0f);
+     dl->AddRect(info_tl, info_br, IM_COL32(70, 75, 92, 110), 4.0f, 0, 1.0f);
+     ImGui::SetCursorScreenPos(ImVec2(info_tl.x + 8.0f, info_tl.y + 3.0f));
      if (s_sch_sel_net >= 0 && s_sch_sel_net < ds->net_count)
      {
           const HwNet *net = &ds->nets[s_sch_sel_net];
