@@ -183,6 +183,15 @@ static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
      gpu->fetcher.ticks = 0;
      gpu->fetcher.map_x = 0;
      gpu->fetcher.tile_count = 0;
+     gpu->fetcher.tile_index = 0;
+     gpu->fetcher.tile_y = 0;
+     gpu->fetcher.tile_low = 0;
+     gpu->fetcher.tile_high = 0;
+     gpu->fetcher.tile_palette = 0;
+     gpu->fetcher.tile_use_sprite_ts = false;
+     gpu->fetcher.tile_use_high_bank = false;
+     gpu->fetcher.tile_x_flip = false;
+     gpu->fetcher.tile_priority = false;
      gpu->line_sprites[0].x = GB_LCD_WIDTH * 2;
 
      for (i = 0; i < GB_GPU_LINE_SPRITES; i++)
@@ -683,120 +692,28 @@ static uint16_t gb_gpu_dmg_color_to_gbc(enum gb_color color)
      return map[color & 3];
 }
 
-/*
- * gb_gpu_get_bg_win_pixel — obtém o pixel do fundo ou da janela em (x, y).
- *
- * O fundo e a janela compartilham a mesma lógica de tile map:
- *   1. Divide (x, y) em coordenada de tile (tile_map_x, tile_map_y)
- *      e coordenada dentro do tile (tile_x, tile_y).
- *   2. Lê o índice do tile no tile map (mapa 32×32 na VRAM).
- *   3. Busca os dados do tile no tile set.
- *   4. No GBC: lê atributos do 2º banco de VRAM (flip, paleta, prioridade).
- *   5. Aplica a paleta (DMG) ou seleciona a paleta GBC.
- *
- * O tile map tem 32×32 entradas de 1 byte, cobrindo 256×256 pixels.
- * No VRAM: tile map baixo em 0x1800, tile map alto em 0x1C00.
- *
- * @x, y:        coordenadas no espaço do mapa (não na tela)
- * @use_high_tm: true=usa tile map em 0x9C00, false=0x9800
- */
-static struct gb_gpu_pixel gb_gpu_get_bg_win_pixel(struct gb *gb,
-                                                   uint8_t x, uint8_t y,
-                                                   bool use_high_tm)
+static unsigned gb_gpu_tile_data_addr(uint8_t tile_index,
+                                      uint8_t tile_y,
+                                      bool use_sprite_ts,
+                                      bool use_high_bank)
 {
-     struct gb_gpu *gpu = &gb->gpu;
+     unsigned tile_addr;
 
-     /* Posição do tile no mapa (cada tile cobre 8×8 pixels) */
-     unsigned tile_map_x = x / 8;
-     unsigned tile_map_y = y / 8;
-     /* Posição do pixel dentro do tile */
-     unsigned tile_x = x % 8;
-     unsigned tile_y = y % 8;
-     /* Offset base do tile map na VRAM */
-     unsigned tm_addr;
-     uint8_t tile_index;
-     struct gb_gpu_pixel pix;
-     bool use_sprite_ts = gpu->bg_window_use_sprite_ts;
-
-     /*
-      * O Game Boy tem dois tile maps independentes, selecionados via LCDC.
-      * Tile map baixo: 0x9800 (offset 0x1800 na VRAM)
-      * Tile map alto:  0x9C00 (offset 0x1C00 na VRAM)
-      */
-     if (use_high_tm)
+     if (use_sprite_ts)
      {
-          tm_addr = 0x1c00;
+          tile_addr = tile_index * 16;
      }
      else
      {
-          tm_addr = 0x1800;
+          tile_addr = 0x1000 + (int8_t)tile_index * 16;
      }
 
-     /*
-      * O tile map é uma grade de 32×32 bytes (32 tiles por linha).
-      * Cada byte é o índice do tile a ser desenhado naquela célula.
-      */
-     tm_addr += tile_map_y * 32 + tile_map_x;
-
-     tile_index = gb->vram[tm_addr];
-
-     if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb))
+     if (use_high_bank)
      {
-          /*
-           * No GBC, o 2º banco de VRAM (offset +0x2000 no array vram[])
-           * armazena atributos adicionais para cada célula do tile map:
-           *
-           *   Bit 7 — prioridade: tile fica na frente dos sprites
-           *   Bit 6 — flip vertical
-           *   Bit 5 — flip horizontal
-           *   Bit 3 — usa banco alto da VRAM para os dados do tile
-           *   Bits 2–0 — paleta de cor (0–7, das 8 paletas GBC do fundo)
-           */
-          uint8_t attrs = gb->vram[tm_addr + 0x2000];
-          bool priority = attrs & 0x80;
-          bool y_flip = attrs & 0x40;
-          bool x_flip = attrs & 0x20;
-          bool high_bank = attrs & 0x08;
-          uint8_t palette = attrs & 0x07;
-          enum gb_color col;
-
-          if (x_flip)
-          {
-               tile_x = 7 - tile_x;
-          }
-
-          if (y_flip)
-          {
-               tile_y = 7 - tile_y;
-          }
-
-          col = gb_gpu_get_tile_color(gb, tile_index,
-                                      tile_x, tile_y,
-                                      use_sprite_ts,
-                                      high_bank);
-
-          /* No GBC, cor 0 é transparente (para fins de prioridade com sprites) */
-          pix.opaque = col != GB_COL_WHITE;
-          pix.bg_priority = priority;
-
-          /* Lookup na paleta GBC (8 paletas × 4 cores, formato xBGR 1555) */
-          pix.color.gbc_color = gpu->bg_palettes.colors[palette][col];
-     }
-     else
-     {
-          /* DMG: armazena apenas o índice bruto (0-3) no FIFO; BGP é aplicado
-           * na saída (pop) para que mudanças mid-scanline em BGP sejam refletidas
-           * imediatamente, como no hardware real. */
-          pix.raw = gb_gpu_get_tile_color(gb, tile_index,
-                                          tile_x, tile_y,
-                                          use_sprite_ts,
-                                          false);
-          pix.opaque = pix.raw != GB_COL_WHITE;
-          pix.bg_priority = false;
-          pix.color.dmg_color = GB_COL_WHITE; /* preenchido no pop */
+          tile_addr += 0x2000;
      }
 
-     return pix;
+     return tile_addr + tile_y * 2;
 }
 
 /*
@@ -1133,16 +1050,94 @@ static void gb_gpu_fetcher_restart(struct gb *gb, bool window)
      gpu->fetcher.ticks = 0;
      gpu->fetcher.tile_count = 0;
      gpu->fetcher.map_x = window ? 0 : (gpu->scx / 8);
+     gpu->fetcher.tile_index = 0;
+     gpu->fetcher.tile_y = 0;
+     gpu->fetcher.tile_low = 0;
+     gpu->fetcher.tile_high = 0;
+     gpu->fetcher.tile_palette = 0;
+     gpu->fetcher.tile_use_sprite_ts = false;
+     gpu->fetcher.tile_use_high_bank = false;
+     gpu->fetcher.tile_x_flip = false;
+     gpu->fetcher.tile_priority = false;
      gpu->window_active = window;
+}
+
+static void gb_gpu_fetcher_latch_tile_id(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     uint8_t pixel_y;
+     uint8_t tile_map_y;
+     bool use_high_tm;
+     unsigned tm_addr;
+
+     if (gpu->fetcher.window)
+     {
+          pixel_y = gpu->window_line;
+          use_high_tm = gpu->window_use_high_tm;
+     }
+     else
+     {
+          /* SCY é amostrado no fetch do tile id. SCX high bits recalculam
+           * map_x a cada tile, preservando o comportamento mid-scanline. */
+          pixel_y = (gpu->ly + gpu->scy) & 0xff;
+          gpu->fetcher.map_x = ((gpu->scx / 8) + gpu->fetcher.tile_count) & 31;
+          use_high_tm = gpu->bg_use_high_tm;
+     }
+
+     tile_map_y = pixel_y / 8;
+     gpu->fetcher.tile_y = pixel_y & 7;
+     gpu->fetcher.tile_use_sprite_ts = gpu->bg_window_use_sprite_ts;
+     gpu->fetcher.tile_use_high_bank = false;
+     gpu->fetcher.tile_x_flip = false;
+     gpu->fetcher.tile_priority = false;
+     gpu->fetcher.tile_palette = 0;
+
+     tm_addr = (use_high_tm ? 0x1c00 : 0x1800) +
+               tile_map_y * 32 + gpu->fetcher.map_x;
+
+     gpu->fetcher.tile_index = gb->vram[tm_addr];
+
+     if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb))
+     {
+          uint8_t attrs = gb->vram[tm_addr + 0x2000];
+
+          gpu->fetcher.tile_priority = (attrs & 0x80) != 0;
+          gpu->fetcher.tile_x_flip = (attrs & 0x20) != 0;
+          gpu->fetcher.tile_use_high_bank = (attrs & 0x08) != 0;
+          gpu->fetcher.tile_palette = attrs & 0x07;
+
+          if (attrs & 0x40)
+          {
+               gpu->fetcher.tile_y = 7 - gpu->fetcher.tile_y;
+          }
+     }
+}
+
+static void gb_gpu_fetcher_latch_tile_low(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     unsigned addr = gb_gpu_tile_data_addr(gpu->fetcher.tile_index,
+                                           gpu->fetcher.tile_y,
+                                           gpu->fetcher.tile_use_sprite_ts,
+                                           gpu->fetcher.tile_use_high_bank);
+
+     gpu->fetcher.tile_low = gb->vram[addr];
+}
+
+static void gb_gpu_fetcher_latch_tile_high(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     unsigned addr = gb_gpu_tile_data_addr(gpu->fetcher.tile_index,
+                                           gpu->fetcher.tile_y,
+                                           gpu->fetcher.tile_use_sprite_ts,
+                                           gpu->fetcher.tile_use_high_bank);
+
+     gpu->fetcher.tile_high = gb->vram[addr + 1];
 }
 
 static bool gb_gpu_fetcher_push_tile(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
-     struct gb_gpu_pixel pixels[8];
-     uint8_t pixel_y;
-     uint8_t pixel_x;
-     bool use_high_tm;
      unsigned i;
 
      if (gpu->fifo_len > GB_GPU_FIFO_CAPACITY - 8)
@@ -1154,43 +1149,37 @@ static bool gb_gpu_fetcher_push_tile(struct gb *gb)
      {
           for (i = 0; i < 8; i++)
           {
-               pixels[i] = gb_gpu_white_pixel();
-          }
-     }
-     else if (gpu->fetcher.window)
-     {
-          pixel_y = gpu->window_line;
-          pixel_x = gpu->fetcher.map_x * 8;
-          use_high_tm = gpu->window_use_high_tm;
-
-          for (i = 0; i < 8; i++)
-          {
-               pixels[i] = gb_gpu_get_bg_win_pixel(gb, pixel_x + i,
-                                                   pixel_y, use_high_tm);
+               gb_gpu_fifo_push(gpu, gb_gpu_white_pixel());
           }
      }
      else
      {
-          /* SCY é relido a cada tile para capturar mudanças mid-scanline.
-           * SCX high bits: map_x é recalculado como (scx/8 + tile_count) & 31
-           * para que mudanças em SCX[7:3] durante o Mode 3 afetem os próximos
-           * tiles buscados. */
-          pixel_y = (gpu->ly + gpu->scy) & 0xff;
-          gpu->fetcher.map_x = ((gpu->scx / 8) + gpu->fetcher.tile_count) & 31;
-          pixel_x = gpu->fetcher.map_x * 8;
-          use_high_tm = gpu->bg_use_high_tm;
+          bool gbc_color = gb->gbc && !gb_gpu_cgb_dmg_compat(gb);
 
           for (i = 0; i < 8; i++)
           {
-               pixels[i] = gb_gpu_get_bg_win_pixel(gb,
-                                                   (pixel_x + i) & 0xff,
-                                                   pixel_y, use_high_tm);
-          }
-     }
+               struct gb_gpu_pixel p;
+               uint8_t bit = gpu->fetcher.tile_x_flip ? i : (7 - i);
+               enum gb_color raw =
+                   (enum gb_color)((((gpu->fetcher.tile_high >> bit) & 1) << 1) |
+                                   ((gpu->fetcher.tile_low >> bit) & 1));
 
-     for (i = 0; i < 8; i++)
-     {
-          gb_gpu_fifo_push(gpu, pixels[i]);
+               p.raw = raw;
+               p.opaque = raw != GB_COL_WHITE;
+               p.bg_priority = gpu->fetcher.tile_priority;
+
+               if (gbc_color)
+               {
+                    p.color.gbc_color =
+                        gpu->bg_palettes.colors[gpu->fetcher.tile_palette & 7][raw];
+               }
+               else
+               {
+                    p.color.dmg_color = GB_COL_WHITE;
+               }
+
+               gb_gpu_fifo_push(gpu, p);
+          }
      }
 
      gpu->fetcher.tile_count++;
@@ -1215,27 +1204,48 @@ static void gb_gpu_fetcher_step(struct gb *gb)
       * latched de tile id/low/high.
       */
 
-     if (gpu->fetcher.step < GB_GPU_FETCH_PUSH)
+     switch (gpu->fetcher.step)
      {
-          gpu->fetcher.step++;
+     case GB_GPU_FETCH_TILE_ID_0:
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_1;
           return;
-     }
-
-     if (gpu->fetcher.ticks)
-     {
-          gpu->fetcher.ticks = 0;
+     case GB_GPU_FETCH_TILE_ID_1:
+          gb_gpu_fetcher_latch_tile_id(gb);
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_DATA_LOW_0;
           return;
-     }
+     case GB_GPU_FETCH_TILE_DATA_LOW_0:
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_DATA_LOW_1;
+          return;
+     case GB_GPU_FETCH_TILE_DATA_LOW_1:
+          gb_gpu_fetcher_latch_tile_low(gb);
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_DATA_HIGH_0;
+          return;
+     case GB_GPU_FETCH_TILE_DATA_HIGH_0:
+          gb_gpu_fetcher_latch_tile_high(gb);
+          gpu->fetcher.step = GB_GPU_FETCH_PUSH;
+          return;
+     case GB_GPU_FETCH_PUSH:
+          if (gpu->fetcher.ticks)
+          {
+               gpu->fetcher.ticks = 0;
+               return;
+          }
 
-     if (gb_gpu_fetcher_push_tile(gb))
-     {
+          if (gb_gpu_fetcher_push_tile(gb))
+          {
+               gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
+               gpu->fetcher.ticks = 0;
+          }
+          else
+          {
+               /* Mantém o retry a cada 2 dots, como no modelo anterior. */
+               gpu->fetcher.ticks = 1;
+          }
+          return;
+     default:
           gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
           gpu->fetcher.ticks = 0;
-     }
-     else
-     {
-          /* Mantém o retry a cada 2 dots, como no modelo anterior. */
-          gpu->fetcher.ticks = 1;
+          return;
      }
 }
 

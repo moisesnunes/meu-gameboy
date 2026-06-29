@@ -80,6 +80,15 @@ struct gb_gpu_fetcher
      /* Contador de tiles buscados desde o restart (sem offset SCX). Usado para
       * calcular map_x dinâmico quando SCX muda mid-scanline. */
      uint8_t tile_count;
+     uint8_t tile_index;
+     uint8_t tile_y;
+     uint8_t tile_low;
+     uint8_t tile_high;
+     uint8_t tile_palette;
+     bool tile_use_sprite_ts;
+     bool tile_use_high_bank;
+     bool tile_x_flip;
+     bool tile_priority;
 };
 
 /* Paleta de cores usada pelo GBC (registradores BCPS/BCPD e OCPS/OCPD) */

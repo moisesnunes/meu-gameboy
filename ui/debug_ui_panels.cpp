@@ -1593,6 +1593,10 @@ void draw_panel_gpu(struct gb *gb)
           ImGui::Text("Tile map x:%u  tiles:%u  sprite stall:%u",
                       gpu->fetcher.map_x, gpu->fetcher.tile_count,
                       gpu->sprite_stall);
+          ImGui::Text("Latch: id:%02X y:%u lo:%02X hi:%02X pal:%u",
+                      gpu->fetcher.tile_index, gpu->fetcher.tile_y,
+                      gpu->fetcher.tile_low, gpu->fetcher.tile_high,
+                      gpu->fetcher.tile_palette);
           ImGui::Text("Line: started:%s complete:%s sent:%s window:%s",
                       gpu->line_started ? "yes" : "no",
                       gpu->line_complete ? "yes" : "no",
