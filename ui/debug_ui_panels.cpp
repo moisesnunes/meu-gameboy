@@ -1587,8 +1587,9 @@ void draw_panel_gpu(struct gb *gb)
                       gpu->fetcher.window ? "window" : "bg",
                       gb_gpu_fetcher_phase_name(gpu->fetcher.step),
                       gpu->fetcher.ticks);
-          ImGui::Text("FIFO: %u/%u  discard:%u  screen_x:%u",
+          ImGui::Text("FIFO: bg %u/%u  obj %u/%u  discard:%u  screen_x:%u",
                       gpu->fifo_len, GB_GPU_FIFO_CAPACITY,
+                      gpu->obj_fifo_len, GB_GPU_FIFO_CAPACITY,
                       gpu->fifo_discard, gpu->screen_x);
           ImGui::Text("Tile map x:%u  tiles:%u  sprite stall:%u",
                       gpu->fetcher.map_x, gpu->fetcher.tile_count,
@@ -1597,6 +1598,10 @@ void draw_panel_gpu(struct gb *gb)
                       gpu->fetcher.tile_index, gpu->fetcher.tile_y,
                       gpu->fetcher.tile_low, gpu->fetcher.tile_high,
                       gpu->fetcher.tile_palette);
+          ImGui::Text("OBJ latch: x:%d id:%02X y:%u lo:%02X hi:%02X pal:%u",
+                      gpu->obj_fetch_x, gpu->obj_fetch_tile_index,
+                      gpu->obj_fetch_tile_y, gpu->obj_fetch_low,
+                      gpu->obj_fetch_high, gpu->obj_fetch_palette);
           ImGui::Text("Line: started:%s complete:%s sent:%s window:%s",
                       gpu->line_started ? "yes" : "no",
                       gpu->line_complete ? "yes" : "no",

@@ -176,7 +176,18 @@ static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
      gpu->screen_x = 0;
      gpu->fifo_discard = 0;
      gpu->fifo_len = 0;
+     gpu->obj_fifo_len = 0;
      gpu->sprite_stall = 0;
+     gpu->obj_fetch_x = 0;
+     gpu->obj_fetch_tile_index = 0;
+     gpu->obj_fetch_tile_y = 0;
+     gpu->obj_fetch_low = 0;
+     gpu->obj_fetch_high = 0;
+     gpu->obj_fetch_palette = 0;
+     gpu->obj_fetch_use_obp1 = false;
+     gpu->obj_fetch_x_flip = false;
+     gpu->obj_fetch_behind_bg = false;
+     gpu->obj_fetch_high_bank = false;
      gpu->mode3_min_end = MODE_3_END;
      gpu->fetcher.window = false;
      gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
@@ -569,87 +580,6 @@ bool gb_gpu_vram_blocked(struct gb *gb)
 }
 
 /*
- * gb_gpu_get_tile_color — lê a cor de um pixel específico dentro de um tile.
- *
- * Formato de um tile na VRAM (2bpp, 8×8 pixels, 16 bytes):
- *
- *   Para cada linha Y (0–7):
- *     byte[Y*2 + 0] = bits LSB de cada pixel da linha
- *     byte[Y*2 + 1] = bits MSB de cada pixel da linha
- *
- *   Pixel X da linha Y:
- *     lsb = (byte[Y*2+0] >> (7-X)) & 1
- *     msb = (byte[Y*2+1] >> (7-X)) & 1
- *     cor = (msb << 1) | lsb   → 0=branco, 1=cinza claro, 2=cinza escuro, 3=preto
- *
- * O pixel mais à esquerda (X=0) está no bit 7 — por isso invertemos X.
- *
- * Endereçamento do tile set:
- *   use_sprite_ts=true  → tile_addr = tile_index * 16         (0x0000+)
- *   use_sprite_ts=false → tile_addr = 0x1000 + (int8_t)tile_index * 16
- *                         O índice é SIGNED: 0x80–0xFF apontam para a
- *                         segunda metade do tile set de sprite (efeito de
- *                         compartilhamento entre os dois tile sets).
- *
- * @tile_index:    índice do tile (0–255)
- * @x, y:         coordenadas do pixel dentro do tile (0–7)
- * @use_sprite_ts: true=tile set de sprite (0x8000), false=tile set de BG (0x8800)
- * @use_high_bank: GBC only — usa o 2º banco de VRAM (0x2000 de offset)
- */
-static enum gb_color gb_gpu_get_tile_color(struct gb *gb,
-                                           uint8_t tile_index,
-                                           uint8_t x, uint8_t y,
-                                           bool use_sprite_ts,
-                                           bool use_high_bank)
-{
-     unsigned tile_addr;
-     /*
-      * Cada tile é 8×8 pixels com 2 bits por pixel = 16 bytes por tile.
-      * Layout: para cada linha, 2 bytes consecutivos (LSB plane + MSB plane).
-      */
-     const unsigned tile_size = 16;
-     unsigned lsb;
-     unsigned msb;
-
-     if (use_sprite_ts)
-     {
-          /* Tile set de sprite começa no início da VRAM (0x8000 no espaço GB) */
-          tile_addr = tile_index * tile_size;
-     }
-     else
-     {
-          /*
-           * Tile set de fundo/janela começa em 0x9000 (offset 0x1000 na VRAM).
-           * O índice é interpretado como SIGNED (int8_t):
-           *   0x00–0x7F → tiles 0–127 (após o ponto base em 0x9000)
-           *   0x80–0xFF → tiles –128 a –1 → aponta para 0x8800–0x8FFF
-           *               (segunda metade do tile set de sprite)
-           * Este truque permite compartilhar tiles entre o tile set de sprite
-           * e o de fundo sem duplicar dados.
-           */
-          tile_addr = 0x1000 + (int8_t)tile_index * tile_size;
-     }
-
-     /* GBC only: banco alto da VRAM (adiciona 0x2000 de offset no array vram[]) */
-     if (use_high_bank)
-     {
-          tile_addr += 0x2000;
-     }
-
-     /*
-      * O pixel mais à esquerda (X=0) está no bit 7 de cada byte.
-      * Invertemos X para que o bit corresponda ao pixel correto.
-      */
-     x = 7 - x;
-
-     /* Lê o bit LSB e MSB do pixel e combina em um valor de 2 bits (0–3) */
-     lsb = (gb->vram[tile_addr + y * 2 + 0] >> x) & 1;
-     msb = (gb->vram[tile_addr + y * 2 + 1] >> x) & 1;
-
-     return (msb << 1) | lsb;
-}
-
-/*
  * gb_gpu_palette_transform — aplica a paleta DMG a uma cor bruta de tile.
  *
  * No DMG, cada cor bruta (0–3) é remapeada através de um registrador de paleta
@@ -867,55 +797,16 @@ static unsigned gb_gpu_get_line_sprites(
      return n_sprites;
 }
 
-/*
- * gb_gpu_get_sprite_col — amostra a cor de um sprite na posição (x, y) da tela.
- *
- * Retorna true e atualiza `p` se o sprite contribui com um pixel visível.
- * Retorna false se:
- *   - O sprite está atrás do fundo E o pixel de fundo é opaco (não-branco).
- *   - O pixel do sprite nessa posição é transparente (cor bruta == 0).
- *
- * Para sprites 8×16:
- *   O tile é composto por dois tiles consecutivos na VRAM.
- *   O LSB do índice é forçado a 0 para que o tile top seja sempre par.
- *   A parte de baixo usa o tile com índice+1.
- *
- * @sprite: dados do sprite decodificados da OAM
- * @x, y:  coordenadas atuais na tela
- * @p:     pixel atual (pode ser modificado com a cor do sprite)
- */
-static bool gb_gpu_get_sprite_col(struct gb *gb,
-                                  const struct gb_sprite *sprite,
-                                  unsigned x,
-                                  unsigned y,
-                                  struct gb_gpu_pixel *p)
+static void gb_gpu_obj_fetch_latch_sprite(struct gb *gb,
+                                          const struct gb_sprite *sprite)
 {
      struct gb_gpu *gpu = &gb->gpu;
-     unsigned sprite_x;
      unsigned sprite_y;
      unsigned sprite_flip_height;
      uint8_t tile_index;
-     enum gb_color col;
+     unsigned addr;
 
-     if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb) &&
-         gpu->bg_enable && p->opaque && p->bg_priority)
-     {
-          return false;
-     }
-
-     if (sprite->background && p->opaque && (!gb->gbc || gpu->bg_enable))
-     {
-          /*
-           * Sprite tem flag "behind background": só aparece sobre pixels
-           * brancos do fundo/janela. Como p->opaque é true (cor não-branca),
-           * o fundo "tampa" o sprite — retorna sem modificar o pixel.
-           */
-          return false;
-     }
-
-     /* Converte coordenada de tela em coordenada local do sprite */
-     sprite_x = (int)x - sprite->x;
-     sprite_y = (int)y - sprite->y;
+     sprite_y = (unsigned)((int)gpu->ly - sprite->y);
 
      if (gpu->tall_sprites)
      {
@@ -923,8 +814,8 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
            * Sprites 8×16: dois tiles consecutivos formam um único sprite.
            * O LSB do tile_index é mascarado a 0 — o tile de cima usa sempre
            * o índice par, e o de baixo usa o ímpar seguinte automaticamente
-           * pela posição Y (sprite_y 8–15 vai para o segundo tile via
-           * gb_gpu_get_tile_color, que usa y*2 como offset no tile).
+     * pela posição Y (sprite_y 8–15 vai para o segundo tile via
+     * gb_gpu_get_tile_color, que usa y*2 como offset no tile).
            */
           tile_index = sprite->tile_index & 0xfe;
           sprite_flip_height = 15; /* Para flip vertical: 15 - sprite_y */
@@ -935,22 +826,51 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
           sprite_flip_height = 7;
      }
 
-     /* Aplica flip horizontal: espelha a coordenada X dentro do tile */
-     if (sprite->x_flip)
-     {
-          sprite_x = 7 - sprite_x;
-     }
-
      /* Aplica flip vertical: espelha a coordenada Y dentro do sprite */
      if (sprite->y_flip)
      {
           sprite_y = sprite_flip_height - sprite_y;
      }
 
-     /* Sprites sempre usam o tile set de sprite (0x8000), índice unsigned */
-     col = gb_gpu_get_tile_color(gb, tile_index,
-                                 sprite_x, sprite_y,
-                                 true, sprite->high_bank);
+     gpu->obj_fetch_x = (int8_t)sprite->x;
+     gpu->obj_fetch_tile_index = tile_index;
+     gpu->obj_fetch_tile_y = (uint8_t)sprite_y;
+     gpu->obj_fetch_palette = sprite->palette & 7;
+     gpu->obj_fetch_use_obp1 = sprite->use_obp1;
+     gpu->obj_fetch_x_flip = sprite->x_flip;
+     gpu->obj_fetch_behind_bg = sprite->background;
+     gpu->obj_fetch_high_bank = sprite->high_bank;
+
+     addr = gb_gpu_tile_data_addr(gpu->obj_fetch_tile_index,
+                                  gpu->obj_fetch_tile_y,
+                                  true,
+                                  gpu->obj_fetch_high_bank);
+     gpu->obj_fetch_low = gb->vram[addr];
+     gpu->obj_fetch_high = gb->vram[addr + 1];
+}
+
+/*
+ * Amostra a cor do sprite atualmente latched na posição x sem considerar o
+ * pixel de BG. A decisão de prioridade acontece quando BG FIFO e OBJ FIFO
+ * são consumidos juntos.
+ */
+static bool gb_gpu_get_obj_latched_pixel(struct gb *gb,
+                                         unsigned x,
+                                         struct gb_gpu_pixel *out)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     unsigned sprite_x = (unsigned)((int)x - gpu->obj_fetch_x);
+     uint8_t bit;
+     enum gb_color col;
+
+     if (sprite_x >= 8)
+     {
+          return false;
+     }
+
+     bit = gpu->obj_fetch_x_flip ? sprite_x : (7 - sprite_x);
+     col = (enum gb_color)((((gpu->obj_fetch_high >> bit) & 1) << 1) |
+                           ((gpu->obj_fetch_low >> bit) & 1));
 
      /* Cor 0 (branco pré-paleta) = pixel transparente no sprite — não desenhado */
      if (col == GB_COL_WHITE)
@@ -958,19 +878,24 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
           return false;
      }
 
+     out->raw = col;
+     out->opaque = true;
+     out->bg_priority = false;
+     out->obj_behind_bg = gpu->obj_fetch_behind_bg;
+
      /* Seleciona a paleta correta e aplica */
      if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb))
      {
           /* GBC: 8 paletas independentes de 4 cores para sprites */
-          p->color.gbc_color =
-              gpu->sprite_palettes.colors[sprite->palette][col];
+          out->color.gbc_color =
+              gpu->sprite_palettes.colors[gpu->obj_fetch_palette][col];
      }
      else
      {
           /* DMG: dois registradores de paleta (OBP0 e OBP1), selecionados por flag */
           uint8_t palette;
 
-          if (sprite->use_obp1)
+          if (gpu->obj_fetch_use_obp1)
           {
                palette = gpu->obp1;
           }
@@ -981,13 +906,38 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
 
           if (gb->gbc)
           {
-               p->color.gbc_color =
+               out->color.gbc_color =
                    gb_gpu_dmg_color_to_gbc(gb_gpu_palette_transform(col, palette));
           }
           else
           {
-               p->color.dmg_color = gb_gpu_palette_transform(col, palette);
+               out->color.dmg_color = gb_gpu_palette_transform(col, palette);
           }
+     }
+
+     return true;
+}
+
+static bool gb_gpu_sprite_visible_over_bg(struct gb *gb,
+                                          const struct gb_gpu_pixel *bg,
+                                          const struct gb_gpu_pixel *obj)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+
+     if (!obj->opaque)
+     {
+          return false;
+     }
+
+     if (gb->gbc && !gb_gpu_cgb_dmg_compat(gb) &&
+         gpu->bg_enable && bg->opaque && bg->bg_priority)
+     {
+          return false;
+     }
+
+     if (obj->obj_behind_bg && bg->opaque && (!gb->gbc || gpu->bg_enable))
+     {
+          return false;
      }
 
      return true;
@@ -996,6 +946,7 @@ static bool gb_gpu_get_sprite_col(struct gb *gb,
 static void gb_gpu_fifo_clear(struct gb_gpu *gpu)
 {
      gpu->fifo_len = 0;
+     gpu->obj_fifo_len = 0;
 }
 
 static bool gb_gpu_fifo_push(struct gb_gpu *gpu, struct gb_gpu_pixel p)
@@ -1029,6 +980,45 @@ static bool gb_gpu_fifo_pop(struct gb_gpu *gpu, struct gb_gpu_pixel *p)
      return true;
 }
 
+static struct gb_gpu_pixel gb_gpu_white_pixel(void);
+
+static void gb_gpu_obj_fifo_push_empty(struct gb_gpu *gpu)
+{
+     if (gpu->obj_fifo_len < GB_GPU_FIFO_CAPACITY)
+     {
+          gpu->obj_fifo[gpu->obj_fifo_len++] = gb_gpu_white_pixel();
+     }
+}
+
+static bool gb_gpu_obj_fifo_pop(struct gb_gpu *gpu, struct gb_gpu_pixel *p)
+{
+     unsigned i;
+
+     if (gpu->obj_fifo_len == 0)
+     {
+          return false;
+     }
+
+     *p = gpu->obj_fifo[0];
+
+     for (i = 1; i < gpu->obj_fifo_len; i++)
+     {
+          gpu->obj_fifo[i - 1] = gpu->obj_fifo[i];
+     }
+
+     gpu->obj_fifo_len--;
+     return true;
+}
+
+static void gb_gpu_obj_fifo_align(struct gb_gpu *gpu)
+{
+     while (gpu->obj_fifo_len < gpu->fifo_len &&
+            gpu->obj_fifo_len < GB_GPU_FIFO_CAPACITY)
+     {
+          gb_gpu_obj_fifo_push_empty(gpu);
+     }
+}
+
 static struct gb_gpu_pixel gb_gpu_white_pixel(void)
 {
      struct gb_gpu_pixel p;
@@ -1037,6 +1027,7 @@ static struct gb_gpu_pixel gb_gpu_white_pixel(void)
      p.raw = GB_COL_WHITE;
      p.opaque = false;
      p.bg_priority = false;
+     p.obj_behind_bg = false;
      return p;
 }
 
@@ -1167,6 +1158,7 @@ static bool gb_gpu_fetcher_push_tile(struct gb *gb)
                p.raw = raw;
                p.opaque = raw != GB_COL_WHITE;
                p.bg_priority = gpu->fetcher.tile_priority;
+               p.obj_behind_bg = false;
 
                if (gbc_color)
                {
@@ -1572,6 +1564,43 @@ static bool gb_gpu_sprite_covers_x(const struct gb_sprite *sprite, unsigned x)
      return (int)x >= sprite->x && (int)x < sprite->x + 8;
 }
 
+static void gb_gpu_obj_fifo_fetch_sprite(struct gb *gb,
+                                         const struct gb_sprite *sprite)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     unsigned i;
+
+     gb_gpu_obj_fifo_align(gpu);
+     gb_gpu_obj_fetch_latch_sprite(gb, sprite);
+
+     for (i = 0; i < 8; i++)
+     {
+          unsigned x = gpu->screen_x + i;
+          struct gb_gpu_pixel obj;
+
+          while (gpu->obj_fifo_len <= i &&
+                 gpu->obj_fifo_len < GB_GPU_FIFO_CAPACITY)
+          {
+               gb_gpu_obj_fifo_push_empty(gpu);
+          }
+
+          if (i >= gpu->obj_fifo_len || gpu->obj_fifo[i].opaque)
+          {
+               continue;
+          }
+
+          if (x >= GB_LCD_WIDTH || !gb_gpu_sprite_covers_x(sprite, x))
+          {
+               continue;
+          }
+
+          if (gb_gpu_get_obj_latched_pixel(gb, x, &obj))
+          {
+               gpu->obj_fifo[i] = obj;
+          }
+     }
+}
+
 static bool gb_gpu_start_sprite_stall(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
@@ -1605,6 +1634,7 @@ static bool gb_gpu_start_sprite_stall(struct gb *gb)
           }
 
           gpu->line_sprite_stalled[i] = true;
+          gb_gpu_obj_fifo_fetch_sprite(gb, s);
           {
                unsigned penalty = gb_gpu_obj_fetch_penalty(gpu, i, true);
 
@@ -1622,43 +1652,11 @@ static bool gb_gpu_start_sprite_stall(struct gb *gb)
      return false;
 }
 
-static void gb_gpu_overlay_sprites(struct gb *gb,
-                                   unsigned x,
-                                   struct gb_gpu_pixel *p)
-{
-     struct gb_gpu *gpu = &gb->gpu;
-     unsigned i;
-
-     if (!gpu->sprite_enable)
-     {
-          return;
-     }
-
-     for (i = 0; i < GB_GPU_LINE_SPRITES; i++)
-     {
-          struct gb_sprite *s = &gpu->line_sprites[i];
-
-          if (s->x == GB_LCD_WIDTH * 2)
-          {
-               break;
-          }
-
-          if (!gb_gpu_sprite_covers_x(s, x))
-          {
-               continue;
-          }
-
-          if (gb_gpu_get_sprite_col(gb, s, x, gpu->ly, p))
-          {
-               break;
-          }
-     }
-}
-
 static void gb_gpu_step_pixel_transfer(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
      struct gb_gpu_pixel p;
+     struct gb_gpu_pixel obj;
 
      gb_gpu_begin_pixel_transfer(gb);
 
@@ -1695,6 +1693,10 @@ static void gb_gpu_step_pixel_transfer(struct gb *gb)
      {
           return;
      }
+     if (!gb_gpu_obj_fifo_pop(gpu, &obj))
+     {
+          obj = gb_gpu_white_pixel();
+     }
 
      /* Aplicar BGP no pop (não no push) para que mudanças mid-scanline sejam
       * refletidas imediatamente em todos os pixels ainda não emitidos. */
@@ -1727,7 +1729,11 @@ static void gb_gpu_step_pixel_transfer(struct gb *gb)
           return;
      }
 
-     gb_gpu_overlay_sprites(gb, gpu->screen_x, &p);
+     if (gb_gpu_sprite_visible_over_bg(gb, &p, &obj))
+     {
+          p = obj;
+     }
+
      gpu->line[gpu->screen_x] = p.color;
      gpu->screen_x++;
 

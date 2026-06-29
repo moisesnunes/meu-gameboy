@@ -49,6 +49,8 @@ struct gb_gpu_pixel
      bool opaque;
      /* Atributo GBC bit 7: pixel de BG/window tem prioridade sobre sprites. */
      bool bg_priority;
+     /* Atributo OBJ bit 7: sprite fica atrás de BG/window não-branco. */
+     bool obj_behind_bg;
 };
 
 /*
@@ -169,11 +171,23 @@ struct gb_gpu
      uint8_t screen_x;       /* Próxima coluna a ser escrita (0–159) */
      uint8_t fifo_discard;   /* Pixels a descartar no início da linha por causa do SCX & 7 */
      uint8_t fifo_len;       /* Quantidade de pixels atualmente no FIFO */
+     uint8_t obj_fifo_len;   /* Quantidade de pixels atualmente no FIFO de sprites */
      uint8_t sprite_stall;   /* T-cycles restantes de penalidade por fetch de sprite */
+     int8_t obj_fetch_x;
+     uint8_t obj_fetch_tile_index;
+     uint8_t obj_fetch_tile_y;
+     uint8_t obj_fetch_low;
+     uint8_t obj_fetch_high;
+     uint8_t obj_fetch_palette;
+     bool obj_fetch_use_obp1;
+     bool obj_fetch_x_flip;
+     bool obj_fetch_behind_bg;
+     bool obj_fetch_high_bank;
      uint16_t mode3_min_end; /* Posição mínima dentro da scanline para sair do Modo 3 */
 
      union gb_gpu_color line[GB_LCD_WIDTH];                  /* Buffer da scanline atual */
      struct gb_gpu_pixel fifo[GB_GPU_FIFO_CAPACITY];         /* FIFO de pixels BG/window */
+     struct gb_gpu_pixel obj_fifo[GB_GPU_FIFO_CAPACITY];     /* FIFO de pixels OBJ/sprite */
      struct gb_gpu_fetcher fetcher;                          /* Estado do tile fetcher */
      struct gb_sprite line_sprites[GB_GPU_LINE_SPRITES + 1]; /* Sprites da scanline (+1 sentinela) */
      bool line_sprite_stalled[GB_GPU_LINE_SPRITES];          /* Marca sprites já processados pelo stall */
