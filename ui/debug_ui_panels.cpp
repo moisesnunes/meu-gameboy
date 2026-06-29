@@ -1583,7 +1583,7 @@ void draw_panel_gpu(struct gb *gb)
           ImGui::ProgressBar(mode == 3 ? mode3_progress : 0.0f,
                              ImVec2(-1.0f, 0.0f));
 
-          ImGui::Text("Fetcher: %s  %s  tick %u/2",
+          ImGui::Text("Fetcher: %s  %s  retry wait:%u",
                       gpu->fetcher.window ? "window" : "bg",
                       gb_gpu_fetcher_phase_name(gpu->fetcher.step),
                       gpu->fetcher.ticks);

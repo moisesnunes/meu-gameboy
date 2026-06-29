@@ -179,7 +179,7 @@ static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
      gpu->sprite_stall = 0;
      gpu->mode3_min_end = MODE_3_END;
      gpu->fetcher.window = false;
-     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
+     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
      gpu->fetcher.ticks = 0;
      gpu->fetcher.map_x = 0;
      gpu->fetcher.tile_count = 0;
@@ -1129,7 +1129,7 @@ static void gb_gpu_fetcher_restart(struct gb *gb, bool window)
 
      gb_gpu_fifo_clear(gpu);
      gpu->fetcher.window = window;
-     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
+     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
      gpu->fetcher.ticks = 0;
      gpu->fetcher.tile_count = 0;
      gpu->fetcher.map_x = window ? 0 : (gpu->scx / 8);
@@ -1204,47 +1204,57 @@ static void gb_gpu_fetcher_step(struct gb *gb)
      struct gb_gpu *gpu = &gb->gpu;
 
      /*
-      * O fetcher real tem 3 etapas de 2 T-cycles cada:
-      *   Passo 0: busca o índice do tile no tile map    (2 dots)
-      *   Passo 1: lê o byte low dos dados do tile       (2 dots)
-      *   Passo 2: lê o byte high e empurra ao FIFO      (2 dots)
+      * Pipeline de 6 dots do fetcher BG/window:
+      *   0-1: busca o índice do tile no tile map
+      *   2-3: lê o byte low dos dados do tile
+      *   4:   lê o byte high dos dados do tile
+      *   5:   tenta empurrar 8 pixels ao FIFO
       *
-      * O push acontece ao final do passo 2, sem custo extra.
-      * Se o FIFO não tiver espaço (> 8 pixels), o fetcher re-tenta a cada
-      * 2 dots enquanto aguarda, mantendo o passo em 2.
+      * Nesta fase ainda geramos os 8 pixels no push, como o modelo anterior.
+      * Isso separa a transição estrutural para 6 estados da futura leitura
+      * latched de tile id/low/high.
       */
-     gpu->fetcher.ticks++;
-     if (gpu->fetcher.ticks < 2)
-     {
-          return;
-     }
 
-     gpu->fetcher.ticks = 0;
-
-     if (gpu->fetcher.step < GB_GPU_FETCH_TILE_DATA_HIGH_PUSH)
+     if (gpu->fetcher.step < GB_GPU_FETCH_PUSH)
      {
           gpu->fetcher.step++;
           return;
      }
 
-     /* Passo 2 completo: tenta empurrar 8 pixels ao FIFO */
+     if (gpu->fetcher.ticks)
+     {
+          gpu->fetcher.ticks = 0;
+          return;
+     }
+
      if (gb_gpu_fetcher_push_tile(gb))
      {
-          gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_ID_0;
+          gpu->fetcher.ticks = 0;
      }
-     /* Se FIFO cheio (> 8 pixels), mantém step=2 e retry nos próximos 2 dots */
+     else
+     {
+          /* Mantém o retry a cada 2 dots, como no modelo anterior. */
+          gpu->fetcher.ticks = 1;
+     }
 }
 
 const char *gb_gpu_fetcher_phase_name(uint8_t phase)
 {
      switch (phase)
      {
-     case GB_GPU_FETCH_TILE_ID:
-          return "tile id";
-     case GB_GPU_FETCH_TILE_DATA_LOW:
-          return "tile data low";
-     case GB_GPU_FETCH_TILE_DATA_HIGH_PUSH:
-          return "tile data high + push";
+     case GB_GPU_FETCH_TILE_ID_0:
+          return "tile id 0";
+     case GB_GPU_FETCH_TILE_ID_1:
+          return "tile id 1";
+     case GB_GPU_FETCH_TILE_DATA_LOW_0:
+          return "data low 0";
+     case GB_GPU_FETCH_TILE_DATA_LOW_1:
+          return "data low 1";
+     case GB_GPU_FETCH_TILE_DATA_HIGH_0:
+          return "data high";
+     case GB_GPU_FETCH_PUSH:
+          return "push";
      default:
           return "unknown";
      }

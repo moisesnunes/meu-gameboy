@@ -23,9 +23,12 @@ enum gb_color
 
 enum gb_gpu_fetcher_phase
 {
-     GB_GPU_FETCH_TILE_ID = 0,
-     GB_GPU_FETCH_TILE_DATA_LOW = 1,
-     GB_GPU_FETCH_TILE_DATA_HIGH_PUSH = 2,
+     GB_GPU_FETCH_TILE_ID_0 = 0,
+     GB_GPU_FETCH_TILE_ID_1,
+     GB_GPU_FETCH_TILE_DATA_LOW_0,
+     GB_GPU_FETCH_TILE_DATA_LOW_1,
+     GB_GPU_FETCH_TILE_DATA_HIGH_0,
+     GB_GPU_FETCH_PUSH,
 };
 
 union gb_gpu_color
@@ -69,11 +72,10 @@ struct gb_sprite
 struct gb_gpu_fetcher
 {
      bool window;
-     /* Fase do fetcher BG/window. O modelo atual agrupa o push no fim da
-      * leitura do byte high; isso preserva o comportamento existente e deixa
-      * explícito o ponto que será expandido para um fetcher de 6 estados. */
+     /* Fase dot-a-dot do fetcher BG/window. O push ainda materializa os 8
+      * pixels de uma vez, mas o pipeline já é observável em 6 estados. */
      uint8_t step;
-     uint8_t ticks;
+     uint8_t ticks; /* usado como divisor de retry quando o FIFO está cheio */
      uint8_t map_x;
      /* Contador de tiles buscados desde o restart (sem offset SCX). Usado para
       * calcular map_x dinâmico quando SCX muda mid-scanline. */
