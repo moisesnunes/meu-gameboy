@@ -179,9 +179,10 @@ static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
      gpu->sprite_stall = 0;
      gpu->mode3_min_end = MODE_3_END;
      gpu->fetcher.window = false;
-     gpu->fetcher.step = 0;
+     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
      gpu->fetcher.ticks = 0;
      gpu->fetcher.map_x = 0;
+     gpu->fetcher.tile_count = 0;
      gpu->line_sprites[0].x = GB_LCD_WIDTH * 2;
 
      for (i = 0; i < GB_GPU_LINE_SPRITES; i++)
@@ -1128,7 +1129,7 @@ static void gb_gpu_fetcher_restart(struct gb *gb, bool window)
 
      gb_gpu_fifo_clear(gpu);
      gpu->fetcher.window = window;
-     gpu->fetcher.step = 0;
+     gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
      gpu->fetcher.ticks = 0;
      gpu->fetcher.tile_count = 0;
      gpu->fetcher.map_x = window ? 0 : (gpu->scx / 8);
@@ -1220,7 +1221,7 @@ static void gb_gpu_fetcher_step(struct gb *gb)
 
      gpu->fetcher.ticks = 0;
 
-     if (gpu->fetcher.step < 2)
+     if (gpu->fetcher.step < GB_GPU_FETCH_TILE_DATA_HIGH_PUSH)
      {
           gpu->fetcher.step++;
           return;
@@ -1229,9 +1230,24 @@ static void gb_gpu_fetcher_step(struct gb *gb)
      /* Passo 2 completo: tenta empurrar 8 pixels ao FIFO */
      if (gb_gpu_fetcher_push_tile(gb))
      {
-          gpu->fetcher.step = 0;
+          gpu->fetcher.step = GB_GPU_FETCH_TILE_ID;
      }
      /* Se FIFO cheio (> 8 pixels), mantém step=2 e retry nos próximos 2 dots */
+}
+
+const char *gb_gpu_fetcher_phase_name(uint8_t phase)
+{
+     switch (phase)
+     {
+     case GB_GPU_FETCH_TILE_ID:
+          return "tile id";
+     case GB_GPU_FETCH_TILE_DATA_LOW:
+          return "tile data low";
+     case GB_GPU_FETCH_TILE_DATA_HIGH_PUSH:
+          return "tile data high + push";
+     default:
+          return "unknown";
+     }
 }
 
 static unsigned gb_gpu_sprite_penalty(unsigned oam_x, uint8_t scx)

@@ -1557,6 +1557,50 @@ void draw_panel_gpu(struct gb *gb)
                  gpu->wx, gpu->wy, gpu->wx - 7);
      ImGui::Separator();
 
+     if (ImGui::CollapsingHeader("Pixel FIFO", ImGuiTreeNodeFlags_DefaultOpen))
+     {
+          float line_progress = (float)gpu->line_pos / 456.0f;
+          float mode3_progress = 0.0f;
+          uint16_t mode3_end = gpu->mode3_min_end ? gpu->mode3_min_end : 1;
+
+          if (line_progress < 0.0f)
+               line_progress = 0.0f;
+          if (line_progress > 1.0f)
+               line_progress = 1.0f;
+
+          if (gpu->line_pos > 80)
+               mode3_progress = (float)(gpu->line_pos - 80) /
+                                (float)(mode3_end > 80 ? mode3_end - 80 : 1);
+          if (mode3_progress < 0.0f)
+               mode3_progress = 0.0f;
+          if (mode3_progress > 1.0f)
+               mode3_progress = 1.0f;
+
+          ImGui::Text("Line dot: %3u / 456", gpu->line_pos);
+          ImGui::ProgressBar(line_progress, ImVec2(-1.0f, 0.0f));
+          ImGui::Text("Mode 3 end: dot %u  %s", gpu->mode3_min_end,
+                      gpu->line_complete ? "(line complete)" : "");
+          ImGui::ProgressBar(mode == 3 ? mode3_progress : 0.0f,
+                             ImVec2(-1.0f, 0.0f));
+
+          ImGui::Text("Fetcher: %s  %s  tick %u/2",
+                      gpu->fetcher.window ? "window" : "bg",
+                      gb_gpu_fetcher_phase_name(gpu->fetcher.step),
+                      gpu->fetcher.ticks);
+          ImGui::Text("FIFO: %u/%u  discard:%u  screen_x:%u",
+                      gpu->fifo_len, GB_GPU_FIFO_CAPACITY,
+                      gpu->fifo_discard, gpu->screen_x);
+          ImGui::Text("Tile map x:%u  tiles:%u  sprite stall:%u",
+                      gpu->fetcher.map_x, gpu->fetcher.tile_count,
+                      gpu->sprite_stall);
+          ImGui::Text("Line: started:%s complete:%s sent:%s window:%s",
+                      gpu->line_started ? "yes" : "no",
+                      gpu->line_complete ? "yes" : "no",
+                      gpu->line_sent ? "yes" : "no",
+                      gpu->window_rendered ? "yes" : "no");
+     }
+     ImGui::Separator();
+
      ImGui::Text("LCDC:");
      ImGui::BulletText("LCD enable:      %s", gpu->master_enable ? "ON" : "OFF");
      ImGui::BulletText("Window tile map: %s", gpu->window_use_high_tm ? "0x9C00" : "0x9800");

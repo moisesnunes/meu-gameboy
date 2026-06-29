@@ -21,6 +21,13 @@ enum gb_color
 #define GB_LCD_WIDTH 160
 #define GB_LCD_HEIGHT 144
 
+enum gb_gpu_fetcher_phase
+{
+     GB_GPU_FETCH_TILE_ID = 0,
+     GB_GPU_FETCH_TILE_DATA_LOW = 1,
+     GB_GPU_FETCH_TILE_DATA_HIGH_PUSH = 2,
+};
+
 union gb_gpu_color
 {
      /* Cor DMG: 4 tons (0=branco … 3=preto) */
@@ -62,6 +69,9 @@ struct gb_sprite
 struct gb_gpu_fetcher
 {
      bool window;
+     /* Fase do fetcher BG/window. O modelo atual agrupa o push no fim da
+      * leitura do byte high; isso preserva o comportamento existente e deixa
+      * explícito o ponto que será expandido para um fetcher de 6 estados. */
      uint8_t step;
      uint8_t ticks;
      uint8_t map_x;
@@ -176,6 +186,7 @@ bool gb_gpu_oam_write_blocked(struct gb *gb);
 bool gb_gpu_vram_read_blocked(struct gb *gb);
 bool gb_gpu_vram_blocked(struct gb *gb);
 void gb_gpu_sync(struct gb *gb);
+const char *gb_gpu_fetcher_phase_name(uint8_t phase);
 void gb_gpu_set_lcd_stat(struct gb *gb, uint8_t stat);
 void gb_gpu_set_lcdc(struct gb *gb, uint8_t stat);
 void gb_gpu_set_lyc(struct gb *gb, uint8_t lyc);
