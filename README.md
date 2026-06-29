@@ -242,12 +242,12 @@ shootout above.
 | Suite | Total | Pass | Fail | Timeout | Unknown |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Blargg | 58 | 57 | 1 | 0 | 0 |
-| Mooneye | 103 | 102 | 1 | 0 | 0 |
-| **Combined** | **161** | **159** | **2** | **0** | **0** |
+| Mooneye | 103 | 103 | 0 | 0 | 0 |
+| **Combined** | **161** | **160** | **1** | **0** | **0** |
 
-Current known failures are Blargg `oam_bug/rom_singles/7-timing_effect.gb`
-and Mooneye `acceptance/ppu/intr_2_mode0_timing_sprites.gb`. The full per-ROM
-results and future suite totals are written to `tests/compat/out/compat.txt`.
+Current known failure is Blargg `oam_bug/rom_singles/7-timing_effect.gb`.
+The full per-ROM results and future suite totals are written to
+`tests/compat/out/compat.txt`.
 
 ## Project Layout
 

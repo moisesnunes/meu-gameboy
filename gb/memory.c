@@ -295,7 +295,7 @@ static int gb_memory_oam_bug_row(struct gb *gb)
      if (first_row_pos < 0)
      {
           const char *env = getenv("GB_OAM_ROW_FIRST");
-          first_row_pos = env ? atoi(env) : 24;
+          first_row_pos = env ? atoi(env) : 0;
           env = getenv("GB_OAM_ROW_DIV");
           row_divisor = env ? atoi(env) : 2;
           if (row_divisor <= 0)
