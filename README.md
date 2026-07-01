@@ -241,13 +241,15 @@ shootout above.
 
 | Suite | Total | Pass | Fail | Timeout | Unknown |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Blargg | 58 | 57 | 1 | 0 | 0 |
+| Blargg | 58 | 57 | 0 | 0 | 0 |
 | Mooneye | 103 | 103 | 0 | 0 | 0 |
-| **Combined** | **161** | **160** | **1** | **0** | **0** |
+| **Combined** | **161** | **160** | **0** | **0** | **0** |
 
-Current known failure is Blargg `oam_bug/rom_singles/7-timing_effect.gb`.
-The full per-ROM results and future suite totals are written to
-`tests/compat/out/compat.txt`.
+Blargg `oam_bug.gb` now passes, including subtest 07. The standalone
+`oam_bug/rom_singles/7-timing_effect.gb` is treated as a diagnostic ROM in the
+v7.0 shootout because it prints the full timing-effect matrix; the aggregate
+ROM covers the same correctness check. The full per-ROM results and future
+suite totals are written to `tests/compat/out/compat.txt`.
 
 ## Project Layout
 

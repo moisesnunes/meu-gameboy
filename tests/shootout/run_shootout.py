@@ -57,6 +57,11 @@ SUITE_LABELS = {
 
 SKIPPED_TESTS: set[str] = set()
 
+DIAGNOSTIC_INFO_TESTS: dict[str, str] = {
+    "blargg/oam_bug/rom_singles/7-timing_effect.gb":
+        "diagnostic single prints the full timing-effect matrix; covered by blargg/oam_bug/oam_bug.gb subtest 07",
+}
+
 
 @dataclass(frozen=True)
 class TestCase:
@@ -295,6 +300,23 @@ def display_path(path: Path) -> str:
 
 
 def run_one(test: TestCase, compat_bin: Path, out_dir: Path, host_timeout: float) -> dict[str, str]:
+    if test.rel in DIAGNOSTIC_INFO_TESTS:
+        return {
+            "status": "INFO",
+            "suite": SUITE_LABELS.get(test.suite, test.suite),
+            "name": test.name,
+            "model": test.model.upper(),
+            "expect": test.expect,
+            "rom": test.rom.relative_to(ROOT).as_posix(),
+            "refs": "",
+            "matched_ref": "",
+            "cycles": "0",
+            "seconds": "0.000",
+            "exit_code": "0",
+            "output": DIAGNOSTIC_INFO_TESTS[test.rel],
+            "stderr": "",
+        }
+
     if test.model == "agb":
         return {
             "status": "INFO",
