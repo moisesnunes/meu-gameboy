@@ -652,6 +652,7 @@ int main(int argc, char **argv)
      while (cycles < target_cycles && !gb->quit)
      {
           int32_t chunk = RUN_CHUNK_CYCLES;
+
           if (target_cycles - cycles < (uint64_t)chunk)
                chunk = (int32_t)(target_cycles - cycles);
 
@@ -723,14 +724,17 @@ int main(int argc, char **argv)
      if (dump_state)
      {
           fprintf(stderr,
-                  "PC=%04x SP=%04x AF=%02x%c%c%c%c BC=%02x%02x DE=%02x%02x HL=%02x%02x LY=%02x\n",
+                  "PC=%04x SP=%04x AF=%02x%c%c%c%c BC=%02x%02x DE=%02x%02x HL=%02x%02x "
+                  "LY=%02x line_pos=%u mode=%u LCDC=%02x mode3_min=%u line_done=%u\n",
                   gb->cpu.pc, gb->cpu.sp, gb->cpu.a,
                   gb->cpu.f_z ? 'Z' : '-',
                   gb->cpu.f_n ? 'N' : '-',
                   gb->cpu.f_h ? 'H' : '-',
                   gb->cpu.f_c ? 'C' : '-',
                   gb->cpu.b, gb->cpu.c, gb->cpu.d, gb->cpu.e,
-                  gb->cpu.h, gb->cpu.l, gb->gpu.ly);
+                  gb->cpu.h, gb->cpu.l, gb->gpu.ly, gb->gpu.line_pos,
+                  gb_gpu_get_mode(gb), gb_gpu_get_lcdc(gb),
+                  gb->gpu.mode3_min_end, gb->gpu.line_complete);
           fprintf(stderr, "hram FF80-FF9F=");
           for (unsigned i = 0; i < 0x20; i++)
           {
@@ -743,11 +747,21 @@ int main(int argc, char **argv)
           dump_vram_row(gb, 0x8800, 0x20, true);
           if (gb->cart.ram && gb->cart.ram_length >= 16)
           {
+               const char *limit_env = getenv("GB_DUMP_CART_RAM_LIMIT");
+               unsigned dump_limit = 84;
+
+               if (limit_env)
+               {
+                    long parsed = strtol(limit_env, NULL, 0);
+                    if (parsed > 4)
+                         dump_limit = (unsigned)parsed;
+               }
+
                fprintf(stderr,
                        "cart_ram A000=%02x magic=%02x %02x %02x text=\"",
                        gb->cart.ram[0], gb->cart.ram[1],
                        gb->cart.ram[2], gb->cart.ram[3]);
-               for (unsigned i = 4; i < gb->cart.ram_length && i < 84; i++)
+               for (unsigned i = 4; i < gb->cart.ram_length && i < dump_limit; i++)
                {
                     unsigned char c = gb->cart.ram[i];
                     if (c == 0)
@@ -764,6 +778,26 @@ int main(int argc, char **argv)
                char text[64];
                gb_disasm(gb, pc, text, sizeof(text));
                fprintf(stderr, "  %04x  %s\n", pc, text);
+          }
+     }
+
+     {
+          const char *cart_ram_dump_path = getenv("GB_DUMP_CART_RAM_FILE");
+
+          if (cart_ram_dump_path && gb->cart.ram && gb->cart.ram_length)
+          {
+               FILE *f = fopen(cart_ram_dump_path, "wb");
+
+               if (f)
+               {
+                    fwrite(gb->cart.ram, 1, gb->cart.ram_length, f);
+                    fclose(f);
+               }
+               else
+               {
+                    fprintf(stderr, "compat_test: unable to dump cart RAM to '%s'\n",
+                            cart_ram_dump_path);
+               }
           }
      }
 

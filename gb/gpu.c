@@ -163,6 +163,12 @@
 /* Total de linhas incluindo VBlank (0–153) */
 #define VTOTAL (VSYNC_START + VSYNC_LINES)
 
+static bool gb_gpu_is_cgb_hardware(const struct gb *gb);
+static struct gb_sprite gb_get_oam_sprite(struct gb *gb, unsigned index);
+static bool gb_gpu_sprite_on_line(struct gb *gb, unsigned ly,
+                                  const struct gb_sprite *sprite);
+static void gb_gpu_sort_line_sprites(struct gb *gb);
+
 static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
 {
      unsigned i;
@@ -173,11 +179,15 @@ static void gb_gpu_reset_line_state(struct gb_gpu *gpu)
      gpu->window_active = false;
      gpu->window_rendered = false;
      gpu->stat_mode0_early_fired = false;
+     gpu->accessed_oam_row = -1;
      gpu->screen_x = 0;
      gpu->fifo_discard = 0;
      gpu->fifo_len = 0;
      gpu->obj_fifo_len = 0;
      gpu->sprite_stall = 0;
+     gpu->oam_scan_index = 0;
+     gpu->line_sprite_count = 0;
+     gpu->oam_scan_done = false;
      gpu->obj_fetch_x = 0;
      gpu->obj_fetch_tile_index = 0;
      gpu->obj_fetch_tile_y = 0;
@@ -221,6 +231,65 @@ static uint16_t gb_gpu_line_total(struct gb *gb)
      }
 
      return HTOTAL;
+}
+
+static void gb_gpu_update_oam_access_row(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     uint16_t pos = gpu->line_pos;
+     unsigned index;
+     unsigned scanned;
+
+     if (gb_gpu_is_cgb_hardware(gb) || gpu->ly >= VSYNC_START)
+     {
+          gpu->accessed_oam_row = -1;
+          return;
+     }
+
+     if (!gpu->lcd_enable_ly_quirk || gpu->ly != 0)
+     {
+          scanned = pos / 2;
+          if (scanned > GB_GPU_MAX_SPRITES)
+          {
+               scanned = GB_GPU_MAX_SPRITES;
+          }
+
+          while (gpu->oam_scan_index < scanned)
+          {
+               struct gb_sprite s = gb_get_oam_sprite(gb, gpu->oam_scan_index);
+
+               if (gpu->line_sprite_count < GB_GPU_LINE_SPRITES &&
+                   gb_gpu_sprite_on_line(gb, gpu->ly, &s))
+               {
+                    gpu->line_sprites[gpu->line_sprite_count++] = s;
+                    gpu->line_sprites[gpu->line_sprite_count].x =
+                        GB_LCD_WIDTH * 2;
+               }
+
+               gpu->oam_scan_index++;
+          }
+
+          if (pos >= MODE_2_CYCLES && !gpu->oam_scan_done)
+          {
+               gpu->oam_scan_done = true;
+               gb_gpu_sort_line_sprites(gb);
+          }
+     }
+
+     if (gb_gpu_get_mode(gb) != 2)
+     {
+          gpu->accessed_oam_row = -1;
+          return;
+     }
+
+     if (pos >= 76)
+     {
+          gpu->accessed_oam_row = -1;
+          return;
+     }
+
+     index = pos / 2;
+     gpu->accessed_oam_row = (int16_t)((index & ~1U) * 4 + 8);
 }
 
 static bool gb_gpu_is_cgb_hardware(const struct gb *gb)
@@ -519,7 +588,7 @@ uint8_t gb_gpu_get_mode(struct gb *gb)
           return 2;
      }
 
-     if (!gpu->line_complete || gpu->line_pos < gpu->mode3_min_end)
+     if (gpu->line_pos < gpu->mode3_min_end)
      {
           /* Modo 3: a PPU está renderizando pixels — VRAM e OAM bloqueadas */
           return 3;
@@ -795,6 +864,46 @@ static unsigned gb_gpu_get_line_sprites(
      }
 
      return n_sprites;
+}
+
+static bool gb_gpu_sprite_on_line(struct gb *gb, unsigned ly,
+                                  const struct gb_sprite *sprite)
+{
+     unsigned sprite_height = gb->gpu.tall_sprites ? 16U : 8U;
+
+     return (int)ly >= sprite->y &&
+            (int)ly < sprite->y + (int)sprite_height;
+}
+
+static void gb_gpu_sort_line_sprites(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     int i;
+
+     gpu->line_sprites[gpu->line_sprite_count].x = GB_LCD_WIDTH * 2;
+
+     if (gb->gbc && !(gpu->opri & 0x01))
+     {
+          return;
+     }
+
+     for (i = 1; i < (int)gpu->line_sprite_count; i++)
+     {
+          struct gb_sprite cur = gpu->line_sprites[i];
+          int j;
+
+          for (j = i - 1; j >= 0; j--)
+          {
+               if (gpu->line_sprites[j].x <= cur.x)
+               {
+                    break;
+               }
+
+               gpu->line_sprites[j + 1] = gpu->line_sprites[j];
+          }
+
+          gpu->line_sprites[j + 1] = cur;
+     }
 }
 
 static void gb_gpu_obj_fetch_latch_sprite(struct gb *gb,
@@ -1475,8 +1584,15 @@ static void gb_gpu_begin_pixel_transfer(struct gb *gb)
 
      {
           unsigned n = gb_gpu_get_line_sprites(gb, gpu->ly, gpu->line_sprites);
-          unsigned i;
+
+          gpu->line_sprite_count = (uint8_t)n;
+          gpu->line_sprites[n].x = GB_LCD_WIDTH * 2;
+     }
+
+     {
+          unsigned n = gpu->line_sprite_count;
           uint16_t sprite_penalty = 0;
+          uint8_t scx_penalty = gpu->scx & 7;
 
           for (i = 0; i < n; i++)
           {
@@ -1504,18 +1620,13 @@ static void gb_gpu_begin_pixel_transfer(struct gb *gb)
                     }
                }
 
-               if (evenly_spaced)
+               if (evenly_spaced && phase >= 2)
                {
-                    if (phase >= 2)
-                    {
-                         unsigned per_sprite = phase < 5 ? 11 - phase : 6;
-                         /* The FIFO model already absorbs the final two dots. */
-                         sprite_penalty = ((n * per_sprite) & ~3U) - 2;
-                    }
+                    unsigned per_sprite = phase < 5 ? 11 - phase : 6;
+                    sprite_penalty = ((n * per_sprite) & ~3U) - 2;
                }
-          }
 
-          uint8_t scx_penalty = gpu->scx & 7;
+          }
 
           if (scx_penalty)
           {
@@ -1634,9 +1745,12 @@ static bool gb_gpu_start_sprite_stall(struct gb *gb)
           }
 
           gpu->line_sprite_stalled[i] = true;
-          gb_gpu_obj_fifo_fetch_sprite(gb, s);
+          if (gpu->sprite_enable)
           {
-               unsigned penalty = gb_gpu_obj_fetch_penalty(gpu, i, true);
+               gb_gpu_obj_fifo_fetch_sprite(gb, s);
+          }
+          {
+               unsigned penalty = gb_gpu_obj_fetch_penalty(gpu, i, false);
 
                if (penalty == 0)
                {
@@ -1747,6 +1861,23 @@ static void gb_gpu_step_pixel_transfer(struct gb *gb)
      }
 }
 
+static void gb_gpu_drain_pixel_transfer(struct gb *gb)
+{
+     struct gb_gpu *gpu = &gb->gpu;
+     uint16_t visible_end = gpu->mode3_min_end;
+     unsigned guard = 1024;
+
+     while (!gpu->line_complete && guard--)
+     {
+          gb_gpu_step_pixel_transfer(gb);
+     }
+
+     if (gpu->mode3_min_end > visible_end)
+     {
+          gpu->mode3_min_end = visible_end;
+     }
+}
+
 static void gb_gpu_emit_cur_line(struct gb *gb)
 {
      struct gb_gpu *gpu = &gb->gpu;
@@ -1788,6 +1919,7 @@ static void gb_gpu_finish_scanline(struct gb *gb)
      gpu->line_pos = 0;
      gpu->lcd_enable_ly_quirk = false;
      gb_gpu_reset_line_state(gpu);
+     gb_gpu_update_oam_access_row(gb);
 
      if (gpu->ly == VSYNC_START)
      {
@@ -1900,6 +2032,7 @@ void gb_gpu_sync(struct gb *gb)
           gb_gpu_maybe_fire_cgb_line144_mode2_stat(gb, step);
 
           gpu->line_pos += step;
+          gb_gpu_update_oam_access_row(gb);
           elapsed -= step;
 
           if (prev_mode != gb_gpu_get_mode(gb))
@@ -1908,6 +2041,7 @@ void gb_gpu_sync(struct gb *gb)
 
                if (new_mode == 0)
                {
+                    gb_gpu_drain_pixel_transfer(gb);
                     gb_gpu_emit_cur_line(gb);
 
                     if (hdma->run_on_hblank)
@@ -2127,6 +2261,7 @@ void gb_gpu_set_lcdc(struct gb *gb, uint8_t lcdc)
                gpu->ly = 0;
                gpu->line_pos = 0;
                gpu->lcd_enable_ly_quirk = false;
+               gpu->accessed_oam_row = -1;
                gpu->stat_irq_line = false;
                gpu->window_line = 0;
                gb_gpu_reset_line_state(gpu);
@@ -2136,6 +2271,7 @@ void gb_gpu_set_lcdc(struct gb *gb, uint8_t lcdc)
                bool preserve_stat_line = gpu->iten_lyc && gpu->stat_lyc_flag;
 
                gpu->lcd_enable_ly_quirk = !gb->gbc;
+               gpu->accessed_oam_row = -1;
                gb_gpu_update_lyc_flag(gb);
                gpu->stat_irq_line = preserve_stat_line;
                gb_gpu_update_stat_irq(gb);

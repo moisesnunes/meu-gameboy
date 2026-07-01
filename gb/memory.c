@@ -289,32 +289,19 @@ static int gb_memory_oam_bug_row(struct gb *gb)
      struct gb_gpu *gpu = &gb->gpu;
      uint16_t row_pos = gpu->line_pos;
      unsigned index;
-     static int first_row_pos = -1;
-     static int row_divisor = -1;
 
-     if (first_row_pos < 0)
-     {
-          const char *env = getenv("GB_OAM_ROW_FIRST");
-          first_row_pos = env ? atoi(env) : 0;
-          env = getenv("GB_OAM_ROW_DIV");
-          row_divisor = env ? atoi(env) : 2;
-          if (row_divisor <= 0)
-          {
-               row_divisor = 2;
-          }
-     }
-
-     if (gb->gbc || !gpu->master_enable || gpu->ly >= 144 || gpu->line_pos >= 76)
+     if (gb->gbc || !gpu->master_enable ||
+         gpu->ly >= 144 || gpu->line_pos >= 76)
      {
           return -1;
      }
 
-     if (row_pos < (uint16_t)first_row_pos)
+     if (!gpu->lcd_enable_ly_quirk || gpu->ly != 0)
      {
-          return -1;
+          return gpu->accessed_oam_row;
      }
 
-     index = (row_pos - (uint16_t)first_row_pos) / (unsigned)row_divisor;
+     index = row_pos / 2;
      return (int)((index & ~1U) * 4 + 8);
 }
 

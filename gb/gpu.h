@@ -152,6 +152,8 @@ struct gb_gpu
      uint16_t line_pos;
      /* DMG quirk: após habilitar o LCD, LY lê 1 um pouco antes do fim da linha 0. */
      bool lcd_enable_ly_quirk;
+     /* DMG OAM bug: row interna que a PPU acabou de acessar durante OAM scan. */
+     int16_t accessed_oam_row;
      /* Nível atual do sinal de IRQ do LCD STAT. A IRQ só é disparada na borda 0→1. */
      bool stat_irq_line;
      /* Bit de coincidência LY==LYC travado. Pode ser preservado brevemente ao desligar o LCD. */
@@ -173,6 +175,9 @@ struct gb_gpu
      uint8_t fifo_len;       /* Quantidade de pixels atualmente no FIFO */
      uint8_t obj_fifo_len;   /* Quantidade de pixels atualmente no FIFO de sprites */
      uint8_t sprite_stall;   /* T-cycles restantes de penalidade por fetch de sprite */
+     uint8_t oam_scan_index; /* Próximo índice da OAM a ser avaliado no Mode 2 */
+     uint8_t line_sprite_count; /* Quantidade de sprites latched para a scanline */
+     bool oam_scan_done;     /* true quando a busca de OAM da linha terminou */
      int8_t obj_fetch_x;
      uint8_t obj_fetch_tile_index;
      uint8_t obj_fetch_tile_y;
