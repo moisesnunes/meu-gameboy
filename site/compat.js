@@ -1,4 +1,4 @@
-// Compatibility table — loaded from compat_data.json
+// Compatibility table loaded from compat_data.json.
 (function () {
   const PAGE_SIZE = 50;
   let allGames = [];
@@ -6,6 +6,10 @@
   let page = 0;
   let activeFilter = 'all';
   let searchQuery = '';
+
+  function formatNumber(n) {
+    return n.toLocaleString('en-US');
+  }
 
   function statusBadge(status, label) {
     if (status === 'ok') return `<span class="badge badge-ok">Working</span>`;
@@ -33,7 +37,7 @@
         <tr>
           <td>${g.title}</td>
           <td>${platformBadge(g.platform)}</td>
-          <td style="color:var(--text2);font-size:0.8rem">${g.mbc}</td>
+          <td style="color:var(--muted);font-size:0.8rem">${g.mbc}</td>
           <td>${statusBadge(g.status)}</td>
         </tr>
       `).join('');
@@ -45,6 +49,33 @@
     document.getElementById('next-page').disabled = page >= totalPages - 1;
   }
 
+  function updateSummary(data) {
+    const counts = data.reduce((acc, g) => {
+      acc.total++;
+      if (g.status === 'ok') acc.ok++;
+      else acc.review++;
+      if (g.status === 'blank') acc.blank++;
+      return acc;
+    }, { total: 0, ok: 0, review: 0, blank: 0 });
+
+    const percent = counts.total ? (counts.ok / counts.total) * 100 : 0;
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    setText('summary-total', formatNumber(counts.total));
+    setText('summary-ok', formatNumber(counts.ok));
+    setText('summary-review', formatNumber(counts.review));
+    setText('summary-blank', formatNumber(counts.blank));
+    setText('legend-ok', formatNumber(counts.ok));
+    setText('legend-review', formatNumber(counts.review));
+    setText('legend-blank', formatNumber(counts.blank));
+
+    const fill = document.getElementById('compat-bar-fill');
+    if (fill) fill.style.width = `${percent.toFixed(1)}%`;
+  }
+
   function applyFilters() {
     page = 0;
     filtered = allGames.filter(g => {
@@ -52,6 +83,7 @@
       if (q && !g.title.toLowerCase().includes(q)) return false;
       if (activeFilter === 'ok' && g.status !== 'ok') return false;
       if (activeFilter === 'review' && g.status === 'ok') return false;
+      if (activeFilter === 'blank' && g.status !== 'blank') return false;
       if (activeFilter === 'dmg' && g.platform !== 'DMG') return false;
       if (activeFilter === 'gbc' && !g.platform.startsWith('GBC')) return false;
       return true;
@@ -64,6 +96,7 @@
     .then(data => {
       allGames = data;
       filtered = data;
+      updateSummary(data);
       renderTable();
 
       document.getElementById('search').addEventListener('input', e => {

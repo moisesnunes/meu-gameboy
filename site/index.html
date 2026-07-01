@@ -3,177 +3,287 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Goldboy — Game Boy Emulator</title>
+  <title>meu-gameboy - DMG, CGB, and GBA Emulator</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <nav id="navbar">
     <div class="nav-inner">
-      <span class="nav-logo">Goldboy</span>
+      <a class="nav-logo" href="#top" aria-label="meu-gameboy home">meu-gameboy</a>
       <ul>
-        <li><a href="#features">Features</a></li>
+        <li><a href="#systems">Systems</a></li>
+        <li><a href="#lab">Lab</a></li>
         <li><a href="#compat">Compatibility</a></li>
-        <li><a href="#downloads">Downloads</a></li>
-        <li><a href="https://github.com/moisa/meu-gameboy" target="_blank">GitHub</a></li>
+        <li><a href="#build">Build</a></li>
+        <li><a href="https://github.com/moisa/meu-gameboy" target="_blank" rel="noreferrer">GitHub</a></li>
       </ul>
     </div>
   </nav>
 
-  <header class="hero">
+  <header class="hero" id="top">
+    <div class="hero-bg" aria-hidden="true">
+      <img src="../img/debug.png" alt="">
+    </div>
+    <div class="hero-shade" aria-hidden="true"></div>
     <div class="hero-inner">
-      <div class="hero-badge">Open Source</div>
-      <h1>Goldboy</h1>
-      <p class="hero-sub">A precise, open-source Game Boy &amp; Game Boy Color emulator written in C</p>
-      <div class="hero-stats">
+      <p class="hero-kicker">C emulator workbench for Nintendo handhelds</p>
+      <h1>meu-gameboy</h1>
+      <p class="hero-sub">A DMG, CGB, and GBA emulator with SDL3 frontends, an ImGui debugger, headless compatibility runners, and hardware-oriented visual inspection tools.</p>
+
+      <div class="hero-stats" aria-label="Current verification snapshot">
         <div class="stat">
           <span class="stat-num" id="count-working">922</span>
-          <span class="stat-label">Games Working</span>
+          <span class="stat-label">Commercial ROMs working</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-num">1028</span>
-          <span class="stat-label">ROMs Tested</span>
+          <span class="stat-num">1,028</span>
+          <span class="stat-label">GB/GBC smoke cases</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-num">89.7%</span>
-          <span class="stat-label">Compatibility</span>
+          <span class="stat-num">56/58</span>
+          <span class="stat-label">Blargg shootout</span>
         </div>
       </div>
+
       <div class="hero-actions">
-        <a href="#downloads" class="btn-primary">Download</a>
-        <a href="#compat" class="btn-secondary">Compatibility List</a>
+        <a href="#compat" class="btn-primary">View compatibility</a>
+        <a href="#lab" class="btn-secondary">Explore the lab</a>
       </div>
     </div>
-    <div class="hero-glow"></div>
   </header>
 
-  <section id="features" class="section">
-    <div class="container">
-      <h2 class="section-title">Features</h2>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">&#x1F4BB;</div>
-          <h3>Pixel FIFO PPU</h3>
-          <p>Accurate pixel-by-pixel rendering matching original hardware scanline timing.</p>
+  <main>
+    <section id="systems" class="section">
+      <div class="container">
+        <div class="section-heading">
+          <p class="eyebrow">Emulated systems</p>
+          <h2 class="section-title">Three cores, one inspection bench</h2>
+          <p class="section-sub">The project is built for normal play, debugging, and accuracy work across the Game Boy family and Game Boy Advance.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">&#x1F3AE;</div>
-          <h3>Game Boy Color</h3>
-          <p>Full GBC support — double-speed mode, HDMA, palette registers, and VRAM banking.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">&#x1F4BE;</div>
-          <h3>MBC Support</h3>
-          <p>MBC1, MBC2, MBC3 (RTC), MBC5, HuC1, HuC3, and ROM-only cartridges.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">&#x1F50A;</div>
-          <h3>Full Audio</h3>
-          <p>All 4 APU channels: square waves with sweep, wave channel, and noise.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">&#x2705;</div>
-          <h3>Test Suite</h3>
-          <p>Passes Blargg, Mooneye, and PPU test suites for maximum accuracy.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">&#x26A1;</div>
-          <h3>Netlist-verified CPU</h3>
-          <p>SM83 CPU validated against transistor-level netlist simulation.</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <section id="compat" class="section section-dark">
-    <div class="container">
-      <h2 class="section-title">Compatibility</h2>
-      <p class="section-sub">Results from automated smoke testing across 1028 commercial ROMs</p>
+        <div class="systems-grid">
+          <article class="system-panel">
+            <div class="system-label">DMG</div>
+            <h3>Game Boy</h3>
+            <p>SM83 CPU, scanline PPU, APU channels CH1-CH4, timer, IRQ, DMA, cartridge banking, and optional boot ROM loading.</p>
+            <ul>
+              <li>MBC1, MBC3 RTC, MBC5, and battery-backed RAM</li>
+              <li>Serial, register, text, and visual test classification</li>
+              <li>Hardware die and SM83 netlist visualization paths</li>
+            </ul>
+          </article>
 
-      <div class="compat-bar-wrap">
-        <div class="compat-bar">
-          <div class="compat-bar-fill" style="width: 89.7%"></div>
-        </div>
-        <div class="compat-legend">
-          <span class="legend-dot dot-ok"></span> Working (922)
-          <span class="legend-dot dot-review" style="margin-left:1.5rem"></span> Needs Review (106)
-        </div>
-      </div>
+          <article class="system-panel">
+            <div class="system-label">CGB</div>
+            <h3>Game Boy Color</h3>
+            <p>CGB palettes, VRAM banking, double-speed behavior, HDMA, and DMG-compatible rendering paths for color hardware.</p>
+            <ul>
+              <li>Acid visual tests and CGB composition sentinels</li>
+              <li>Palette, OAM, PPU, and STOP-mode edge-case triage</li>
+              <li>Commercial GBC smoke coverage in the site data</li>
+            </ul>
+          </article>
 
-      <div class="compat-controls">
-        <input type="text" id="search" placeholder="Search by game name..." class="search-input">
-        <div class="filter-buttons">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="ok">Working</button>
-          <button class="filter-btn" data-filter="review">Needs Review</button>
-          <button class="filter-btn" data-filter="dmg">DMG</button>
-          <button class="filter-btn" data-filter="gbc">GBC</button>
+          <article class="system-panel">
+            <div class="system-label">GBA</div>
+            <h3>Game Boy Advance</h3>
+            <p>ARM7TDMI ARM and Thumb execution, tiled and affine backgrounds, OBJ rendering, DMA channels, timers, IRQ, and cartridge backup support.</p>
+            <ul>
+              <li>Modes 0-5, palette, VRAM, and OAM rendering</li>
+              <li>FIFO audio, SRAM, EEPROM, Flash, and RTC backup</li>
+              <li>Optional BIOS path with HLE fallback</li>
+            </ul>
+          </article>
         </div>
       </div>
+    </section>
 
-      <div class="compat-table-wrap">
-        <table class="compat-table">
-          <thead>
-            <tr>
-              <th>Game</th>
-              <th>Platform</th>
-              <th>MBC</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="compat-tbody">
-          </tbody>
-        </table>
-        <div id="compat-empty" class="compat-empty hidden">No games found.</div>
-        <div class="compat-pagination">
-          <button id="prev-page" class="page-btn" disabled>&#8592; Prev</button>
-          <span id="page-info">Page 1</span>
-          <button id="next-page" class="page-btn">Next &#8594;</button>
+    <section id="lab" class="section section-dark">
+      <div class="container lab-layout">
+        <div class="section-heading align-left">
+          <p class="eyebrow">Accuracy lab</p>
+          <h2 class="section-title">The interesting part is the evidence trail</h2>
+          <p class="section-sub">The emulator ships with runners and visual tools that make regressions observable instead of anecdotal.</p>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <section id="downloads" class="section">
-    <div class="container">
-      <h2 class="section-title">Downloads</h2>
-      <p class="section-sub">Build from source or grab the latest release</p>
-      <div class="downloads-grid">
-        <div class="download-card">
-          <div class="download-icon">&#x1F427;</div>
-          <h3>Linux</h3>
-          <p>Build with <code>make</code>. Requires SDL2 and a C11 compiler.</p>
-          <a href="https://github.com/moisa/meu-gameboy" class="btn-outline" target="_blank">View on GitHub</a>
+        <div class="lab-grid">
+          <article class="lab-card">
+            <img src="../img/die.png" alt="Debugger view with CPU, disassembly, die, and memory panels">
+            <div>
+              <h3>Debugger and die views</h3>
+              <p>CPU state, disassembly, breakpoints, watchpoints, memory, VRAM, screenshots, trace controls, save-state slots, SRAM actions, audio controls, and SM83 die views live in the ImGui debugger.</p>
+            </div>
+          </article>
+
+          <article class="lab-card">
+            <img src="../img/mode-vector.png" alt="Vector frontend showing DMG and CGB layouts">
+            <div>
+              <h3>Alternative frontends</h3>
+              <p>The repo includes the main SDL3 desktop frontend, lightweight builds, and a vector-rendered Game Boy frontend for inspecting the machine with a different visual language.</p>
+            </div>
+          </article>
         </div>
-        <div class="download-card">
-          <div class="download-icon">&#x1F34E;</div>
-          <h3>macOS</h3>
-          <p>Build with <code>make</code>. Requires SDL2 via Homebrew.</p>
-          <a href="https://github.com/moisa/meu-gameboy" class="btn-outline" target="_blank">View on GitHub</a>
-        </div>
-        <div class="download-card">
-          <div class="download-icon">&#x1F5A5;</div>
-          <h3>Windows</h3>
-          <p>Build with MinGW or MSYS2. SDL2 required.</p>
-          <a href="https://github.com/moisa/meu-gameboy" class="btn-outline" target="_blank">View on GitHub</a>
+
+        <div class="proof-strip" aria-label="Verification categories">
+          <div>
+            <span class="proof-value">96.6%</span>
+            <span class="proof-label">Blargg shootout pass rate</span>
+          </div>
+          <div>
+            <span class="proof-value">0</span>
+            <span class="proof-label">Tool failures in commercial smoke snapshot</span>
+          </div>
+          <div>
+            <span class="proof-value">DMG/CGB/GBA</span>
+            <span class="proof-label">Test runners and smoke workflows</span>
+          </div>
         </div>
       </div>
-      <div class="build-snippet">
-        <span class="snippet-label">Quick build</span>
-        <pre><code>git clone https://github.com/moisa/meu-gameboy
-cd meu-gameboy
-make
-./goldboy path/to/rom.gb</code></pre>
+    </section>
+
+    <section id="frontier" class="section">
+      <div class="container">
+        <div class="section-heading">
+          <p class="eyebrow">Current frontier</p>
+          <h2 class="section-title">Honest accuracy work, visible targets</h2>
+          <p class="section-sub">The open edges are tracked as specific hardware behaviors and named tests rather than vague compatibility claims.</p>
+        </div>
+
+        <div class="frontier-grid">
+          <article class="frontier-item">
+            <span class="frontier-tag">GB/GBC</span>
+            <h3>PPU and OAM edge cases</h3>
+            <p>Pixel FIFO behavior, sprite timing, OAM corruption, and CGB composition remain the high-value targets for visual precision.</p>
+          </article>
+          <article class="frontier-item">
+            <span class="frontier-tag">STOP</span>
+            <h3>Mode 3 and LCD behavior</h3>
+            <p>DMG-compatible ROMs on CGB hardware need careful separation between STOP semantics and palette/rendering compatibility.</p>
+          </article>
+          <article class="frontier-item">
+            <span class="frontier-tag">GBA</span>
+            <h3>Bus timing and FIFO sync</h3>
+            <p>Prefetch, cartridge waitstates, affine accuracy, and audio FIFO synchronization are the next realism-heavy GBA areas.</p>
+          </article>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <section id="compat" class="section section-dark">
+      <div class="container">
+        <div class="section-heading">
+          <p class="eyebrow">Commercial smoke snapshot</p>
+          <h2 class="section-title">Compatibility database</h2>
+          <p class="section-sub">Results from automated GB/GBC commercial-ROM smoke testing. Review means the capture needs human inspection, not necessarily that the game is broken.</p>
+        </div>
+
+        <div class="compat-summary">
+          <div class="summary-card">
+            <span class="summary-num" id="summary-total">1,028</span>
+            <span class="summary-label">ROMs tested</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-num" id="summary-ok">922</span>
+            <span class="summary-label">Likely working</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-num" id="summary-review">106</span>
+            <span class="summary-label">Needs review</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-num" id="summary-blank">4</span>
+            <span class="summary-label">Blank-screen reviews</span>
+          </div>
+        </div>
+
+        <div class="compat-bar-wrap">
+          <div class="compat-bar" aria-label="Likely working percentage">
+            <div class="compat-bar-fill" id="compat-bar-fill" style="width: 89.7%"></div>
+          </div>
+          <div class="compat-legend">
+            <span><span class="legend-dot dot-ok"></span> Likely working <strong id="legend-ok">922</strong></span>
+            <span><span class="legend-dot dot-review"></span> Needs review <strong id="legend-review">106</strong></span>
+            <span><span class="legend-dot dot-blank"></span> Blank-screen review <strong id="legend-blank">4</strong></span>
+          </div>
+        </div>
+
+        <div class="compat-controls">
+          <input type="text" id="search" placeholder="Search by game name..." class="search-input" autocomplete="off">
+          <div class="filter-buttons" aria-label="Compatibility filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="ok">Working</button>
+            <button class="filter-btn" data-filter="review">Needs Review</button>
+            <button class="filter-btn" data-filter="blank">Blank</button>
+            <button class="filter-btn" data-filter="dmg">DMG</button>
+            <button class="filter-btn" data-filter="gbc">GBC</button>
+          </div>
+        </div>
+
+        <div class="compat-table-wrap">
+          <table class="compat-table">
+            <thead>
+              <tr>
+                <th>Game</th>
+                <th>Platform</th>
+                <th>MBC</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="compat-tbody">
+            </tbody>
+          </table>
+          <div id="compat-empty" class="compat-empty hidden">No games found.</div>
+          <div class="compat-pagination">
+            <button id="prev-page" class="page-btn" disabled>Prev</button>
+            <span id="page-info">Page 1</span>
+            <button id="next-page" class="page-btn">Next</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="build" class="section">
+      <div class="container">
+        <div class="section-heading">
+          <p class="eyebrow">Build and inspect</p>
+          <h2 class="section-title">Run the emulator or reproduce the evidence</h2>
+          <p class="section-sub">The site mirrors the repo's local workflows: SDL3 desktop builds, headless compatibility runners, and generated reports.</p>
+        </div>
+
+        <div class="build-grid">
+          <article class="build-card">
+            <h3>Frontends</h3>
+            <pre><code>make gameboy
+make meu-gba
+make gameboy-vector
+
+./gameboy path/to/rom.gb
+./meu-gba path/to/rom.gba</code></pre>
+          </article>
+          <article class="build-card">
+            <h3>Verification</h3>
+            <pre><code>make compat-run
+make game-smoke
+make gba-compat-run
+make shootout-run</code></pre>
+          </article>
+          <article class="build-card">
+            <h3>Requirements</h3>
+            <p>Use GCC or Clang, G++ for ImGui frontends, SDL3 development files, OpenGL development files, <code>make</code>, <code>pkg-config</code>, and the checked-out ImGui submodule.</p>
+            <a href="https://github.com/moisa/meu-gameboy" class="btn-outline" target="_blank" rel="noreferrer">View source</a>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span class="footer-name">Goldboy</span>
-      <span class="footer-copy">Open source — <a href="https://github.com/moisa/meu-gameboy" target="_blank">GitHub</a></span>
+      <span class="footer-name">meu-gameboy</span>
+      <span class="footer-copy">DMG, CGB, and GBA emulator - <a href="https://github.com/moisa/meu-gameboy" target="_blank" rel="noreferrer">GitHub</a></span>
     </div>
   </footer>
 
