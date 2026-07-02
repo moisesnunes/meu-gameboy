@@ -18,6 +18,8 @@ void gba_memory_reset(struct gba *gba)
 }
 
 static uint16_t dma_ctrl_read16(struct gba *gba, int n);
+static uint16_t gba_memory_read16_source(struct gba *gba, uint32_t addr,
+                                         enum gba_memory_access_source source);
 
 static bool timer0_irq_edge_accepted(struct gba *gba, uint16_t ie)
 {
@@ -169,13 +171,17 @@ static uint16_t dma_ctrl_read16(struct gba *gba, int n)
                        (ch->enable << 15));
 }
 
-static uint16_t io_read16(struct gba *gba, uint32_t addr)
+static uint16_t io_read16_source(struct gba *gba, uint32_t addr,
+                                 enum gba_memory_access_source source)
 {
      addr &= ~1U;
      switch (addr)
      {
      case REG_DISPCNT ... REG_BLDY:
-          return gba_gpu_read16(gba, addr);
+          return gba_gpu_read16_sampled(gba, addr,
+                                        source == GBA_MEMORY_ACCESS_DMA
+                                            ? GBA_GPU_SAMPLE_DMA
+                                            : GBA_GPU_SAMPLE_CPU);
      case REG_SOUND1CNT_L ... REG_SOUNDCNT_X:
      case REG_SOUNDBIAS:
      case 0x04000090 ... 0x0400009E:
@@ -787,6 +793,17 @@ uint8_t gba_memory_read8(struct gba *gba, uint32_t addr)
 
 uint16_t gba_memory_read16(struct gba *gba, uint32_t addr)
 {
+     return gba_memory_read16_source(gba, addr, GBA_MEMORY_ACCESS_CPU);
+}
+
+uint16_t gba_memory_read16_dma(struct gba *gba, uint32_t addr)
+{
+     return gba_memory_read16_source(gba, addr, GBA_MEMORY_ACCESS_DMA);
+}
+
+static uint16_t gba_memory_read16_source(struct gba *gba, uint32_t addr,
+                                         enum gba_memory_access_source source)
+{
      if ((addr >> 24) >= 0x0E)
      {
           gba->mem_cycles += cpu_wait_cycles(gba, addr, GBA_MEMORY_ACCESS_16,
@@ -808,7 +825,7 @@ uint16_t gba_memory_read16(struct gba *gba, uint32_t addr)
      }
      addr &= ~1U;
      if ((addr >> 24) == 0x04 && addr < GBA_IO_BASE + GBA_IO_SIZE)
-          return io_read16(gba, addr);
+          return io_read16_source(gba, addr, source);
      return (uint16_t)(gba_memory_read8(gba, addr) |
                        ((uint16_t)gba_memory_read8(gba, addr + 1) << 8));
 }

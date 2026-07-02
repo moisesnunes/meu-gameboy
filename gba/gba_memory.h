@@ -170,6 +170,7 @@ struct gba_memory_access {
 
 uint8_t gba_memory_read8(struct gba *gba, uint32_t addr);
 uint16_t gba_memory_read16(struct gba *gba, uint32_t addr);
+uint16_t gba_memory_read16_dma(struct gba *gba, uint32_t addr);
 uint32_t gba_memory_read32(struct gba *gba, uint32_t addr);
 uint16_t gba_memory_fetch16(struct gba *gba, uint32_t addr, bool sequential);
 uint32_t gba_memory_fetch32(struct gba *gba, uint32_t addr, bool sequential);

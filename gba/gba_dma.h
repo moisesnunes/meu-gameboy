@@ -45,6 +45,7 @@ struct gba_dma_channel
      bool enable;
 
      bool pending;       /* transfer triggered, waiting to run */
+     int32_t video_due_timestamp;
      bool video_oneshot; /* DMA3 SPECIAL was enabled with an effective count of 1 */
 };
 

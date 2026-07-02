@@ -59,5 +59,8 @@ glob:{gba_root}/FuzzARM-master/*.gba	visual	500000000	5c92b8b7b2c9b6c72684422a91
 {gba_root}/hw-test-master/ppu/greenswap/greenswap.gba	visual	100000000	e32f30ed7a79450001c02cb7aac1ad64433236b1
 {gba_root}/hw-test-master/ppu/ram-access-timing/ram-access-timing.gba	visual	100000000
 {gba_root}/hw-test-master/ppu/sprite-hmosaic/sprite-hmosaic.gba	visual	100000000	372fa4adf6f8c695dbd8f90376fbfe866818ebdf
-{gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000
+# status-irq-dma é um menu; cobrimos subtestes navegados que expõem regressões
+# reais de VCOUNT e DMA em vez de assinar o menu inicial.
+{gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000	f7ab61e29e6d747bac811564a51791e8c9a067d2	--input DOWN:30:35 --input A:45:50
+{gba_root}/hw-test-master/ppu/status-irq-dma/status-irq-dma.gba	visual	100000000	92e6071419417cc54c025c625b0a18c4ec65db2d	--input DOWN:30:35 --input DOWN:45:50 --input DOWN:60:65 --input A:75:80
 {gba_root}/hw-test-master/ppu/vram-mirror/vram-mirror.gba	visual	100000000	0053ced99f06938eac54b91080e6fc109dcc00ea

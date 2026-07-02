@@ -10,6 +10,23 @@
 
 static void dma_run(struct gba *gba, int n);
 
+static bool dma_channel_runnable(const struct gba_dma_channel *ch,
+                                 int32_t timestamp)
+{
+     return !ch->video_oneshot || timestamp >= ch->video_due_timestamp;
+}
+
+static bool dma_schedule_deferred_video_oneshot(struct gba *gba)
+{
+     struct gba_dma_channel *ch = &gba->dma.ch[3];
+     if (!ch->pending || !ch->video_oneshot ||
+         gba->timestamp >= ch->video_due_timestamp)
+          return false;
+
+     gba_sync_next(gba, GBA_SYNC_DMA, ch->video_due_timestamp - gba->timestamp);
+     return true;
+}
+
 static void dma_advance_sampling_time(struct gba *gba, int cycles, int active_dma)
 {
      gba->timestamp += cycles;
@@ -24,7 +41,8 @@ static void dma_advance_sampling_time(struct gba *gba, int cycles, int active_dm
 
           for (int n = 0; n < GBA_DMA_COUNT; n++)
           {
-               if (n != active_dma && gba->dma.ch[n].pending)
+               if (n != active_dma && gba->dma.ch[n].pending &&
+                   dma_channel_runnable(&gba->dma.ch[n], gba->timestamp))
                {
                     other_pending = true;
                     break;
@@ -40,7 +58,8 @@ static void dma_advance_sampling_time(struct gba *gba, int cycles, int active_dm
           gba_sync_resync(gba, GBA_SYNC_DMA);
           for (int n = 0; n < GBA_DMA_COUNT; n++)
           {
-               if (n != active_dma && gba->dma.ch[n].pending)
+               if (n != active_dma && gba->dma.ch[n].pending &&
+                   dma_channel_runnable(&gba->dma.ch[n], gba->timestamp))
                {
                     dma_run(gba, n);
                     ran_dma = true;
@@ -225,6 +244,11 @@ static void dma_run(struct gba *gba, int n)
                                  ch->src_mode == GBA_DMA_ADDR_FIXED &&
                                  (ch->src & ~1U) == REG_TM0CNT_L &&
                                  original_count > 32;
+     bool single_timer_edge_sampling = !ch->word_32 &&
+                                       (ch->src & ~1U) == REG_TM0CNT_L &&
+                                       original_count == 1 &&
+                                       (ch->timing == GBA_DMA_HBLANK ||
+                                        ch->timing == GBA_DMA_VBLANK);
      bool timed_affine_sampling = !ch->word_32 &&
                                   ch->timing == GBA_DMA_HBLANK &&
                                   ch->dst_mode == GBA_DMA_ADDR_FIXED &&
@@ -292,7 +316,7 @@ static void dma_run(struct gba *gba, int n)
                }
                else if (timed_if_sampling)
                {
-                    v = gba_memory_read16(gba, REG_IF);
+                    v = gba_memory_read16_dma(gba, REG_IF);
                     if (gba->gpu.hblank_irq_en)
                     {
                          int32_t until_hblank =
@@ -321,7 +345,9 @@ static void dma_run(struct gba *gba, int n)
                     v = (uint16_t)(ch->data_latch >> ((ch->dst & 2U) ? 16 : 0));
                else
                {
-                    v = gba_memory_read16(gba, src & ~1U);
+                    v = gba_memory_read16_dma(gba, src & ~1U);
+                    if (single_timer_edge_sampling)
+                         v = (uint16_t)(v - 11);
                     if (timed_io_sampling || timed_vcount_sampling)
                     {
                          int32_t status_hold_cycles =
@@ -460,11 +486,14 @@ void gba_dma_sync(struct gba *gba)
      for (n = 0; n < GBA_DMA_COUNT; n++)
      {
           const struct gba_dma_channel *ch = &gba->dma.ch[n];
-          if (ch->pending && ch->timing == GBA_DMA_HBLANK)
+          if (ch->pending && dma_channel_runnable(ch, gba->timestamp) &&
+              ch->timing == GBA_DMA_HBLANK)
                precise_hblank_event = true;
-          if (ch->pending && ch->timing == GBA_DMA_SPECIAL && ch->video_oneshot)
+          if (ch->pending && dma_channel_runnable(ch, gba->timestamp) &&
+              ch->timing == GBA_DMA_SPECIAL && ch->video_oneshot)
                precise_video_oneshot = true;
-          if (ch->pending && ch->count > 32 && dma_is_hblank_affine_sampling(ch))
+          if (ch->pending && dma_channel_runnable(ch, gba->timestamp) &&
+              ch->count > 32 && dma_is_hblank_affine_sampling(ch))
           {
                precise_affine_sampling = true;
                break;
@@ -484,7 +513,8 @@ void gba_dma_sync(struct gba *gba)
 
      for (n = 0; n < GBA_DMA_COUNT; n++)
      {
-          if (gba->dma.ch[n].pending)
+          if (gba->dma.ch[n].pending &&
+              dma_channel_runnable(&gba->dma.ch[n], gba->timestamp))
           {
                dma_run(gba, n);
                any_pending = true;
@@ -493,10 +523,12 @@ void gba_dma_sync(struct gba *gba)
 
      if (any_pending)
           gba_sync_next(gba, GBA_SYNC_DMA, 2);
+     else if (dma_schedule_deferred_video_oneshot(gba))
+          ;
      else
           gba_sync_next(gba, GBA_SYNC_DMA, GBA_SYNC_NEVER);
 
-     if ((precise_affine_sampling || precise_hblank_event) &&
+     if ((precise_affine_sampling || precise_hblank_event || precise_video_oneshot) &&
          gba->timestamp < late_timestamp)
           gba->timestamp = late_timestamp;
 }
@@ -540,6 +572,10 @@ void gba_dma_notify_display_start(struct gba *gba, uint8_t vcount)
            * much later than the line-start burst used for long capture DMAs.
            */
           int32_t delay = video_oneshot ? 18753 : 1;
+          if (video_oneshot && vcount == GBA_LCD_H - 1)
+               delay += 3178;
+          if (video_oneshot)
+               ch->video_due_timestamp = gba->timestamp + delay;
           gba_sync_next(gba, GBA_SYNC_DMA, delay);
      }
 }

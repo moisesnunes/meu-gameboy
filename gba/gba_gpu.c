@@ -1078,9 +1078,23 @@ void gba_gpu_sync(struct gba *gba)
  * Register I/O
  */
 
-uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr)
+uint16_t gba_gpu_read16_sampled(struct gba *gba, uint32_t addr,
+                                enum gba_gpu_sample_phase phase)
 {
      struct gba_gpu *gpu = &gba->gpu;
+     uint8_t visible_vcount = gpu->vcount;
+
+     if (phase == GBA_GPU_SAMPLE_CPU && addr == REG_VCOUNT && gpu->hblank_flag)
+     {
+          int32_t until_line_end = gba->sync.next_event[GBA_SYNC_GPU] - gba->timestamp;
+          if (until_line_end >= 0 && until_line_end <= 2)
+          {
+               visible_vcount++;
+               if (visible_vcount >= GBA_LCD_TOTAL_LINES)
+                    visible_vcount = 0;
+          }
+     }
+
      switch (addr)
      {
      case REG_DISPCNT:
@@ -1106,10 +1120,15 @@ uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr)
                             (gpu->vcount_irq_en << 5) |
                             (gpu->vcount_trigger << 8));
      case REG_VCOUNT:
-          return gpu->vcount;
+          return visible_vcount;
      default:
           return 0;
      }
+}
+
+uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr)
+{
+     return gba_gpu_read16_sampled(gba, addr, GBA_GPU_SAMPLE_CPU);
 }
 
 uint8_t gba_gpu_read8(struct gba *gba, uint32_t addr)

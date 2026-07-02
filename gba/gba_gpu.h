@@ -115,8 +115,15 @@ struct gba_gpu
 
 void gba_gpu_reset(struct gba *gba);
 void gba_gpu_sync(struct gba *gba);
+enum gba_gpu_sample_phase
+{
+     GBA_GPU_SAMPLE_CPU,
+     GBA_GPU_SAMPLE_DMA,
+};
 uint8_t gba_gpu_read8(struct gba *gba, uint32_t addr);
 uint16_t gba_gpu_read16(struct gba *gba, uint32_t addr);
+uint16_t gba_gpu_read16_sampled(struct gba *gba, uint32_t addr,
+                                enum gba_gpu_sample_phase phase);
 void gba_gpu_write8(struct gba *gba, uint32_t addr, uint8_t val);
 void gba_gpu_write16(struct gba *gba, uint32_t addr, uint16_t val);
 void gba_gpu_write32(struct gba *gba, uint32_t addr, uint32_t val);
